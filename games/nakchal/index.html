@@ -206,6 +206,15 @@ button:focus-visible{outline:2px solid var(--hazard);outline-offset:2px}
 .iconbtn.new{background:var(--up);border-color:var(--up);color:#fff;animation:blink 1.2s infinite}
 @keyframes blink{50%{opacity:.6}}
 #inbar{position:fixed;left:max(12px,env(safe-area-inset-left,0px));top:calc(var(--hud-h,56px) + 10px);z-index:6;display:flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:calc(100vw - 24px)}#inbar .chip{background:#000c;border:1px solid var(--line);padding:7px 10px;border-radius:4px;font-size:13px;color:#fff}
+#mini{position:fixed;right:max(12px,env(safe-area-inset-right,0px));top:calc(var(--hud-h,56px) + 10px);z-index:5;width:150px;height:114px;border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 16px #0008;pointer-events:none}
+@media(max-width:700px){#mini{width:112px;height:85px}}
+.fly{position:fixed;z-index:13;transform:translateX(-50%);font-family:var(--mono);font-weight:700;font-size:16px;pointer-events:none;text-shadow:0 2px 6px #000;animation:flyup 1.4s ease-out forwards}.fly.gain{color:#4ade80}.fly.loss{color:#ff6b5b}
+@keyframes flyup{0%{opacity:0;transform:translate(-50%,-6px) scale(.8)}15%{opacity:1;transform:translate(-50%,0) scale(1.15)}100%{opacity:0;transform:translate(-50%,34px) scale(1)}}
+.chip.pop{animation:chippop .35s}@keyframes chippop{40%{transform:scale(1.12)}}
+.scwrap{position:relative;width:300px;max-width:100%;height:110px;margin:8px auto;border-radius:8px;overflow:hidden;background:#fff8e0;border:2px dashed #c89a30}.scwrap canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;transition:opacity .5s;cursor:crosshair}
+.scprize{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-around;font-family:var(--display);font-size:22px;color:#8a2a1a}
+.mgbar{position:relative;height:44px;background:#15130f;border:1px solid var(--line);border-radius:6px;margin:10px 0;overflow:hidden}.mgbar i{position:absolute;top:0;bottom:0;background:#1f9d55;box-shadow:inset 0 0 0 2px #4ade80}.mgbar b{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:#ff3b30;box-shadow:0 0 8px #ff3b30}
+.prank.mis li.ok{color:#4ade80}
 #drivebar{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 90px);z-index:6;display:flex;gap:8px;align-items:center;background:#000b;padding:8px;border-radius:4px;border:1px solid var(--line)}
 #drivebar .spd{font-family:var(--mono);font-size:13px;padding:0 6px;white-space:nowrap}#drivebar .spd b{font-size:22px;color:var(--hazard)}
 .prod.on{border-color:var(--hazard);background:#2e2a22}
@@ -235,6 +244,7 @@ button:focus-visible{outline:2px solid var(--hazard);outline-offset:2px}
   <span class="chip rent" id="hRentChip"><small>월세</small><b id="hRent">오늘 자정</b></span>
   <span class="chip"><small>경매</small><b id="hLot">11:00</b></span>
   <span class="hud-spacer"></span>
+  <button class="iconbtn" id="btnMis" data-act="missions">미션</button>
   <button class="iconbtn" id="btnPaper" data-act="paper">신문</button>
   <button class="iconbtn phone" id="btnPhone" data-act="phone">휴대폰</button>
   <button class="iconbtn" id="btnMute" data-act="mute" aria-label="소리 켜고 끄기">소리 켬</button>
@@ -244,7 +254,7 @@ button:focus-visible{outline:2px solid var(--hazard);outline-offset:2px}
 <button id="prompt" class="btn go" data-act="enter" hidden></button>
 <div id="hint" hidden>끌어서 시점 회전 · 누르거나 WASD로 이동 · 건물을 누르면 걸어가서 들어가요</div>
 <div id="joy" hidden><i></i></div>
-<div id="drivebar" hidden></div><div id="inbar" hidden></div>
+<canvas id="mini" width="150" height="114" hidden></canvas><div id="drivebar" hidden></div><div id="inbar" hidden></div>
 <div id="toast"></div>
 <div id="stamp"></div>
 <div id="modal" hidden><div class="box" id="modalBox"></div></div>
@@ -833,7 +843,8 @@ function renderHUD(){if(!P||!P.broken)return;$('#hud').hidden=false;$('#hDay').t
   const nl=(P.lots||[]).find(l=>!l.done);$('#hLot').textContent=nl?hhmm(nl.at):'내일';
   const bp=$('#btnPhone');bp.disabled=P.broken.phone||!(PHONE_OK.includes(phase)||phase==='phone');bp.textContent=P.broken.phone?'휴대폰 고장':phase==='phone'?'휴대폰 닫기':'휴대폰';
   $('#btnPaper').classList.toggle('new',!!P.paperUnread);
-  P.stats.maxWorth=Math.max(P.stats.maxWorth||0,myWorth());}
+  P.stats.maxWorth=Math.max(P.stats.maxWorth||0,myWorth());cashFly();
+  {const b=$('#btnMis'),ms=P.missions||[];b.hidden=!ms.length;b.textContent=`미션 ${ms.filter(m=>m.done).length}/${ms.length}`;b.classList.toggle('go',ms.length&&ms.every(m=>m.done));}}
 function lotLevel(){return P.tier*.8+Math.max(0,Math.log2(Math.max(1,myWorth())/300))*.6;}
 
 /* ============ auction lots ============ */
@@ -909,7 +920,7 @@ function startDay(first){mod={};const lines=[];if(!first){const l=rollLife();if(
   P.todayRets=computeRets(P);planDay();P.sampleT=P.time;
   const n=mod.lots??3;P.lots=[];const fi=randi(0,Math.max(0,n-1));for(let i=0;i<n;i++){const lot=genLot(i===fi?force:null);lot.at=LOT_TIMES[i];lot.done=false;lot.result=null;lot.att=pickAttendees();P.lots.push(lot);}
   if(phase==='auction'&&!OFF)auctionLobby();
-  genDeals();P.paperUnread=true;P.mod=mod;saveRun();
+  genDeals();genMissions();P.rain=!first&&Math.random()<.2;if(P.rain)P.life+=' 하루 종일 비가 온다. 길이 미끄러워 운전자들이 사람을 잘 못 본다.';P.paperUnread=true;P.mod=mod;saveRun();
   if(OFF)return;renderHUD();renderCurrent();if(first)showPaper();else{toast(`${gameDate()} · 새 신문이 왔어요. 위쪽 신문 버튼을 눌러 보세요.`,'good');sfx.paper();}}
 function updatePrices(){const k=clamp((P.time-MKT_OPEN)/(MKT_CLOSE-MKT_OPEN),0,1);
   for(const a of ASSETS){const s=P.mkt[a.id],p=P.paths[a.id],r=P.todayRets[a.id];let f=k;if(p.at!=null){const x=clamp((P.time-p.at)/1.2,0,1);f=x*x*(3-2*x);}
@@ -936,7 +947,7 @@ function timers(){
   if(phase==='roadtrip'||(phase==='phone'&&PH.prev==='roadtrip')){if(!RT.ev&&absNow()>=(RT.start+RT.end)/2){RT.ev=true;roadEvent();}if(absNow()>=RT.end){if(phase==='phone')closePhone();arriveRoad();}}}
 let hudT=0;
 function tick(rdt){const dh=rdt*TSCALE/3600;P.time+=dh;body(dh);breakdowns(dh);updatePrices();fireNews();auctionClock();timers();
-  hudT+=rdt;if(hudT>.25){hudT=0;renderHUD();liveRefresh();}
+  hudT+=rdt;if(hudT>.25){hudT=0;if(P.missions&&myWorth()-(P.prevWorth||0)>=10)mis('profit');renderHUD();liveRefresh();}
   if(P.hp<=0){collapse();return;}
   if(P.time>=24)midnight();}
 function autoEat(){if(P.food>=35)return;const s=STORE.filter(s=>(P.pantry[s.id]||0)>0&&s.sat>0).sort((a,b)=>b.sat-a.sat)[0];if(!s)return;P.pantry[s.id]--;P.food=Math.min(100,P.food+s.sat);P.hp=clamp(P.hp+(s.hp||0),0,100);OFFLOG.push(`배가 고파서 ${J(s.name,'을','를')} 꺼내 먹었다.`);}
@@ -963,7 +974,7 @@ function liveRefresh(){
 const BZ={active:false};
 const BUSYDEF={
   work:d=>({title:'편의점 알바 중',place:'떡상마트 24 계산대',note:`6시간 꽉 채우면 7만 원. 현실 시간으로 ${realDur(6)} 걸려요. 중간에 조퇴하면 일한 만큼만 받아요.`,stop:'조퇴하기',
-    done:early=>{const h=clamp(absNow()-BZ.start,0,6);let pay=r1(h/6*7);let msg=`알바 ${dur(h)} · +${won(pay)}`;if(!early&&Math.random()<.12){pay+=3;msg+=' · 사장님 보너스 +3만원';}P.cash+=pay;P.stats.work=(P.stats.work||0)+1;say(msg,'good');if(!OFF){sfx.cash();stamp('+'+won(pay).replace('원',''),true);}}}),
+    done:early=>{const h=clamp(absNow()-BZ.start,0,6);let pay=r1(h/6*7);let msg=`알바 ${dur(h)} · +${won(pay)}`;if(!early&&Math.random()<.12){pay+=3;msg+=' · 사장님 보너스 +3만원';}P.cash+=pay;P.stats.work=(P.stats.work||0)+1;if(!early)mis('work');say(msg,'good');if(!OFF){sfx.cash();stamp('+'+won(pay).replace('원',''),true);}}}),
   luck:d=>({title:`${LUCKS[d.kind].name} 중`,place:(CITIES[d.city]||{}).name||'',note:LUCKS[d.kind].desc,done:()=>luckResult(d.kind)}),
   hosp:d=>({title:'입원 치료 중',place:'떡상대학병원 정형외과',note:d.note,done:()=>{P.hp=Math.min(100,Math.max(P.hp,35)+d.sev*.7);P.food=Math.max(P.food,70);if(d.gain){P.cash+=d.gain;say(`퇴원! 상대 보험사 합의금 +${won(d.gain)}`,'good');if(!OFF){sfx.cash();stamp('+'+won(d.gain).replace('원',''),true);}}else say('퇴원했다. 차 조심하자.');}}),
   fixT:d=>({title:'수리 기사님 기다리는 중',place:'우리 집',note:`${APPL[d.k].name} 수리를 맡겼어요.`,done:()=>{P.broken[d.k]=false;refreshAppliances();say(`${APPL[d.k].name} 수리 완료`,'good');}}),
@@ -1020,15 +1031,24 @@ const CARS={
   sedan:{name:'대형 세단',price:5800,col:0x1a1a1e,len:4.9,wid:1.85,hgt:1.45,top:18,trip:.92,fuel:.013,brk:.04,style:'sedan',desc:'조용하고 빠르다'},
   sports:{name:'스포츠카',price:23000,col:0xd9483b,len:4.4,wid:1.9,hgt:1.2,top:25,trip:.8,fuel:.022,brk:.05,style:'sports',desc:'모두가 쳐다본다. 단속도 잘 걸린다'},
 };
-function buildCarModel(id,col){const C=CARS[id];const g=new THREE.Group();const body=M(col??C.col,{flat:false,r:.3,m:.5});const dark=M(0x141418,{flat:false,r:.6});const glass=M(0x1e2a36,{flat:false,r:.08,m:.6});
-  const L=C.len,W=C.wid,H=C.hgt,low=H*.45,cab=H*.42;
-  g.add(mesh(G.box(W,low,L),body,0,.28+low/2,0));
-  const cl=C.style==='suv'?L*.7:C.style==='sports'?L*.42:L*.52,cz=C.style==='suv'?-L*.06:C.style==='sports'?-L*.08:-L*.02;
-  g.add(mesh(G.box(W*.88,cab,cl),glass,0,.28+low+cab/2,cz),mesh(G.box(W*.9,.06,cl*.96),body,0,.28+low+cab+.02,cz));
-  for(const x of[-1,1])for(const z of[-1,1]){const w=mesh(G.cyl(.34,.34,.24,16),dark,x*W/2,.34,z*L*.32);w.rotation.z=Math.PI/2;g.add(w);}
-  for(const x of[-1,1]){g.add(mesh(G.box(.32,.12,.04),M(0xffffff,{e:0xfff2c8,ei:1.6}),x*W*.33,.28+low*.72,L/2+.01));g.add(mesh(G.box(.32,.1,.04),M(0xc81a1a,{e:0xff2020,ei:1}),x*W*.33,.28+low*.72,-L/2-.01));}
-  if(C.style==='sports')g.add(mesh(G.box(W*.9,.06,.35),body,0,.28+low+.28,-L/2+.25),mesh(G.box(.06,.26,.1),dark,-W*.3,.28+low+.12,-L/2+.25),mesh(G.box(.06,.26,.1),dark,W*.3,.28+low+.12,-L/2+.25));
-  if(C.style==='suv')g.add(mesh(G.box(W*.8,.05,.06),dark,0,.28+low+cab+.12,cz-cl*.3),mesh(G.box(W*.8,.05,.06),dark,0,.28+low+cab+.12,cz+cl*.3));
+function buildCarModel(id,col){const C=CARS[id],L=C.len,W=C.wid,H=C.hgt,g=new THREE.Group();
+  const paint=new THREE.MeshStandardMaterial({color:col??C.col,roughness:.26,metalness:.6,envMap:envTex,envMapIntensity:1});const dark=M(0x121215,{flat:false,r:.7}),glass=new THREE.MeshStandardMaterial({color:0x10161c,roughness:.06,metalness:.9,envMap:envTex,envMapIntensity:1.4}),chrome=M(0xc8ccd2,{flat:false,r:.25,m:.9});
+  const S={mini:{cab:[-.47,-.4,.14,.34],belt:.56,nose:.9},suv:{cab:[-.48,-.43,.1,.27],belt:.55,nose:.92},sedan:{cab:[-.31,-.17,.1,.27],belt:.6,nose:.85},sports:{cab:[-.27,-.08,.07,.27],belt:.62,nose:.7}}[C.style];
+  const gc=.2,by=gc+(H-gc)*S.belt;const ext=(pts,w,mat,bev=.05)=>{const sh=new THREE.Shape();pts.forEach((p,i)=>i?sh.lineTo(p[0],p[1]):sh.moveTo(p[0],p[1]));const geo=new THREE.ExtrudeGeometry(sh,{depth:w-bev*2,bevelEnabled:true,bevelSize:bev,bevelThickness:bev,bevelSegments:2,curveSegments:4});geo.translate(0,0,-(w-bev*2)/2);const m=new THREE.Mesh(geo,mat);m.rotation.y=-Math.PI/2;m.castShadow=true;m.receiveShadow=true;g.add(m);return m;};
+  const hf=gc+(by-gc)*S.nose;
+  ext([[-L/2+.05,gc],[-L/2+.02,by-.08],[-L/2+.08,by],[S.cab[3]*L,by],[L/2-.12,hf],[L/2-.04,hf-.1],[L/2-.04,gc]],W,paint,.06);
+  ext([[S.cab[0]*L,by-.02],[S.cab[1]*L,H-.05],[S.cab[2]*L,H-.05],[S.cab[3]*L,by-.02]],W*.9,glass,.04);
+  ext([[S.cab[1]*L-.03,H-.07],[S.cab[1]*L+.02,H],[S.cab[2]*L-.02,H],[S.cab[2]*L+.03,H-.07]],W*.86,paint,.03);
+  for(const fx of[S.cab[1]*.45+S.cab[2]*.55])g.add(mesh(G.box(W*.915,H-by-.04,.07),paint,0,(H+by)/2-.03,fx*L));
+  g.add(mesh(G.box(W*.96,.16,L*.985),dark,0,gc+.03,0));
+  const wr=Math.min(.36,H*.24);for(const x of[-1,1])for(const z of[-1,1]){const w=new THREE.Group();const t=mesh(G.cyl(wr,wr,.22,18),dark);t.rotation.z=Math.PI/2;const rim=mesh(G.cyl(wr*.62,wr*.62,.23,12),chrome);rim.rotation.z=Math.PI/2;const hub=mesh(G.cyl(wr*.2,wr*.2,.24,8),dark);hub.rotation.z=Math.PI/2;w.add(t,rim,hub);w.position.set(x*(W/2-.1),wr,z*L*.31);g.add(w);
+    const arch=mesh(G.box(.04,wr*.5,wr*2.5),dark,x*(W/2-.005),wr*1.75,z*L*.31);g.add(arch);}
+  const hl=M(0xffffff,{e:0xfff2c8,ei:1.8,flat:false}),tl=M(0xc81a1a,{e:0xff2020,ei:1.1,flat:false});
+  for(const x of[-1,1]){g.add(mesh(G.box(W*.2,.1,.05),hl,x*W*.33,hf-.2,L/2-.03),mesh(G.box(W*.22,.09,.05),tl,x*W*.33,by-.2,-L/2+.02));
+    const mir=mesh(G.box(.14,.09,.07),paint,x*(W/2+.05),by+.07,S.cab[3]*L-.25);g.add(mir);}
+  g.add(mesh(G.box(W*.5,.14,.04),dark,0,gc+.2,L/2-.03),mesh(G.box(.42,.11,.02),M(0xf4f4f0),0,gc+.14,-L/2+.02),mesh(G.box(W*.94,.05,.04),chrome,0,gc+.1,L/2-.03));
+  if(C.style==='sports')g.add(mesh(G.box(W*.86,.04,.3),paint,0,by+.22,-L/2+.22),mesh(G.box(.05,.22,.08),dark,-W*.3,by+.1,-L/2+.22),mesh(G.box(.05,.22,.08),dark,W*.3,by+.1,-L/2+.22));
+  if(C.style==='suv')for(const x of[-1,1])g.add(mesh(G.box(.04,.04,(S.cab[2]-S.cab[1])*L*.9),chrome,x*W*.36,H+.04,(S.cab[1]+S.cab[2])/2*L));
   return g;}
 
 const BUILDINGS=[
@@ -1125,7 +1145,7 @@ function buildWorld(){const s=new THREE.Scene();s.userData.noEnv=true;s.backgrou
     const cone=new THREE.Mesh(new THREE.ConeGeometry(2.2,4.2,20,1,true),new THREE.MeshBasicMaterial({color:0xffe2a8,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));cone.position.set(x,2.15,z+dir*1);s.add(cone);WD.cones.push(cone);};
   for(let x=-62;x<=62;x+=16){lamp(x+3,-4.9,1);lamp(x-5,4.9,-1);}for(let z=12;z<=30;z+=9){const c=new THREE.Group();lamp(-4.9,z,0);lamp(4.9,z,0);}for(let x=-60;x<=60;x+=20)lamp(x,32.4,1);
   for(const [x,z] of[[-12,0],[12,0],[0,22],[-30,-8],[30,-8]]){const p=new THREE.PointLight(0xffd9a0,0,16,1.4);p.position.set(x,4.2,z);s.add(p);WD.pl.push(p);}
-  const tree=(x,z,k=1,c)=>s.add(mesh(G.cyl(.14*k,.2*k,1.6*k,7),M(0x6a4a2a),x,.8*k,z),mesh(new THREE.IcosahedronGeometry(1.25*k,0),M(c||pick([0x3f8f45,0x4a9a50,0x357a3c])),x,2.2*k,z));
+  const leafG=new THREE.IcosahedronGeometry(1,1);const tree=(x,z,k=1,c)=>{const col=c||pick([0x3f8f45,0x4a9a50,0x357a3c,0x4f9a3f]);s.add(mesh(G.cyl(.12*k,.2*k,1.9*k,8),M(0x5a4028,{flat:false}),x,.95*k,z));for(const [dx,dy,dz,r] of[[0,2.5,0,1.05],[.55,2.1,.2,.75],[-.5,2.15,-.25,.8],[.1,2.0,-.6,.7],[-.15,3.1,.15,.7]]){const m=mesh(leafG,M(new THREE.Color(col).multiplyScalar(rand(.85,1.15)).getHex(),{flat:false,r:.95}),x+dx*k,dy*k,z+dz*k);m.scale.set(r*k,r*k*.9,r*k);s.add(m);}};
   for(let x=-60;x<62;x+=11)if(Math.abs(x)>9)tree(x,7.3,rand(.8,1.1));for(let x=-62;x<62;x+=8)tree(x+rand(-1,1),33,rand(.8,1.2));
   for(let i=0;i<18;i++){const x=rand(10,50),z=rand(10,30);if(Math.hypot(x-28,z-20)>4&&!(x<27&&z<17))tree(x,z,rand(.9,1.4));}for(let i=0;i<30;i++){let x=rand(-80,80);if(Math.abs(x)<7)x+=x<0?-8:8;tree(x,rand(56,76),rand(1,1.6));}
   s.add(mesh(G.cyl(2.6,2.8,.6,20),M(0xc8c4bc,{flat:false}),28,.3,20),mesh(G.cyl(2.2,2.2,.05,20),M(0x5ab0e0,{e:0x1a4060,ei:.4,flat:false}),28,.6,20),mesh(G.cyl(.3,.4,1.6,10),M(0xc8c4bc),28,1.2,20));
@@ -1137,7 +1157,7 @@ function buildWorld(){const s=new THREE.Scene();s.userData.noEnv=true;s.backgrou
   const vm=new THREE.Group();vm.add(mesh(G.box(.95,1.9,.75),M(0xc8202b,{flat:false}),0,.95,0),mesh(G.box(.75,1,.02),M(0xdff2ff,{e:0xbfe6ff,ei:.5}),0,1.25,.385));vm.position.set(-34,0,-7.4);s.add(vm);
   for(const [x,z] of[[-8,-36],[8,-36]])s.add(mesh(G.cyl(.35,.3,.8,10),M(0xb8653a),x,.4,z),mesh(new THREE.IcosahedronGeometry(.7,0),M(0x3a8a4a),x,1.3,z));
   // the player
-  WD.me=makePerson({shirt:0xffc531,pants:0x2a3a5a,hair:0x1d1a17});s.add(WD.me.g);const me=labelSprite('나',{bg:'#ffc531',fg:'#15120a',scale:.36});me.position.set(0,2.6,0);WD.me.g.add(me);
+  WD.me=makePerson({shirt:0xffc531,pants:0x2a3a5a,hair:0x1d1a17});s.add(WD.me.g);const me=labelSprite('나',{bg:'#ffc531',fg:'#15120a',scale:.36});me.position.set(0,2.12,0);WD.me.g.add(me);
   WD.walkRoot=new THREE.Group();s.add(WD.walkRoot);WD.carRoot=new THREE.Group();s.add(WD.carRoot);
   // traffic
   const tcol=[0xe8e4d8,0x2f6fb0,0x1a1a1e,0xd9483b,0x8a8f96,0x3a8a5a,0xf2c14a];const kinds=['mini','suv','sedan','suv','sedan','mini','suv'];
@@ -1180,7 +1200,7 @@ function trafficStep(dt){const L=lightState(),T=WD.traffic;const night=P&&(P.tim
   if(!WD.seeded){WD.seeded=true;for(let i=0;i<want;i++){const c=T[i],r=TRR[i%TRR.length],k=Math.floor(i/TRR.length);Object.assign(c,{on:true,r,s:30+k*(r.L-60)/2+rand(0,25),v:c.vmax,hold:0,careless:false});c.m.visible=true;}return;}
   WD.spawnT=(WD.spawnT||0)-dt;
   if(active<want&&WD.spawnT<=0){const c=T.find(c=>!c.on);if(c){let tot=0;for(const r of TRR)tot+=r.w;let x=Math.random()*tot,r=TRR[0];for(const q of TRR){x-=q.w;if(x<=0){r=q;break;}}
-    if(!T.some(o=>o.on&&o.r===r&&o.s<14)){Object.assign(c,{on:true,r,s:0,v:c.vmax*.8,hold:0,careless:Math.random()<(night?.3:.12)});c.m.visible=true;WD.spawnT=rand(.8,2.2);}}}
+    if(!T.some(o=>o.on&&o.r===r&&o.s<14)){Object.assign(c,{on:true,r,s:0,v:c.vmax*.8,hold:0,careless:Math.random()<(night?.3:.12)+(P&&P.rain?.15:0)});c.m.visible=true;WD.spawnT=rand(.8,2.2);}}}
   const obs=obstaclesForTraffic();
   for(const c of T){if(!c.on)continue;let lim=c.vmax;
     const ds=c.r.stopS-c.s-c.L/2;if(ds>-.4&&ds<35){const st=L[c.r.grp];if(st==='R'||(st==='Y'&&ds>c.v*c.v/10))lim=Math.min(lim,Math.sqrt(Math.max(0,2*4.5*(ds-.3))));}
@@ -1226,7 +1246,7 @@ function route(a,b){const pts=[];let s=sideOf(a);const lineZ=x=>x==='S'?6.3:-6.3
   if(ts!==s){const cx=(a.x+b.x)/2<0?-10:10;pts.push({x:cx,z:lineZ(s)},{x:cx,z:lineZ(ts)});}
   if(t==='P'){pts.push({x:clamp(b.x,-5,5),z:-6.3});}else pts.push({x:b.x,z:lineZ(ts)});pts.push({x:b.x,z:b.z});return pts;}
 function buildWalkers(){WD.walkRoot.clear();WD.walkers=P.ais.map((ai,i)=>{const f=makePerson({shirt:ai.color,hat:ai.style==='auction'?0x1a1a1a:null,hair:ai.style==='degen'?0xe0c050:ai.style==='value'?0x6a6a6a:0x1d1a17,hairStyle:ai.style==='momentum'?'long':ai.style==='degen'?'bun':'short'});
-  const tag=labelSprite(ai.name,{scale:.34});tag.position.set(0,2.6,0);f.g.add(tag);f.g.position.set(rand(-50,50),0,Math.random()<.5?-6.3:6.3);WD.walkRoot.add(f.g);return{ai,i,f,path:null,wait:rand(0,4),inside:0,ph:rand(0,6),tb:null};});}
+  const tag=labelSprite(ai.name,{scale:.3});tag.position.set(0,2.12,0);f.g.add(tag);f.g.position.set(rand(-50,50),0,Math.random()<.5?-6.3:6.3);WD.walkRoot.add(f.g);return{ai,i,f,path:null,wait:rand(0,4),inside:0,ph:rand(0,6),tb:null};});}
 function animWalk(f,ph,amt){const sn=Math.sin(ph);f.legL.rotation.x=sn*.6*amt;f.legR.rotation.x=-sn*.6*amt;f.armL.rotation.x=-sn*.5*amt;f.armR.rotation.x=sn*.5*amt;
   if(f.kneeL){f.kneeL.rotation.x=.04+Math.max(0,Math.cos(ph))*.8*amt;f.kneeR.rotation.x=.04+Math.max(0,-Math.cos(ph))*.8*amt;f.elbowL.rotation.x=-.18-Math.max(0,-sn)*.35*amt;f.elbowR.rotation.x=-.18-Math.max(0,sn)*.35*amt;}f.g.position.y=Math.abs(Math.cos(ph))*.03*amt;}
 function applyWorldTOD(t){const d=todAt(t),nf=clamp(1.15-d.si*1.25,0,1);skyTint(d,WD.dome,scWorld);WD.sun.color.copy(d.sun);WD.sun.intensity=1.6*d.si;WD.hemi.intensity=.45+.9*d.hemi;
@@ -1243,13 +1263,14 @@ function updateWorld(dt){const me=WD.me;
   if(phase==='world'){let ix=(K.KeyD||K.ArrowRight?1:0)-(K.KeyA||K.ArrowLeft?1:0)+JOY.x,iz=(K.KeyS||K.ArrowDown?1:0)-(K.KeyW||K.ArrowUp?1:0)+JOY.y;let mx=0,mz=0;
     if(Math.abs(ix)+Math.abs(iz)>.08){WD.target=null;WD.auto=null;const B=camBasis();mx=B.rx*ix-B.fx*iz;mz=B.rz*ix-B.fz*iz;}
     else if(WD.target){const dx=WD.target.x-WD.pos.x,dz=WD.target.z-WD.pos.z,d=Math.hypot(dx,dz);if(d<.3){WD.target=null;const a=WD.auto;WD.auto=null;if(a){enterBuilding(a);return;}}else{mx=dx/d;mz=dz/d;}}
-    const l=Math.hypot(mx,mz);if(l>.08){const sp=(P&&P.hp<25?3.4:6.2)*Math.min(1,l);mx/=l;mz/=l;const moved=tryMove(WD.pos,mx*sp*dt,mz*sp*dt,.35);if(!moved&&WD.target){WD.target=null;WD.auto=null;}
+    const l=Math.hypot(mx,mz);if(l>.08){const run=(K.ShiftLeft||K.ShiftRight)&&P&&P.hp>=25;const sp=(P&&P.hp<25?3.4:run?8.6:6.2)*Math.min(1,l);mx/=l;mz/=l;const moved=tryMove(WD.pos,mx*sp*dt,mz*sp*dt,.35);if(moved)mis('walk',sp*dt);if(!moved&&WD.target){WD.target=null;WD.auto=null;}
       const want=Math.atan2(mx,mz);let df=want-me.g.rotation.y;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;me.g.rotation.y+=df*Math.min(1,dt*12);WD.ph+=dt*11;animWalk(me,WD.ph,1);}
     else animWalk(me,WD.ph,0);
     const n=nearestThing();const key=n?(n.kind+(n.b?n.b.id+isOpen(n.b):'')):'';if(key!==WD.near){WD.near=key;WD.nearObj=n;
       if(!n)setPrompt(null);else if(n.kind==='enc')setPrompt('무슨 일인지 가 보기');else if(n.kind==='car')setPrompt(`${CARS[P.car.id].name} 운전하기`);else setPrompt(isOpen(n.b)?`${n.b.label} 들어가기`:`${n.b.label} · 영업 ${n.b.open[0]}~${n.b.open[1]}시`,!isOpen(n.b));}
     view.tt.set(WD.pos.x,1.2,WD.pos.z);me.g.visible=true;
-    {const r=onRoad(WD.pos.x,WD.pos.z),cw=onCrosswalk(WD.pos.x,WD.pos.z);const k=r?(cw?(walkOK(WD.pos.x,WD.pos.z)?'':'red'):'jay'):'';if(k!==WD.roadWarn){WD.roadWarn=k;if(k==='jay')toast('차도예요! 무단횡단하다 치이면 병원비는 내 과실이에요.','bad');else if(k==='red')toast('빨간불이에요. 초록불에 건너야 사고 나도 보상받아요.','bad');}}
+    {const r=onRoad(WD.pos.x,WD.pos.z),cw=onCrosswalk(WD.pos.x,WD.pos.z);const k=r?(cw?(walkOK(WD.pos.x,WD.pos.z)?'':'red'):'jay'):'';if(r&&!WD.cw)WD.cw={x:WD.pos.x,z:WD.pos.z,ok:true};if(r&&WD.cw&&!(cw&&walkOK(WD.pos.x,WD.pos.z)))WD.cw.ok=false;if(!r&&WD.cw){if(WD.cw.ok&&Math.hypot(WD.pos.x-WD.cw.x,WD.pos.z-WD.cw.z)>6){mis('cross');pop3('안전 횡단 👍',WD.pos);}WD.cw=null;}
+    if(k!==WD.roadWarn){WD.roadWarn=k;if(k==='jay')toast('차도예요! 무단횡단하다 치이면 병원비는 내 과실이에요.','bad');else if(k==='red')toast('빨간불이에요. 초록불에 건너야 사고 나도 보상받아요.','bad');}}
     if(P&&P.paths){if(WD.enc){WD.enc.life-=dt;WD.enc.mark.position.y=3+Math.sin(T0*5)*.15;if(WD.enc.life<=0)clearEnc();}else{WD.encT=(WD.encT??rand(25,50))-dt;if(WD.encT<=0)spawnEnc();}}}
   if(phase==='drive')updateDrive(dt);
   me.g.position.x=WD.pos.x;me.g.position.z=WD.pos.z;const fp=phase==='drive'?P.carPos:WD.pos;WD.sun.target.position.set(fp.x,0,fp.z);WD.sun.position.set(fp.x+14,30,fp.z+16);
@@ -1285,7 +1306,7 @@ renderer.domElement.addEventListener('pointerup',e=>{if(!tapStart||!P)return;con
   const hit=ray.intersectObjects(scWorld.children,false).find(h=>h.object.userData.bid);
   if(hit){const b=BID[hit.object.userData.bid];WD.target=new THREE.Vector3(b.door.x,0,b.door.z);WD.auto=b.id;return;}
   const p=new THREE.Vector3();if(ray.ray.intersectPlane(FLOOR,p)){WD.target=new THREE.Vector3(clamp(p.x,-67,67),0,clamp(p.z,-36,65));WD.auto=null;}});
-addEventListener('keydown',e=>{K[e.code]=true;if((e.code==='KeyE'||e.code==='Space'||e.code==='Enter')&&!$('#prompt').hidden&&!$('#prompt').disabled&&$('#modal').hidden&&!(e.target&&/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName))){e.preventDefault();ACT.enter();}});addEventListener('keyup',e=>{K[e.code]=false;});addEventListener('blur',()=>{for(const k in K)K[k]=false;});
+addEventListener('keydown',e=>{K[e.code]=true;if(MG.on&&e.code==='Space'){e.preventDefault();mgHit();return;}if((e.code==='KeyE'||e.code==='Space'||e.code==='Enter')&&!$('#prompt').hidden&&!$('#prompt').disabled&&$('#modal').hidden&&!(e.target&&/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName))){e.preventDefault();ACT.enter();}});addEventListener('keyup',e=>{K[e.code]=false;});addEventListener('blur',()=>{for(const k in K)K[k]=false;});
 {const joy=$('#joy'),nub=joy.firstElementChild;const set=e=>{const r=joy.getBoundingClientRect();let x=(e.clientX-r.left-r.width/2)/(r.width/2),y=(e.clientY-r.top-r.height/2)/(r.height/2);const l=Math.hypot(x,y);if(l>1){x/=l;y/=l;}JOY.x=x;JOY.y=y;nub.style.transform=`translate(${x*30}px,${y*30}px)`;};
   joy.addEventListener('pointerdown',e=>{JOY.on=true;joy.setPointerCapture(e.pointerId);set(e);});joy.addEventListener('pointermove',e=>{if(JOY.on)set(e);});
   const end=()=>{JOY.on=false;JOY.x=JOY.y=0;nub.style.transform='';};joy.addEventListener('pointerup',end);joy.addEventListener('pointercancel',end);}
@@ -1599,7 +1620,7 @@ function renderPhone(){renderHUD();const tab=TS.tab;const list=tab==='mine'?ASSE
     <div class="row"><button class="btn ghost sm" data-act="paper">신문</button><button class="btn ghost sm" data-act="deliver" ${P.cash<2.2||P.loc!=='seoul'||['travel','roadtrip','busy'].includes(PH.prev)?'disabled':''}>배달 치킨 2.2만</button><button class="btn ghost sm" data-act="capLoan" ${P.credit<450?'disabled':''}>캐피탈 50만</button><button class="btn go sm" data-act="phone">닫기</button></div>`);drawChart();}
 function buy(f){const a=AID[TS.sel],p=P.mkt[TS.sel].price;const amt=P.cash*f;if(amt<=0){toast('현금이 없어요.','bad');return;}
   let qty=a.kind==='stock'?Math.floor(amt*10000/p):amt*10000/p;if(a.kind==='stock'&&qty<1){toast('1주도 못 사요. 현금이 모자라요.','bad');return;}
-  const cost=qty*p/10000;P.cash-=cost;const h=P.hold[TS.sel]||(P.hold[TS.sel]={qty:0,cost:0});h.qty+=qty;h.cost+=cost;P.stats.trades++;sfx.bid();toast(`${a.name} ${won(cost)} 매수`,'good');renderPhone();}
+  const cost=qty*p/10000;P.cash-=cost;const h=P.hold[TS.sel]||(P.hold[TS.sel]={qty:0,cost:0});h.qty+=qty;h.cost+=cost;P.stats.trades++;mis('trade');sfx.bid();toast(`${a.name} ${won(cost)} 매수`,'good');renderPhone();}
 function sell(f){const a=AID[TS.sel],h=P.hold[TS.sel];if(!h)return;const p=P.mkt[TS.sel].price;let qty=a.kind==='stock'?Math.max(1,Math.floor(h.qty*f)):h.qty*f;if(f>=1)qty=h.qty;qty=Math.min(qty,h.qty);
   const proceeds=qty*p/10000;const costPart=h.cost*(qty/h.qty);const plv=proceeds-costPart;P.cash+=proceeds;h.qty-=qty;h.cost-=costPart;if(h.qty<=1e-9||(a.kind==='stock'&&h.qty<1))delete P.hold[TS.sel];
   if(!P.stats.bestTrade||plv>P.stats.bestTrade.v)P.stats.bestTrade={name:a.name,v:plv};sfx.cash();toast(`${a.name} ${won(proceeds)} 매도 (${plv>=0?'+':''}${won(plv)})`,plv>=0?'good':'bad');renderPhone();}
@@ -1805,8 +1826,10 @@ function buildStoreIn(){const s=new THREE.Scene();s.userData.noEnv=true;s.backgr
   const item=id=>STORE.find(q=>q.id===id);
   const take=(id)=>{const it=item(id);const tot=cartTotal()+it.price;if(tot>P.cash+1e-9){toast(`현금이 모자라요. 장바구니 ${won(cartTotal())} · 현금 ${won(P.cash)}`,'bad');return;}IW.cart[id]=(IW.cart[id]||0)+1;sfx.bid();toast(`${it.name} 담았다 · ${it.desc}`,'');refreshBar();IW.nearKey='';};
   for(const [id,x,z,f] of[['energy',-2,-2.75,Math.PI],['kimbap',1.8,-2.7,Math.PI],['dosirak',2.95,-2.7,Math.PI],['salad',4.05,-2.7,Math.PI],['ramen',-3.1,-.3,Math.PI],['groc',-1.4,-.3,Math.PI],['vitamin',-1.4,2.1,Math.PI]]){const it=item(id);S(id,x,z,f,()=>`${it.name} 담기 · ${won(it.price)}${IW.cart[id]?` (${IW.cart[id]}개 담음)`:''}`,()=>take(id),{r:.7});}
-  S('pay',2.15,1.2,Math.PI/2,()=>cartN()?`계산하기 · ${cartN()}개 ${won(cartTotal())}`:'계산대 · 장바구니가 비었어요',()=>payCart(),{dis:()=>!cartN(),r:.8});
-  S('work',4.3,-1.6,Math.PI/2,()=>P.time>18||P.time<6?'알바는 06~18시에 시작해요':'점장님께 알바 지원 · 6시간 7만원',()=>startWork(),{dis:()=>P.time>18||P.time<6});
+  S('pay',2.15,1.2,Math.PI/2,()=>cartN()?`계산하기 · ${cartN()}개 ${won(cartTotal())}`:'계산대 · 장바구니가 비었어요',()=>payCart(),{dis:()=>!cartN(),r:.6});
+  S('work',4.3,-1.6,Math.PI/2,()=>'점장님께 알바 지원하기',()=>workChoice());
+  S('lotto',2.15,.35,Math.PI/2,()=>'즉석복권 사기 · 3,000원',()=>openScratch(false),{r:.55});
+  S('bottle',2.15,2.45,Math.PI/2,()=>P.bottles?`빈 병 ${P.bottles}개 반납 · +${won(P.bottles*.1)}`:'빈 병 수거함 · 길에서 주워 오세요',()=>{const n=P.bottles;P.cash+=n*.1;P.bottles=0;mis('bottle',n);sfx.cash();toast(`빈 병 ${n}개 반납 +${won(n*.1)}`,'good');renderHUD();IW.nearKey='';},{dis:()=>!P.bottles,r:.55});
   S('seat',-3.2,3.05,0,()=>'창가 자리에서 먹기',()=>{sub='eat';inPause(renderEat);},{dis:()=>!Object.values(P.pantry).some(v=>v>0)});
   S('exit',.8,3.62,0,()=>cartN()?'나가기 (계산 안 한 건 내려놓기)':'나가기',()=>ACT.leave());
   d0.bar=()=>cartN()?`<span class="chip">🧺 ${cartN()}개 · ${won(cartTotal())}</span><button class="btn sm" data-act="cartClear">다 내려놓기</button>`:'<span class="chip">🧺 빈 바구니</span>';
@@ -1815,7 +1838,7 @@ function buildStoreIn(){const s=new THREE.Scene();s.userData.noEnv=true;s.backgr
 const cartN=()=>Object.values(IW.cart).reduce((a,b)=>a+b,0);
 const cartTotal=()=>Object.entries(IW.cart).reduce((t,[id,n])=>t+STORE.find(q=>q.id===id).price*n,0);
 function payCart(){const tot=cartTotal();if(!cartN())return;if(P.cash<tot){toast('현금이 모자라요.','bad');return;}P.cash-=tot;const lines=Object.entries(IW.cart).map(([id,n])=>{const it=STORE.find(q=>q.id===id);P.pantry[id]=(P.pantry[id]||0)+n*(it.servings||1);return `<li><span>${it.name} ×${n}</span><b>${won(it.price*n)}</b></li>`;}).join('');
-  IW.cart={};sfx.cash();renderHUD();refreshBar();IW.nearKey='';
+  IW.cart={};sfx.cash();mis('shop');renderHUD();refreshBar();IW.nearKey='';
   modal(`<div class="eyebrow">떡상마트 24 · 영수증</div><h3>${pick(['봉투 필요하세요?','포인트 적립하시겠어요?','데워 드릴까요?','감사합니다~'])}</h3><ul class="prank">${lines}<li><span><b>합계</b></span><b>${won(tot)}</b></li></ul><p class="muted" style="font-size:13px">산 음식은 집 냉장고나 창가 자리에서 먹을 수 있어요. 남은 현금 ${won(P.cash)}.</p><div class="row"><button class="btn go" data-act="closeModal">받기</button></div>`);}
 
 /* ---------- counters in the other buildings ---------- */
@@ -1899,6 +1922,94 @@ function homeDef(){const R=room,H=HOMEW[P.tier];if(R.walk)return R.walk;const s=
   S({id:'exit',x:H.exit[0],z:H.exit[1],r:.6,label:()=>'밖으로 나가기',act:()=>ACT.leave()});
   return R.walk=d0;}
 
+/* ============ game feel: money flyers, pickups, lottery, minigame, missions, minimap ============ */
+const HUDC={p:null,last:0};
+function cashFly(){if(!P||OFF)return;if(HUDC.p!==P){HUDC.p=P;HUDC.last=P.cash;return;}const d=P.cash-HUDC.last;if(Math.abs(d)<.045)return;HUDC.last=P.cash;const c=$('#hCash').getBoundingClientRect();const e=document.createElement('div');e.className='fly '+(d>0?'gain':'loss');e.textContent=(d>0?'+':'-')+won(Math.abs(d));e.style.left=(c.left+c.width/2)+'px';e.style.top=(c.bottom+4)+'px';document.body.appendChild(e);setTimeout(()=>e.remove(),1500);
+  const ch=$('#hCash').parentNode;ch.classList.remove('pop');void ch.offsetWidth;ch.classList.add('pop');}
+function pop3(text,pos,good=true){const s=labelSprite(text,{bg:good?'#1f9d55':'#c8202b',fg:'#fff',scale:.42});s.position.set(pos.x,2.2,pos.z);cur.add(s);const sc=cur;tween(1.3,k=>{s.position.y=2.2+k*1.4;s.material.opacity=1-k*k;},()=>{sc.remove(s);s.material.map.dispose();s.material.dispose();});}
+/* ---- things lying on the street ---- */
+const PK={list:[],t:3,root:null};
+function pkModel(k){const g=new THREE.Group();const spin=new THREE.Group();g.add(spin);
+  if(k==='coin'){const c=mesh(G.cyl(.16,.16,.035,20),M(0xf2c230,{flat:false,m:.9,r:.25,e:0x6a4a00,ei:.5}));c.rotation.x=Math.PI/2;spin.add(c);}
+  if(k==='bill'){spin.add(mesh(G.box(.42,.2,.012),M(0xe8c060,{flat:false,e:0x5a4410,ei:.5})),mesh(G.box(.14,.14,.014),M(0xc89a30,{flat:false}),.02,0,0));}
+  if(k==='bottle'){spin.add(mesh(G.cyl(.07,.07,.24,10),M(0x2f9a5a,{flat:false,r:.15,op:.85,e:0x0a3a1a,ei:.5}),0,-.04,0),mesh(G.cyl(.03,.045,.1,8),M(0x2f9a5a,{flat:false,r:.15,op:.85}),0,.13,0));}
+  if(k==='lotto'){spin.add(mesh(G.box(.3,.4,.012),M(0xff5b8a,{flat:false,e:0x80203a,ei:.6})),mesh(G.box(.2,.12,.014),M(0xc8ccd2,{flat:false,m:.8,r:.3}),0,-.06,0));}
+  if(k==='clover'){for(let i=0;i<4;i++){const l=mesh(G.sph(.09,10,8),M(0x3ad06a,{flat:false,e:0x0a5a2a,ei:.9}),Math.cos(i*Math.PI/2)*.09,Math.sin(i*Math.PI/2)*.09,0);l.scale.z=.3;spin.add(l);}}
+  spin.position.y=.75;const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:{coin:0xffd24a,bill:0xffe08a,bottle:0x5ad08a,lotto:0xff7aa8,clover:0x5aff9a}[k],transparent:true,opacity:.55,depthWrite:false,blending:THREE.AdditiveBlending}));gl.scale.setScalar(1.5);gl.position.y=.75;g.add(gl);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.22,.3,20),new THREE.MeshBasicMaterial({color:0xffe08a,transparent:true,opacity:.5,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.y=.03;g.add(ring);g.userData.spin=spin;return g;}
+function spawnPickup(){if(!PK.root){PK.root=new THREE.Group();scWorld.add(PK.root);}const r=Math.random()*100;const k=r<44?'coin':r<66?'bottle':r<88?'bill':r<96?'lotto':'clover';
+  for(let i=0;i<30;i++){const x=rand(-64,64),z=rand(-34,34);const road=onRoad(x,z);if(blocked(x,z,.5)||(road&&(k!=='bill'||Math.random()>.5))||Math.hypot(x-WD.pos.x,z-WD.pos.z)<7)continue;if(PK.list.some(p=>Math.hypot(p.x-x,p.z-z)<4))continue;
+    const m=pkModel(k);m.position.set(x,0,z);PK.root.add(m);PK.list.push({k,x,z,m,ph:rand(0,6)});return;}}
+function takePickup(p){PK.root.remove(p.m);PK.list.splice(PK.list.indexOf(p),1);const pos={x:p.x,z:p.z};mis('pick');P.stats.picked=(P.stats.picked||0)+1;
+  if(p.k==='coin'){const v=pick([.05,.05,.1,.1,.2,.5]);P.cash+=v;sfx.cash();burst(scWorld,new THREE.Vector3(p.x,.8,p.z),0xffd24a,26,2);pop3('+'+won(v),pos);}
+  if(p.k==='bill'){const big=Math.random()<.14+luck()*.012;const v=big?5:1;P.cash+=v;sfx.cash();if(big){sfx.reveal(2);stamp('5만원!',true);}burst(scWorld,new THREE.Vector3(p.x,.8,p.z),0xffe08a,big?70:36,2.6);pop3((big?'5만원권! ':'')+'+'+won(v),pos);}
+  if(p.k==='bottle'){P.bottles=(P.bottles||0)+1;sfx.bid();pop3(`빈 병 ${P.bottles}개`,pos);if(P.bottles===1)toast('빈 병은 편의점 계산대 옆 수거함에 반납하면 개당 1,000원이에요.');}
+  if(p.k==='lotto'){sfx.good();pop3('즉석복권!',pos);burst(scWorld,new THREE.Vector3(p.x,.8,p.z),0xff7aa8,40,2.4);openScratch(true);}
+  if(p.k==='clover'){mod.luck=(mod.luck||0)+1;P.mod=mod;sfx.reveal(2);stamp('행운 +1',true);burst(scWorld,new THREE.Vector3(p.x,.8,p.z),0x5aff9a,60,2.6);pop3('네잎클로버! 오늘 운 +1',pos);}
+  renderHUD();}
+function updatePickups(dt){if(!P||!P.paths)return;PK.t-=dt;if(PK.t<=0){PK.t=rand(5,11);if(PK.list.length<9)spawnPickup();}
+  for(const p of PK.list){p.ph+=dt;const s=p.m.userData.spin;s.rotation.y=p.ph*2.4;s.position.y=.75+Math.sin(p.ph*2.2)*.1;}
+  if(phase==='world')for(const p of [...PK.list])if(Math.hypot(p.x-WD.pos.x,p.z-WD.pos.z)<1.05)takePickup(p);}
+/* ---- scratch lottery ---- */
+const SC={};
+function scratchPrize(){const x=Math.max(0,Math.random()-luck()*.004);return x<.0006?500:x<.004?50:x<.022?5:x<.085?1:x<.3?.3:0;}
+function openScratch(free){if(!free){if((P.scDay||0)!==P.day){P.scDay=P.day;P.scN=0;}if(P.scN>=8){toast('오늘 복권은 다 팔렸어요. 내일 다시 들어와요.','bad');return;}if(P.cash<.3){toast('복권 살 돈도 없다…','bad');return;}P.cash-=.3;P.scN++;renderHUD();}
+  const prize=scratchPrize();const amt=[.3,1,5,50,500];let cells;if(prize){cells=[prize,prize,prize];}else{do{cells=[pick(amt),pick(amt),pick(amt)];}while(cells[0]===cells[1]&&cells[1]===cells[2]);}
+  Object.assign(SC,{prize,cells,done:false,free});
+  modal(`<div class="eyebrow">떡상 즉석복권 · ${free?'길에서 주운 복권':'1장 3,000원'}</div><h3>같은 금액 3개면 당첨!</h3><div class="scwrap"><div class="scprize">${cells.map(c=>`<span>${won(c)}</span>`).join('')}</div><canvas id="scCv" width="300" height="110"></canvas></div><p class="muted" style="font-size:13px">은박을 손가락으로 문질러 긁으세요.</p><div class="row"><button class="btn" data-act="scReveal">한 번에 긁기</button><button class="btn go" data-act="scClose" id="scDone" disabled>확인</button></div>`);
+  const cv=$('#scCv'),g=cv.getContext('2d');const gr=g.createLinearGradient(0,0,300,110);gr.addColorStop(0,'#b8bcc4');gr.addColorStop(.5,'#e4e7ec');gr.addColorStop(1,'#a8acb4');g.fillStyle=gr;g.fillRect(0,0,300,110);g.fillStyle='rgba(60,64,72,.5)';g.font='bold 18px sans-serif';g.textAlign='center';for(let i=0;i<3;i++)g.fillText('여기를 긁으세요',150,30+i*30);
+  let down=false,n=0;const scr=e=>{const r=cv.getBoundingClientRect();const x=(e.clientX-r.left)*300/r.width,y=(e.clientY-r.top)*110/r.height;g.globalCompositeOperation='destination-out';g.beginPath();g.arc(x,y,17,0,7);g.fill();if(++n%4===0)sfx.tick();if(n%10===0){const d=g.getImageData(0,0,300,110).data;let c=0;for(let i=3;i<d.length;i+=64)if(d[i]<40)c++;if(c/(d.length/64)>.55)scratchEnd();}};
+  cv.addEventListener('pointerdown',e=>{down=true;cv.setPointerCapture(e.pointerId);scr(e);});cv.addEventListener('pointermove',e=>{if(down)scr(e);});cv.addEventListener('pointerup',()=>down=false);}
+function scratchEnd(){if(SC.done)return;SC.done=true;const cv=$('#scCv');if(cv)cv.style.opacity='0';const b=$('#scDone');if(b)b.disabled=false;mis('scratch');P.stats.scratch=(P.stats.scratch||0)+1;
+  if(SC.prize){P.cash+=SC.prize;renderHUD();if(SC.prize>=50){stamp(SC.prize>=500?'1등!!':'대박!',true);sfx.reveal(4);}else if(SC.prize>=5){stamp('당첨!',true);sfx.reveal(3);}else sfx.good();toast(`당첨! +${won(SC.prize)}`,'good');}else{sfx.bad();toast('꽝… 다음 기회에.','bad');}}
+/* ---- cashier minigame ---- */
+const MG={on:false};
+function workChoice(){const late=P.time>=22||P.time<6;modal(`<div class="eyebrow">떡상마트 24 · 점장</div><h3>"마침 손이 모자랐는데!"</h3><p>어떻게 일할까요?</p><div class="loan"><h4>한 타임 계산대 보기 · 바코드 찍기 게임</h4><div class="muted" style="font-size:13px">직접 플레이. 게임 시간 2시간이 지나고, 잘 찍을수록 많이 받아요(최대 약 5만원).</div><div class="row"><button class="btn go sm" data-act="mgStart" ${late?'disabled':''}>${late?'06~22시에만 가능':'지금 시작'}</button></div></div>
+  <div class="loan"><h4>6시간 풀타임 · 7만원</h4><div class="muted" style="font-size:13px">자동으로 진행(현실 ${realDur(6)}). 그동안 휴대폰만 쓸 수 있어요.</div><div class="row"><button class="btn sm" data-act="workFull" ${P.time>18||P.time<6?'disabled':''}>${P.time>18||P.time<6?'06~18시에만 시작':'풀타임 근무'}</button></div></div><div class="row"><button class="btn ghost" data-act="closeModal">다음에요</button></div>`);}
+const MG_ITEMS=['삼각김밥','컵라면','바나나우유','도시락','캔커피','새콤젤리','감자칩','생수','초코바','컵얼음','샌드위치','소시지'];
+function mgStart(){Object.assign(MG,{on:true,i:0,n:12,hit:0,perf:0,x:0,dir:1,sp:.9,zone:[.4,.6],wait:0,combo:0,best:0});
+  modal(`<div class="eyebrow">계산대 · 바코드 찍기</div><h3 id="mgItem">준비…</h3><div class="mgbar"><i id="mgZone"></i><b id="mgCur"></b></div><div class="meta"><span>손님 <b id="mgN">1/12</b></span><span>콤보 <b id="mgCombo">0</b></span><span>벌이 <b id="mgPay">0원</b></span></div><div class="row"><button class="btn go" id="mgBtn" data-act="mgHit" style="padding:22px;font-size:20px">삑!</button></div><p class="muted" style="font-size:12px">빨간 선이 초록 칸에 왔을 때 누르세요. 스페이스바도 돼요.</p>`);mgNext();}
+function mgNext(){if(MG.i>=MG.n)return mgEnd();const w=Math.max(.1,.24-MG.i*.011);const a=rand(.08,.92-w);MG.zone=[a,a+w];MG.sp=.85+MG.i*.09;MG.x=Math.random()<.5?0:1;MG.dir=MG.x?-1:1;MG.wait=0;const z=$('#mgZone');if(z){z.style.left=a*100+'%';z.style.width=w*100+'%';}$('#mgItem').textContent=pick(MG_ITEMS)+' 찍기';$('#mgN').textContent=`${MG.i+1}/${MG.n}`;}
+const mgPay=()=>r1(MG.hit*.3+MG.perf*.12+Math.min(MG.best,12)*.03);
+function mgHit(){if(!MG.on||MG.wait>0)return;const c=(MG.zone[0]+MG.zone[1])/2,w=MG.zone[1]-MG.zone[0];const d=Math.abs(MG.x-c);const it=$('#mgItem');
+  if(d<w*.18){MG.hit++;MG.perf++;MG.combo++;it.textContent='완벽! 삑-';sfx.cash();}else if(d<w/2){MG.hit++;MG.combo++;it.textContent='삑!';sfx.bid();}else{MG.combo=0;it.textContent='앗, 다시 찍어 주세요…';sfx.bad();}
+  MG.best=Math.max(MG.best,MG.combo);$('#mgCombo').textContent=MG.combo;$('#mgPay').textContent=won(mgPay());MG.i++;MG.wait=.45;}
+function mgTick(dt){if(!MG.on)return;if($('#modal').hidden||!$('#mgCur')){MG.on=false;return;}if(MG.wait>0){MG.wait-=dt;if(MG.wait<=0)mgNext();return;}MG.x+=MG.dir*MG.sp*dt;if(MG.x>1){MG.x=1;MG.dir=-1;}if(MG.x<0){MG.x=0;MG.dir=1;}$('#mgCur').style.left=MG.x*100+'%';}
+function mgEnd(){MG.on=false;const pay=mgPay();P.cash+=pay;passTime(2);P.hp=Math.max(1,P.hp-5);P.stats.work=(P.stats.work||0)+1;mis('work');renderHUD();if(pay>=4){stamp('알바왕',true);sfx.reveal(3);}else sfx.cash();
+  modal(`<div class="eyebrow">근무 끝 · 2시간 경과</div><h3>${pay>=4?'"자네 내일도 나올 수 있나?"':pay>=2.5?'"수고했어요~"':'"다음엔 좀 더 빨리 부탁해요."'}</h3><ul class="prank"><li><span>찍은 손님</span><b>${MG.hit}/${MG.n}</b></li><li><span>완벽</span><b>${MG.perf}</b></li><li><span>최고 콤보</span><b>${MG.best}</b></li><li><span><b>오늘 일당</b></span><b class="gain">+${won(pay)}</b></li></ul><div class="row"><button class="btn" data-act="mgStart" ${P.time>=22||P.time<6||P.hp<15?'disabled':''}>한 타임 더</button><button class="btn go" data-act="closeModal">퇴근</button></div>`);}
+/* ---- daily missions ---- */
+const MISSION_POOL=[
+  {id:'pick',t:'길에 떨어진 물건 6개 줍기',n:6,r:2},{id:'shop',t:'편의점에서 장 보고 계산하기',n:1,r:1},{id:'trade',t:'주식이나 코인 2번 거래하기',n:2,r:2},{id:'work',t:'편의점 알바 한 타임 뛰기',n:1,r:2},
+  {id:'won',t:'경매에서 창고 하나 낙찰받기',n:1,r:5},{id:'walk',t:'동네 500m 걷기',n:500,r:2},{id:'scratch',t:'즉석복권 1장 긁기',n:1,r:1},{id:'profit',t:'오늘 순자산 10만원 불리기',n:1,r:4},{id:'bottle',t:'빈 병 3개 반납하기',n:3,r:2},{id:'cross',t:'초록불에 횡단보도 3번 건너기',n:3,r:2}];
+function genMissions(){const pool=[...MISSION_POOL];P.missions=[];for(let i=0;i<3;i++){const m=pool.splice(randi(0,pool.length-1),1)[0];P.missions.push({id:m.id,c:0,done:false});}P.misAll=false;}
+function mis(id,amt=1){if(!P||!P.missions)return;const m=P.missions.find(q=>q.id===id&&!q.done);if(!m)return;const D=MISSION_POOL.find(q=>q.id===id);m.c=Math.min(D.n,m.c+amt);if(m.c<D.n)return;m.done=true;P.cash+=D.r;P.stats.mis=(P.stats.mis||0)+1;
+  if(OFF){OFFLOG.push(`미션 완료: ${D.t} +${won(D.r)}`);return;}sfx.reveal(2);toast(`미션 완료! ${D.t} · +${won(D.r)}`,'good');
+  if(P.missions.every(q=>q.done)&&!P.misAll){P.misAll=true;P.cash+=3;mod.luck=(mod.luck||0)+1;P.mod=mod;setTimeout(()=>{stamp('올클리어!',true);sfx.reveal(4);toast('오늘 미션 올클리어! 보너스 +3만원 · 오늘 운 +1','good');},900);}renderHUD();}
+function showMissions(){const rows=(P.missions||[]).map(m=>{const D=MISSION_POOL.find(q=>q.id===m.id);return `<li class="${m.done?'ok':''}"><span>${m.done?'✔ ':''}${D.t}${D.n>1&&!m.done?` <small class="muted">(${Math.floor(m.c)}/${D.n})</small>`:''}</span><b>${m.done?'완료':'+'+won(D.r)}</b></li>`;}).join('');
+  modal(`<div class="eyebrow">${gameDate()} · 오늘의 미션</div><h3>오늘 할 일 3가지</h3><ul class="prank mis">${rows}</ul><p class="muted" style="font-size:13px">셋 다 끝내면 보너스 3만원에 오늘 운 +1. 미션은 자정에 새로 바뀌어요.</p><div class="row"><button class="btn go" data-act="closeModal">가 보자</button></div>`);}
+/* ---- minimap ---- */
+const MM={t:0};
+function drawMinimap(dt){const cv=$('#mini');const show=P&&P.paths&&(phase==='world'||phase==='drive')&&cur===scWorld;cv.hidden=!show;if(!show)return;MM.t-=dt;if(MM.t>0)return;MM.t=.12;const g=cv.getContext('2d'),W=cv.width,H=cv.height;const X=x=>(x+68)/136*W,Z=z=>(z+37)/103*H;
+  g.clearRect(0,0,W,H);g.fillStyle='rgba(22,26,22,.82)';g.fillRect(0,0,W,H);g.fillStyle='#5a8a4a';g.fillRect(X(8),Z(9),X(52)-X(8),Z(31)-Z(9));g.fillStyle='#3a6a9a';g.fillRect(0,Z(36),W,Z(52)-Z(36));
+  g.fillStyle='#55585e';g.fillRect(0,Z(-4.5),W,Z(4.5)-Z(-4.5));g.fillRect(X(-4.5),Z(4.5),X(4.5)-X(-4.5),H);g.fillStyle='#8a8478';g.fillRect(X(-8),Z(-38),X(8)-X(-8),Z(-8)-Z(-38));
+  g.fillStyle='#6a665e';for(const f of FILL)g.fillRect(X(f[0]-f[2]/2),Z(f[1]-f[3]/2),f[2]/136*W,f[3]/103*H);
+  for(const b of BUILDINGS){g.fillStyle=b.id==='home'?'#ffc531':b.sign==='#2a2a2a'?'#9a9a9a':b.sign;g.fillRect(X(b.x-b.w/2),Z(b.z-b.d/2),b.w/136*W,b.d/103*H);}
+  g.fillStyle='#fff';for(const c of WD.traffic)if(c.on&&Math.abs(c.x)<68&&c.z<66)g.fillRect(X(c.x)-1.5,Z(c.z)-1.5,3,3);
+  for(const p of PK.list){g.fillStyle={coin:'#ffd24a',bill:'#ffe08a',bottle:'#5ad08a',lotto:'#ff7aa8',clover:'#5aff9a'}[p.k];g.beginPath();g.arc(X(p.x),Z(p.z),2.2,0,7);g.fill();}
+  if(WD.enc){g.fillStyle='#ff5b3d';g.beginPath();g.arc(X(WD.enc.x),Z(WD.enc.z),3+Math.sin(T0*6),0,7);g.fill();}
+  if(P.car&&P.carLoc==='seoul'&&phase!=='drive'){g.fillStyle='#6ab0ff';g.fillRect(X(P.carPos.x)-2.5,Z(P.carPos.z)-2.5,5,5);}
+  const me=phase==='drive'?P.carPos:WD.pos,h=phase==='drive'?P.carPos.h:WD.me.g.rotation.y;g.save();g.translate(X(me.x),Z(me.z));g.rotate(-h);g.fillStyle='#fff';g.strokeStyle='#000';g.lineWidth=1;g.beginPath();g.moveTo(0,6);g.lineTo(4,-4);g.lineTo(0,-2);g.lineTo(-4,-4);g.closePath();g.fill();g.stroke();g.restore();}
+/* ---- street chatter ---- */
+const CHAT=['오늘 떡상코인 봤어?','월세 또 올랐대…','점심 뭐 먹지','로또나 살까','버스 왜 안 와','아 배고파','주식은 타이밍이지','경매장에 대박 창고 나왔대','날씨 좋다~','퇴근하고 싶다','편의점 도시락 맛있더라','저 차 얼마야?'];
+const RIVAL_CHAT={value:['싸게 사서 오래 들고 간다.','급할 거 없지.'],degen:['인생은 한 방이야!','풀매수 간다~'],auction:['오늘 창고는 내 거야.','감이 온다, 감이.'],momentum:['오르는 놈이 더 오른다.','추세를 타야지.']};
+function updateChat(dt){WD.chatT=(WD.chatT??4)-dt;if(WD.chatT>0||phase!=='world')return;WD.chatT=rand(5,9);const c=[];for(const q of WD.peds)if(q.f.g.visible&&Math.hypot(q.x-WD.pos.x,q.z-WD.pos.z)<8)c.push({g:q.f.g,line:pick(CHAT),y:2.15});
+  for(const w of WD.walkers)if(w.f.g.visible&&Math.hypot(w.f.g.position.x-WD.pos.x,w.f.g.position.z-WD.pos.z)<8)c.push({g:w.f.g,line:pick(RIVAL_CHAT[w.ai.style]||CHAT),y:2.5});
+  if(!c.length)return;const t=pick(c);const s=labelSprite(t.line,{bg:'#ffffff',fg:'#1a1a1a',scale:.3});s.position.set(0,t.y,0);t.g.add(s);tween(3.2,k=>{s.material.opacity=k>.8?(1-k)*5:1;},()=>{t.g.remove(s);s.material.map.dispose();s.material.dispose();});}
+/* ---- rain ---- */
+const RAIN={pts:null};
+function updateRain(dt){const on=!!(P&&P.rain)&&cur===scWorld;if(!RAIN.pts){const n=1400,geo=new THREE.BufferGeometry(),p=new Float32Array(n*6);for(let i=0;i<n;i++){const x=rand(-22,22),y=rand(0,18),z=rand(-22,22);p.set([x,y,z,x+.05,y-.55,z],i*6);}geo.setAttribute('position',new THREE.BufferAttribute(p,3));RAIN.pts=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:0xbcd0e8,transparent:true,opacity:.42,depthWrite:false}));RAIN.pts.frustumCulled=false;scWorld.add(RAIN.pts);}
+  RAIN.pts.visible=on;if(!on)return;const a=RAIN.pts.geometry.attributes.position;for(let i=0;i<a.count;i+=2){let y=a.getY(i)-dt*19;if(y<0)y+=18;a.setY(i,y);a.setY(i+1,y-.55);}a.needsUpdate=true;RAIN.pts.position.set(view.t.x,0,view.t.z);}
+
 const ENC=[
   {t:'떨어진 지갑',d:'보도 한가운데 두툼한 지갑이 떨어져 있다. 주변엔 아무도 없다.',o:[
     ['파출소에 맡긴다',()=>{if(Math.random()<.55+luck()*.02){const v=randi(5,20);P.cash+=v;P.credit=Math.min(900,P.credit+10);return [`주인이 달려와 사례금을 줬다. +${won(v)}, 신용점수 +10`,true];}return ['고맙다는 인사만 받았다. 그래도 기분은 좋다.',null];}],
@@ -1980,7 +2091,7 @@ function endLot(){if(A.state!=='bid')return;const lot=A.lot;let winner=null,pric
   if(A.out){const floor=A.leader?A.price+inc(A.price):A.price;const r=quickResolve(A.npcs,floor);if(r&&r.n!==A.leader){winner=r.n;price=r.price;}else if(A.leader&&A.leader!=='me'){winner=A.leader;price=A.price;}}
   else{winner=A.leader;price=A.price;}
   A.state='done';sfx.gavel();AU.auctioneer.raise=1;let html=`<div class="eyebrow">${lot.label} · ${lot.theme}</div>`;let nextAct='auctionLobby',nextLabel='로비로';
-  if(winner==='me'){P.cash-=price;P.stats.won++;lot.paid=price;lot.done=true;lot.result={name:'나',price};stamp('낙찰!');renderHUD();html+=`<h2>내가 낙찰받았다!</h2><p>낙찰가 <span class="val">${won(price)}</span>. 바로 열어보자.</p>`;nextAct='unboxLot';nextLabel='창고 열기';}
+  if(winner==='me'){P.cash-=price;P.stats.won++;mis('won');lot.paid=price;lot.done=true;lot.result={name:'나',price};stamp('낙찰!');renderHUD();html+=`<h2>내가 낙찰받았다!</h2><p>낙찰가 <span class="val">${won(price)}</span>. 바로 열어보자.</p>`;nextAct='unboxLot';nextLabel='창고 열기';}
   else if(winner){const best=lot.items.reduce((a,b)=>b.trueV>a.trueV?b:a);stamp('낙찰');npcBubble(winner,'낙찰!','#2a8a5a');aiTakes(lot,winner,price);
     const verdict=lot.T>price*1.3?'<span class="loss">아깝다…</span>':lot.T<price*.8?'<span class="gain">휴, 안 사길 잘했다.</span>':'';
     html+=`<h2>${esc(winner.name)} 낙찰 · ${won(price)}</h2><p>열어보니 제일 좋은 건 ${rb(best.fake?0:best.rar)} <b>${esc(best.fake?'가짜 '+CATS[best.cat].n:best.name)}</b>. 창고 전체 가치는 약 <span class="val">${won(lot.T)}</span>. ${verdict}</p>`;}
@@ -2081,7 +2192,7 @@ const ACT={
   newgame:()=>{closeModal();newGame();},continue:()=>continueGame(),
   mute:()=>{muted=!muted;$('#btnMute').textContent=muted?'소리 끔':'소리 켬';},
   giveup:()=>{if(phase==='title')return;modal(`<h3>새 인생을 시작할까요?</h3><p>지금 인생은 기록 없이 끝나요.</p><div class="row"><button class="btn" data-act="closeModal">계속하기</button><button class="btn red" data-act="newgame">새 인생</button></div>`);},
-  closeModal:()=>closeModal(),closePaper:()=>{closeModal();renderCurrent();},paper:()=>{if(P)showPaper();},
+  closeModal:()=>closeModal(),missions:()=>{if(P)showMissions();},scReveal:()=>scratchEnd(),scClose:()=>closeModal(),mgStart:()=>mgStart(),mgHit:()=>mgHit(),workFull:()=>{closeModal();startWork();},closePaper:()=>{closeModal();renderCurrent();},paper:()=>{if(P)showPaper();},
   showRival:()=>{closeModal();const ai=P.ais[P._rival];P._rival=null;if(ai)rivalWin(ai);},
   enter:()=>{if(inWalking()&&IW.near){if(!(IW.near.dis&&IW.near.dis()))IW.near.act();return;}const n=WD.nearObj;if(!n)return;if(phase==='drive'){if(n.kind==='door'){driveOut();enterBuilding(n.b.id);}return;}if(phase!=='world')return;if(n.kind==='enc')openEnc();else if(n.kind==='car')driveIn();else enterBuilding(n.b.id);},
   leave:()=>{if(phase==='auction'&&A.state==='bid'){A.out=true;endLot();return;}A.lot=null;leave();},
@@ -2152,7 +2263,7 @@ function frame(now){const rdt=Math.min(.5,(now-last)/1000);const dt=Math.min(.05
   if(phase==='unbox'&&U.cur&&U.cur._holder)U.cur._holder.rotation.y+=dt*.8;
   if(cur===scShop){SH.display.rotation.y+=dt*.7;SH.kim.head.rotation.y=Math.sin(T0*.7)*.3;}
   if(cur===scDealer)for(const t of scDealer.userData.turn)t.rotation.y+=dt*.3;
-  if(cur===scWorld){const t=P&&P.paths?P.time:8+((T0*.25)%16);applyWorldTOD(t);if(phase==='title')view.tt.set(Math.sin(T0*.07)*30,1.2,Math.cos(T0*.05)*10);updateWorld(dt);}
+  if(cur===scWorld){const t=P&&P.paths?P.time:8+((T0*.25)%16);applyWorldTOD(t);if(P&&P.rain&&P.paths){if(WD.dome)WD.dome.material.color.multiplyScalar(.45);scWorld.fog.color.multiplyScalar(.5);scWorld.background.copy(scWorld.fog.color);scWorld.fog.near=25;scWorld.fog.far=120;WD.sun.intensity*=.35;}else{scWorld.fog.near=70;scWorld.fog.far=190;}updatePickups(dt);updateChat(dt);updateRain(dt);if(phase==='title')view.tt.set(Math.sin(T0*.07)*30,1.2,Math.cos(T0*.05)*10);updateWorld(dt);}
   if(room&&cur===room.scene){if(room.update)room.update(dt,T0);for(const k of room.appRoot.children)k.material.opacity=.65+.35*Math.sin(T0*6);if(P)applyTOD(room,P.time);if(room.dust){room.dust.rotation.y+=dt*.02;room.dust.position.y=Math.sin(T0*.3)*.06;}}
   if(pent&&cur===pent.s)pent.me.armR.rotation.z=2.4+Math.sin(T0*6)*.4;
   if(cur===HW.s)updateHighway(dt);
@@ -2161,6 +2272,7 @@ function frame(now){const rdt=Math.min(.5,(now-last)/1000);const dt=Math.min(.05
     if(phase==='travel'||(phase==='phone'&&PH.prev==='travel')){const a=KR.pins[TV.from],b=KR.pins[TV.to],k=clamp((absNow()-TV.start)/(TV.end-TV.start),0,1),air=TV.to==='jeju'||TV.from==='jeju';KR.train.position.set(a.x+(b.x-a.x)*k,1+Math.sin(k*Math.PI)*(air?3.2:.5),a.z+(b.z-a.z)*k);KR.train.rotation.y=Math.atan2(-(b.z-a.z),b.x-a.x);}}
   if(P&&P.loc&&P.loc!=='seoul'&&cityScenes[P.loc]&&cur===cityScenes[P.loc].s){const cs=cityScenes[P.loc],d=todAt(P.time);if(cs.dome===undefined){cs.dome=makeDome();if(cs.dome)cs.s.add(cs.dome);}skyTint(d,cs.dome,cs.s);cs.sun.color.copy(d.sun);cs.sun.intensity=1.7*d.si;cs.hemi.intensity=.3+.75*d.hemi;if(cs.s.userData.boat){cs.s.userData.boat.position.y=Math.sin(T0*1.3)*.12;cs.s.userData.boat.rotation.z=Math.sin(T0*.9)*.05;}}
   const touch=navigator.maxTouchPoints>0;$('#joy').hidden=!((phase==='world'||phase==='drive'||inWalking())&&P&&touch);$('#drivebar').hidden=phase!=='drive';
+  mgTick(rdt);drawMinimap(dt);
   updateTweens(dt);updateBursts(dt);updateView(dt);
   if(cur!==lastCur){lastCur=cur;applyEnv(cur);const f=$('#fade');f.style.transition='none';f.style.opacity='1';requestAnimationFrame(()=>{f.style.transition='opacity .5s ease-out';f.style.opacity='0';});}
   perf.t+=rdt;perf.n++;if(perf.t>3){if(perf.t/perf.n>.045&&bloom.enabled&&!perf.cut){bloom.enabled=false;perf.cut=true;}perf.t=0;perf.n=0;}
