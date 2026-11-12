@@ -1,0 +1,6 @@
+Textures, sky and 3D models: Poly Haven (https://polyhaven.com), CC0 1.0.
+Textures: clean_asphalt, brick_pavement_02, patterned_concrete_pavers, leafy_grass, brick_wall_005,
+painted_plaster_wall, concrete_wall_008, rectangular_facade_tiles, laminate_floor_02, herringbone_parquet, floor_tiles_06.
+Sky: kloofendal_48d_partly_cloudy_puresky (tonemapped).
+Models: sofa_02, potted_plant_04, television_02, wooden_bookshelf_worn, fire_hydrant, korean_public_payphone_01,
+metal_trash_can, utility_box_01, exterior_aircon_unit, planter_box_01 (resized to 512px webp, meshopt-compressed).
