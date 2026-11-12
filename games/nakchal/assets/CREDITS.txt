@@ -4,3 +4,4 @@ painted_plaster_wall, concrete_wall_008, rectangular_facade_tiles, laminate_floo
 Sky: kloofendal_48d_partly_cloudy_puresky (tonemapped).
 Models: sofa_02, potted_plant_04, television_02, wooden_bookshelf_worn, fire_hydrant, korean_public_payphone_01,
 metal_trash_can, utility_box_01, exterior_aircon_unit, planter_box_01 (resized to 512px webp, meshopt-compressed).
+Textures (ambientCG, https://ambientcg.com, CC0 1.0): Marble012, Carpet016, WoodFloor041 (resized to 512px webp).
