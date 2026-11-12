@@ -3,7 +3,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;700&family=Nanum+Myeongjo:wght@400;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;700&family=Nanum+Myeongjo:wght@400;700;800&display=swap">
 <style>
 /* Layout: full-bleed 3D stage, a thin HUD rail on top, one hazard-striped action sheet docked at the bottom; the morning paper opens as a sheet of newsprint. */
 :root{
@@ -228,6 +228,122 @@ button:focus-visible{outline:2px solid var(--hazard);outline-offset:2px}
 .hub button:disabled svg{stroke:var(--muted)}
 .btn.go{box-shadow:0 2px 0 #b8861a}
 @media (max-width:600px){.chip{padding:4px 7px;font-size:12px;gap:4px}.chip small{font-size:10px}.meter{width:30px}.iconbtn{padding:4px 7px;font-size:12px}#hud{gap:5px}}
+
+/* ===== game HUD skin: status plate, minimap column, hotbar, key prompts, framed windows ===== */
+:root{--body:"Jua","IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;--mono:"Jua","IBM Plex Mono",ui-monospace,monospace;--frame:#e8b84a;--glass:#0e1420e6;--glass2:#182236f2;--edge:#2c3a55}
+body{user-select:none;-webkit-user-select:none;cursor:default}
+#hud{inset:0;display:block;padding:0;background:none;pointer-events:none}
+.ol{text-shadow:0 2px 0 #000,0 0 6px #000c,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000}
+#st{position:absolute;left:max(12px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 12px);display:flex;gap:10px;align-items:center;pointer-events:none}
+#st .ava{width:62px;height:62px;border-radius:50%;background:radial-gradient(circle at 50% 35%,#3a4a6a,#141b2a);border:3px solid var(--frame);box-shadow:0 3px 0 #7a5a14,0 6px 16px #000a;display:grid;place-items:center;position:relative;flex-shrink:0}
+#st .ava svg{width:44px;height:44px}
+#st .ava b{position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);background:var(--frame);color:#2a1c00;font-size:11px;padding:1px 8px;border-radius:9px;white-space:nowrap;box-shadow:0 2px 0 #7a5a14}
+#st .bars{display:grid;gap:5px}
+.gbar{position:relative;width:170px;height:17px;background:#0a0d14cc;border:2px solid #000;border-radius:9px;box-shadow:0 0 0 1px #ffffff22,0 3px 8px #0008;overflow:hidden}
+.gbar i{position:absolute;inset:0 auto 0 0;width:50%;border-radius:7px;transition:width .35s;background:linear-gradient(#ff7a7a,#e0303a 55%,#a81a26)}
+.gbar.food i{background:linear-gradient(#ffd27a,#f2a020 55%,#b86a08)}
+.gbar.low i{animation:blink .7s infinite}
+.gbar em{position:absolute;left:7px;top:50%;transform:translateY(-50%);font-style:normal;font-size:11px;color:#fff;text-shadow:0 1px 2px #000;display:flex;gap:4px;align-items:center}
+.gbar svg{width:11px;height:11px;fill:#fff}
+#st .money{display:flex;align-items:center;gap:6px;font-size:23px;color:#ffe27a;line-height:1;margin-top:1px}
+#st .money svg{width:20px;height:20px;filter:drop-shadow(0 2px 0 #000)}
+#st .money.pop{animation:chippop .35s}
+#hDebtChip{font-size:12px;color:#ff8a7a;margin-left:26px}
+#rcol{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 12px);width:176px;display:flex;flex-direction:column;gap:6px;align-items:stretch;pointer-events:none}
+#mini{position:static;width:100%;height:auto;aspect-ratio:150/114;border:3px solid var(--frame);border-radius:12px;box-shadow:0 3px 0 #7a5a14,0 8px 20px #000a;box-sizing:border-box}
+#clk{background:var(--glass);border:2px solid var(--edge);border-radius:10px;padding:5px 9px;display:flex;align-items:center;justify-content:space-between;gap:6px;box-shadow:0 4px 12px #0008}
+#clk .tm{font-size:22px;color:#fff;line-height:1}
+#clk small{font-size:11px;color:#b8c4dc;display:block;line-height:1.25;text-align:right}
+#clk .x3{color:#7ae0a0}
+.tag2{display:flex;justify-content:space-between;gap:6px;font-size:12px;background:#0e1420cc;border-radius:8px;padding:3px 9px;color:#cfd8ea}
+.tag2 b{color:#fff;font-weight:400}
+.tag2.warn{background:#7a1420e6;animation:blink 1.2s infinite}.tag2.warn b{color:#ffd0c8}
+#quest{background:linear-gradient(90deg,#0e142000,#0e1420d9 18%);border-radius:8px;padding:6px 8px 6px 20px;font-size:12.5px;display:grid;gap:3px;text-align:right;pointer-events:auto;cursor:pointer}
+#quest h6{margin:0;font-size:12px;color:var(--frame);font-weight:400;letter-spacing:.04em}
+#quest div{color:#e8eef8;line-height:1.3}#quest div.ok{color:#7ae0a0;text-decoration:line-through;opacity:.75}#quest small{color:#9ab}
+#hot{position:absolute;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 14px);display:flex;gap:8px;pointer-events:auto}
+.slot{position:relative;width:58px;height:58px;border-radius:12px;border:2px solid var(--edge);background:linear-gradient(#22304ae6,#0e1420f2);box-shadow:0 4px 0 #05080e,0 8px 16px #0008;display:grid;place-items:center;padding:0;color:#e8eef8;transition:transform .08s}
+.slot:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 #05080e}
+.slot:hover:not(:disabled){border-color:var(--frame)}
+.slot svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;margin-top:-8px}
+.slot .lb{position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:10.5px;color:#b8c4dc;white-space:nowrap}
+.slot kbd,.kc{position:absolute;top:-8px;left:-8px}
+kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:5px;background:linear-gradient(#fdfdfd,#cfd4dc);color:#141820;font:700 11px/1 "IBM Plex Mono",ui-monospace,monospace;box-shadow:0 2px 0 #7a8290,0 3px 5px #0008;border:none}
+.slot:disabled{opacity:.4;cursor:not-allowed}
+.slot.phone{border-color:var(--frame);color:#ffe27a}
+.slot.new{border-color:#ff5b6a;color:#ff9aa4;animation:slotnew 1s infinite}@keyframes slotnew{50%{box-shadow:0 4px 0 #05080e,0 0 18px #ff5b6a}}
+.slot.done{border-color:#4ade80;color:#7ae0a0}
+.slot .bdg{position:absolute;top:-6px;right:-6px;background:#ff3b4a;color:#fff;font-size:11px;border-radius:9px;min-width:18px;height:18px;display:grid;place-items:center;padding:0 4px;box-sizing:border-box;box-shadow:0 2px 0 #000}
+/* interaction prompt: key cap + label, not a web button */
+#prompt{left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 96px);transform:translateX(-50%);min-width:0;display:flex;align-items:center;gap:10px;padding:8px 18px 8px 8px;border-radius:30px;border:2px solid var(--frame);background:var(--glass);color:#fff;font-size:17px;font-weight:400;box-shadow:0 0 0 4px #e8b84a22,0 8px 24px #000a;animation:prm .9s ease-in-out infinite alternate}
+@keyframes prm{to{box-shadow:0 0 0 8px #e8b84a11,0 8px 24px #000a}}
+#prompt kbd{position:static;min-width:34px;height:34px;font-size:17px;border-radius:50%;background:linear-gradient(#ffe27a,#e8a820);color:#2a1c00;box-shadow:0 3px 0 #7a5a14}
+#prompt:disabled{background:#0e1420cc;border-color:#556;color:#9aa;box-shadow:none;animation:none;opacity:1}#prompt:disabled kbd{background:#667;box-shadow:none;color:#223}
+#prompt:hover:not(:disabled){background:#1a2438}
+#hint{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:max(12px,env(safe-area-inset-left,0px));transform:none;background:none;padding:0;display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#dfe6f2;max-width:60vw;text-align:left}
+#hint span{display:flex;align-items:center;gap:5px;text-shadow:0 1px 3px #000,0 0 6px #000}#hint kbd{position:static}
+#hint .tch{display:none}
+@media (hover:none),(max-width:700px){kbd{display:none}#prompt kbd{display:inline-grid}#hint .key{display:none}#hint .tch{display:flex}#hint{left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 226px);justify-content:center;max-width:90vw}}
+/* windows */
+#panel{bottom:calc(env(safe-area-inset-bottom,0px) + 10px);width:min(620px,calc(100% - 16px));max-height:min(54vh,540px);background:linear-gradient(var(--glass2),var(--glass));border:2px solid var(--frame);border-image:none;border-radius:16px;padding:14px 16px 14px;box-shadow:0 0 0 2px #000,0 5px 0 2px #7a5a14,0 18px 50px #000c;scrollbar-width:thin;scrollbar-color:var(--frame) transparent}
+#panel h2{font-size:25px;color:#fff;text-shadow:0 2px 0 #000}
+.eyebrow{font-family:var(--body);letter-spacing:.02em;font-size:12px;color:var(--frame);display:inline-block;background:#e8b84a1c;border:1px solid #e8b84a55;border-radius:20px;padding:2px 10px;margin-bottom:4px}
+.btn{border:2px solid #000;background:linear-gradient(#3a4a6c,#26334e);color:#fff;border-radius:12px;padding:11px 10px;font-weight:400;font-size:16px;box-shadow:inset 0 2px 0 #ffffff26,0 4px 0 #0a0e18;transition:transform .07s,filter .1s;text-shadow:0 1px 0 #000}
+.btn:hover:not(:disabled){background:linear-gradient(#46587e,#2c3a58);filter:brightness(1.08)}
+.btn:active:not(:disabled){transform:translateY(3px);box-shadow:inset 0 2px 0 #ffffff26,0 1px 0 #0a0e18}
+.btn:disabled{opacity:.42;filter:grayscale(.6)}
+.btn.go{background:linear-gradient(#ffe27a,#f0b020);color:#2a1c00;border-color:#000;box-shadow:inset 0 2px 0 #fff8,0 4px 0 #8a5e0a;text-shadow:none}
+.btn.go:hover:not(:disabled){background:linear-gradient(#fff0a0,#ffc23a)}
+.btn.go:active:not(:disabled){box-shadow:inset 0 2px 0 #fff8,0 1px 0 #8a5e0a}
+.btn.red{background:linear-gradient(#ff7a6a,#d83a2a);box-shadow:inset 0 2px 0 #fff4,0 4px 0 #7a1a10}
+.btn.buy{background:linear-gradient(#ff7a80,#e03a44);box-shadow:inset 0 2px 0 #fff4,0 4px 0 #7a1a20}
+.btn.sell{background:linear-gradient(#7aaaff,#3a6ae0);box-shadow:inset 0 2px 0 #fff4,0 4px 0 #1a307a}
+.btn.ghost{background:#ffffff10;box-shadow:none;border-color:#ffffff30}
+.btn.sm{padding:8px 8px;font-size:14px;border-radius:10px}
+.hub button,.prod,.it,.tr,.loan,.stat,.tabs button{border-radius:12px;border:2px solid #1c2740;background:#141c2ecc}
+.hub button:hover:not(:disabled),.prod:hover:not(:disabled){border-color:var(--frame);transform:translateY(-1px)}
+.tabs button.on{background:linear-gradient(#ffe27a,#f0b020);border-color:#000;color:#2a1c00}
+.it.sel,.tr.sel,.prod.on{border-color:var(--frame);background:#243252}
+.rumor{background:#141c2e;border-radius:10px;border-left:4px solid var(--frame)}
+.rk li{background:#141c2ecc;border-radius:8px}.warn-list li{border-radius:8px}
+.bar{height:12px;border-radius:7px;background:#0a0d14;border:2px solid #000}.bar i{background:linear-gradient(#ffe27a,#f0b020);border-radius:5px}
+#modal{background:radial-gradient(ellipse at center,#0a0e18cc,#000e)}
+#modal .box{background:linear-gradient(var(--glass2),var(--glass));border:2px solid var(--frame);border-radius:18px;box-shadow:0 0 0 2px #000,0 6px 0 2px #7a5a14,0 24px 70px #000;animation:boxin .22s cubic-bezier(.2,1.4,.4,1)}
+@keyframes boxin{from{transform:scale(.88);opacity:0}}
+#modal .box.paper{border-radius:4px;border:none;box-shadow:0 20px 60px #000c;animation:none}
+#modal h3{color:#fff;text-shadow:0 2px 0 #000}
+#toast{top:calc(env(safe-area-inset-top,0px) + 14px);width:min(460px,calc(100% - 420px))}
+.toast{background:var(--glass);border:2px solid var(--edge);border-left:6px solid #8ea3b9;border-radius:10px;font-size:14px;box-shadow:0 4px 14px #0008;animation:tin2 .3s cubic-bezier(.2,1.4,.4,1)}
+.toast.good{border-color:var(--edge);border-left-color:#4ade80}.toast.bad{border-color:var(--edge);border-left-color:#ff5b4a}
+@keyframes tin2{from{opacity:0;transform:translateY(-14px) scale(.92)}}
+#inbar{top:calc(var(--hud-h,96px) + 22px)}#inbar .chip{background:var(--glass);border:2px solid var(--edge);border-radius:10px}
+#drivebar{bottom:calc(env(safe-area-inset-bottom,0px) + 92px);background:var(--glass);border:2px solid var(--frame);border-radius:14px}
+#joy{bottom:calc(env(safe-area-inset-bottom,0px) + 84px);border:3px solid #ffffff66;background:radial-gradient(#ffffff10,#0008)}
+#joy i{background:radial-gradient(circle at 40% 35%,#fff0a0,#f0b020);box-shadow:0 3px 0 #7a5a14}
+/* main menu */
+#title{justify-content:center;align-items:center;background:radial-gradient(ellipse at 50% 45%,#0000 20%,#070a12d9 85%);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
+#title .wrap{width:min(420px,100%);text-align:center;display:flex;flex-direction:column;align-items:center}
+#title .sub0{font-size:15px;color:#ffe27a;letter-spacing:.3em;text-shadow:0 2px 0 #000;margin-bottom:6px}
+#title h1{font-size:clamp(72px,19vw,150px);color:#fff;text-shadow:0 4px 0 #000,0 8px 0 #7a1420,0 14px 30px #000;transform:rotate(-3deg);margin:0 0 6px;animation:logo 3.2s ease-in-out infinite alternate;white-space:nowrap}
+#title h1 span{color:#ff4d55}
+@keyframes logo{to{transform:rotate(-3deg) translateY(-8px)}}
+#title .tagl{font-size:15px;color:#e8eef8;text-shadow:0 2px 4px #000;margin:14px 0 22px}
+.menu{display:grid;gap:12px;width:min(300px,100%)}
+.menu .btn{font-size:21px;padding:15px;border-radius:16px}
+.menu .btn.sm{font-size:15px;padding:10px}
+#title .rec{font-family:var(--body);margin-top:16px;color:#b8c4dc;text-shadow:0 1px 3px #000}
+#ldg{display:flex;align-items:center;gap:8px;justify-content:center}#ldg::before{content:"";width:14px;height:14px;border:3px solid #ffffff44;border-top-color:var(--frame);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.howk{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center;margin:10px 0;font-size:14px}.howk kbd{position:static;display:inline-grid;margin-right:3px}
+@media (max-width:700px){
+  #st .ava{width:46px;height:46px;border-width:2px}#st .ava svg{width:32px;height:32px}.gbar{width:118px;height:15px}#st .money{font-size:19px}
+  #rcol{width:118px;gap:4px}#mini{border-width:2px;border-radius:9px}#clk{padding:3px 6px}#clk .tm{font-size:17px}#clk small{font-size:9.5px}.tag2{font-size:10.5px;padding:2px 6px}#quest{display:none}
+  #hot{right:max(8px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 150px);flex-direction:column;gap:9px}.slot{width:50px;height:50px}.slot svg{width:22px;height:22px}
+  #prompt{bottom:calc(env(safe-area-inset-bottom,0px) + 22px);font-size:16px;max-width:calc(100% - 150px);left:calc(50% + 40px)}
+  #toast{left:8px;transform:none;width:calc(100% - 142px);top:calc(var(--hud-h,96px) + 26px)}.toast{font-size:13px;padding:7px 9px}
+  #prompt kbd{font-size:0}#prompt kbd::after{content:"탭";font-size:13px}
+  #panel{width:calc(100% - 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 5px);max-height:58vh}
+}
+
 @media (prefers-reduced-motion:reduce){#stamp.on{animation-duration:.01s}.toast,.pin{animation:none}}
 </style>
 
@@ -236,45 +352,50 @@ button:focus-visible{outline:2px solid var(--hazard);outline-offset:2px}
 <div id="fade"></div>
 
 <header id="hud" hidden>
-  <span class="chip clock"><small id="hDay">1일차</small><b id="hDate">-</b><b id="hTime" class="tm">07:00</b><small class="x3">×3</small></span>
-  <span class="chip cash"><small>현금</small><b id="hCash">0</b></span>
-  <span class="chip" id="hDebtChip" hidden><small>빚</small><b id="hDebt" style="color:var(--bid)">0</b></span>
-  <span class="chip"><small>포만감</small><span class="meter"><i id="hFood"></i></span></span>
-  <span class="chip"><small>체력</small><span class="meter"><i id="hHp"></i></span></span>
-  <span class="chip rent" id="hRentChip"><small>월세</small><b id="hRent">오늘 자정</b></span>
-  <span class="chip"><small>경매</small><b id="hLot">11:00</b></span>
-  <span class="hud-spacer"></span>
-  <button class="iconbtn" id="btnMis" data-act="missions">미션</button>
-  <button class="iconbtn" id="btnPaper" data-act="paper">신문</button>
-  <button class="iconbtn phone" id="btnPhone" data-act="phone">휴대폰</button>
-  <button class="iconbtn" id="btnMute" data-act="mute" aria-label="소리 켜고 끄기">소리 켬</button>
+  <div id="st">
+    <div class="ava"><svg viewBox="0 0 44 44"><circle cx="22" cy="19" r="10" fill="#f1c9a5"/><path d="M11.5 18c0-8 5-12 10.5-12s10.5 4 10.5 12c-3-1-5-4-6-6-3 3-9 5-15 6z" fill="#1d1a17"/><circle cx="18" cy="20" r="1.4" fill="#1a1410"/><circle cx="26" cy="20" r="1.4" fill="#1a1410"/><path d="M19 24.500q3 2 6 0" stroke="#a8524a" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M8 44c0-9 6-13 14-13s14 4 14 13z" fill="#ffc531"/></svg><b id="hDay">1일차</b></div>
+    <div class="bars">
+      <div class="gbar"><i id="hHp"></i><em><svg viewBox="0 0 12 12"><path d="M6 11C1 7 0 5 0 3.300A3 3 0 0 1 6 2a3 3 0 0 1 6 1.300C12 5 11 7 6 11z"/></svg>체력</em></div>
+      <div class="gbar food"><i id="hFood"></i><em><svg viewBox="0 0 12 12"><path d="M1 5h10a5 5 0 0 1-10 0zM3 1v2M6 0v3M9 1v2" stroke="#fff" stroke-width="1.2" fill="#fff"/></svg>포만감</em></div>
+      <div class="money ol"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#f0b020" stroke="#000" stroke-width="1.5"/><path d="M5.5 7l2 6.500L10 8l2.5 5.5 2-6.500M5 10h10" stroke="#5a3a00" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg><b id="hCash" style="font-weight:4">0</b></div>
+      <div id="hDebtChip" class="ol" hidden>빚 <b id="hDebt" style="font-weight:4">0</b></div>
+    </div>
+  </div>
+  <div id="rcol">
+    <canvas id="mini" width="150" height="114" hidden></canvas>
+    <div id="clk"><span class="tm ol" id="hTime">07:00</span><span><small id="hDate">-</small><small class="x3">시간 ×3</small></span></div>
+    <div class="tag2" id="hRentChip"><span>월세</span><b id="hRent">오늘 자정</b></div>
+    <div class="tag2"><span>다음 경매</span><b id="hLot">11:00</b></div>
+    <div id="quest" data-act="missions" hidden></div>
+  </div>
+  <div id="hot">
+    <button class="slot" id="btnMis" data-act="missions"><kbd>M</kbd><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/><path d="M9.5 9.500l2 2 3.500-4"/></svg><span class="lb">미션</span></button>
+    <button class="slot" id="btnPaper" data-act="paper"><kbd>N</kbd><svg viewBox="0 0 24 24"><path d="M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M7 9h7M7 13h7M7 16h4"/></svg><span class="lb">신문</span></button>
+    <button class="slot phone" id="btnPhone" data-act="phone"><kbd>Tab</kbd><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.5 18.500h3"/></svg><span class="lb">휴대폰</span></button>
+    <button class="slot" id="btnMute" data-act="mute" aria-label="소리 켜고 끄기"><svg viewBox="0 0 24 24"><path d="M4 9.500h3.500L12 6v12l-4.500-3.500H4z"/><path class="snd" d="M15.5 9a4 4 0 0 1 0 6M18 6.500a7.5 7.5 0 0 1 0 11"/></svg><span class="lb">소리</span></button>
+  </div>
 </header>
 
 <section id="panel" hidden></section>
-<button id="prompt" class="btn go" data-act="enter" hidden></button>
-<div id="hint" hidden>끌어서 시점 회전 · 누르거나 WASD로 이동 · 건물을 누르면 걸어가서 들어가요</div>
+<button id="prompt" data-act="enter" hidden><kbd>E</kbd><span id="promptT"></span></button>
+<div id="hint" hidden><span class="key"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>이동</span><span class="key"><kbd>Shift</kbd>달리기</span><span class="key"><kbd>E</kbd>상호작용</span><span class="key">마우스 끌기 · 시점</span><span class="tch">조이스틱으로 이동 · 화면을 끌어 시점 회전 · 바닥을 눌러도 걸어가요</span></div>
 <div id="joy" hidden><i></i></div>
-<canvas id="mini" width="150" height="114" hidden></canvas><div id="drivebar" hidden></div><div id="inbar" hidden></div>
+<div id="drivebar" hidden></div><div id="inbar" hidden></div>
 <div id="toast"></div>
 <div id="stamp"></div>
 <div id="modal" hidden><div class="box" id="modalBox"></div></div>
 
 <div id="title">
   <div class="wrap">
-    <div class="eyebrow">현실 시간 ×3 · 생존 · 경매 · 주식 · 코인</div>
+    <div class="sub0">반지하에서 펜트하우스까지</div>
     <h1>인생<span>떡상</span></h1>
-    <p class="tag">반지하 자취방, 통장에는 100만 원. 시계는 <b>현실보다 3배 빠르게</b> 흐르고, 게임을 꺼 둬도 멈추지 않아요. 오늘 자정에 첫 월세가 빠져나갑니다.<br>동네를 걷고, 차를 몰고, 방을 꾸미고, 신문을 읽고 돈을 굴리세요. <b>한 번 파산하면 끝</b>이고 총점이 남아요.</p>
-    <div class="how">
-      <div><b>입체 동네</b>사거리·한강·공원. 화면을 끌어 360도로 돌려 봐요</div>
-      <div><b>내 차</b>동네는 직접 운전, 다른 도시는 자율주행(그동안 휴대폰만)</div>
-      <div><b>방 꾸미기</b>가구를 사서 칸에 배치. 편안할수록 회복이 빨라요</div>
-      <div><b>신문이 힌트</b>예상 시점·적중률·추천주. 기사를 누르면 바로 매매</div>
-    </div>
-    <div class="row">
-      <button class="btn go" id="btnNew" data-act="newgame">새 인생 시작</button>
-      <button class="btn" id="btnCont" data-act="continue" hidden>이어하기</button>
-    </div>
-    <p class="muted" id="ldg" style="font-size:12px;margin:6px 0 0">Poly Haven 사진 텍스처·3D 모델 불러오는 중…</p>
+    <p class="tagl">통장엔 100만 원, 자정엔 월세. 파산하면 끝.</p>
+    <nav class="menu">
+      <button class="btn go" id="btnCont" data-act="continue" hidden>이어하기</button>
+      <button class="btn go" id="btnNew" data-act="newgame">게임 시작</button>
+      <button class="btn sm ghost" data-act="howto">조작법 · 게임 방법</button>
+    </nav>
+    <p class="muted" id="ldg" style="font-size:13px;margin:14px 0 0">불러오는 중…</p>
     <div class="rec" id="rec"></div>
   </div>
 </div>
@@ -464,7 +585,7 @@ function applyCam(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h);compo
 addEventListener('resize',applyCam);
 const panel=$('#panel');
 new ResizeObserver(()=>{panelH=panel.hidden?0:panel.offsetHeight;applyCam();}).observe(panel);
-new ResizeObserver(()=>{const h=document.getElementById('hud');document.documentElement.style.setProperty('--hud-h',(h.hidden?0:h.offsetHeight)+'px');}).observe(document.getElementById('hud'));
+new ResizeObserver(()=>{const h=document.getElementById('st');document.documentElement.style.setProperty('--hud-h',(h.offsetHeight||84)+'px');}).observe(document.getElementById('st'));
 
 /* ============ materials & textures ============ */
 const matCache=new Map();
@@ -839,12 +960,13 @@ function setMeter(id,v){const el=$('#'+id);el.style.width=clamp(v,0,100)+'%';el.
 function aiLive(a){let v=a.cash+a.pending+TIERS[a.tier].dep;for(const id in a.pos)v+=a.pos[id]*(1+(P.mkt[id].ret||0));return v;}
 function renderHUD(){if(!P||!P.broken)return;$('#hud').hidden=false;$('#hDay').textContent=P.day+'일차';$('#hDate').textContent=gameDate();$('#hTime').textContent=hhmm(P.time);$('#hCash').textContent=won(P.cash);$('#hCash').style.color=P.cash<0?'var(--bid)':'';
   const d=debt();$('#hDebtChip').hidden=d<=0;$('#hDebt').textContent=won(d);setMeter('hFood',P.food);setMeter('hHp',P.hp);
-  const ri=rentIn();$('#hRent').textContent=(ri===0?'오늘 자정 ':ri+'일 뒤 ')+won(rentNow());$('#hRentChip').classList.toggle('warn',ri<=1);
+  const ri=rentIn();$('#hRent').textContent=(ri===0?'오늘 자정 ':ri+'일 뒤 ')+won(rentNow());
   const nl=(P.lots||[]).find(l=>!l.done);$('#hLot').textContent=nl?hhmm(nl.at):'내일';
-  const bp=$('#btnPhone');bp.disabled=P.broken.phone||!(PHONE_OK.includes(phase)||phase==='phone');bp.textContent=P.broken.phone?'휴대폰 고장':phase==='phone'?'휴대폰 닫기':'휴대폰';
-  $('#btnPaper').classList.toggle('new',!!P.paperUnread);
+  const bp=$('#btnPhone');bp.disabled=P.broken.phone||!(PHONE_OK.includes(phase)||phase==='phone');bp.querySelector('.lb').textContent=P.broken.phone?'고장':phase==='phone'?'닫기':'휴대폰';
+  $('#btnPaper').classList.toggle('new',!!P.paperUnread);$('#hRentChip').classList.toggle('warn',rentIn()<=0&&P.cash<rentNow());
   P.stats.maxWorth=Math.max(P.stats.maxWorth||0,myWorth());cashFly();
-  {const b=$('#btnMis'),ms=P.missions||[];b.hidden=!ms.length;b.textContent=`미션 ${ms.filter(m=>m.done).length}/${ms.length}`;b.classList.toggle('go',ms.length&&ms.every(m=>m.done));}}
+  {const b=$('#btnMis'),ms=P.missions||[],dn=ms.filter(m=>m.done).length;b.hidden=!ms.length;b.querySelector('.lb').textContent=`미션 ${dn}/${ms.length}`;b.classList.toggle('done',ms.length>0&&dn===ms.length);
+    const q=$('#quest');q.hidden=!ms.length||!(phase==='world'||phase==='drive'||IW.on);const h='<h6>오늘의 미션</h6>'+ms.map(m=>{const D=MISSION_POOL.find(x=>x.id===m.id);return `<div class="${m.done?'ok':''}">${D.t}${D.n>1&&!m.done?` <small>${Math.floor(m.c)}/${D.n}</small>`:''}</div>`;}).join('');if(q.dataset.h!==h){q.dataset.h=h;q.innerHTML=h;}}}
 function lotLevel(){return P.tier*.8+Math.max(0,Math.log2(Math.max(1,myWorth())/300))*.6;}
 
 /* ============ auction lots ============ */
@@ -1255,7 +1377,7 @@ function applyWorldTOD(t){const d=todAt(t),nf=clamp(1.15-d.si*1.25,0,1);skyTint(
 const K={},JOY={x:0,y:0,on:false};
 function camBasis(){const y=view.yaw;return{fx:-Math.sin(y),fz:-Math.cos(y),rx:Math.cos(y),rz:-Math.sin(y)};}
 function tryMove(o,dx,dz,r){if(!blocked(o.x+dx,o.z+dz,r)){o.x+=dx;o.z+=dz;return true;}let m=false;if(!blocked(o.x+dx,o.z,r)){o.x+=dx;m=true;}if(!blocked(o.x,o.z+dz,r)){o.z+=dz;m=true;}return m;}
-function setPrompt(text,dis){const pr=$('#prompt'),hint=$('#hint');if(text){pr.hidden=false;hint.hidden=true;pr.disabled=!!dis;pr.textContent=text;}else{pr.hidden=true;hint.hidden=phase!=='world';}}
+function setPrompt(text,dis){const pr=$('#prompt'),hint=$('#hint');if(text){pr.hidden=false;hint.hidden=true;pr.disabled=!!dis;$('#promptT').textContent=text;}else{pr.hidden=true;hint.hidden=phase!=='world';}}
 function nearestThing(){if(WD.enc&&Math.hypot(WD.enc.x-WD.pos.x,WD.enc.z-WD.pos.z)<2.4)return{kind:'enc'};
   for(const b of BUILDINGS)if(Math.hypot(b.door.x-WD.pos.x,b.door.z-WD.pos.z)<2.2)return{kind:'door',b};
   if(P&&P.car&&P.carLoc==='seoul'&&Math.hypot(P.carPos.x-WD.pos.x,P.carPos.z-WD.pos.z)<3)return{kind:'car'};return null;}
@@ -1306,7 +1428,12 @@ renderer.domElement.addEventListener('pointerup',e=>{if(!tapStart||!P)return;con
   const hit=ray.intersectObjects(scWorld.children,false).find(h=>h.object.userData.bid);
   if(hit){const b=BID[hit.object.userData.bid];WD.target=new THREE.Vector3(b.door.x,0,b.door.z);WD.auto=b.id;return;}
   const p=new THREE.Vector3();if(ray.ray.intersectPlane(FLOOR,p)){WD.target=new THREE.Vector3(clamp(p.x,-67,67),0,clamp(p.z,-36,65));WD.auto=null;}});
-addEventListener('keydown',e=>{K[e.code]=true;if(MG.on&&e.code==='Space'){e.preventDefault();mgHit();return;}if((e.code==='KeyE'||e.code==='Space'||e.code==='Enter')&&!$('#prompt').hidden&&!$('#prompt').disabled&&$('#modal').hidden&&!(e.target&&/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName))){e.preventDefault();ACT.enter();}});addEventListener('keyup',e=>{K[e.code]=false;});addEventListener('blur',()=>{for(const k in K)K[k]=false;});
+addEventListener('keydown',e=>{K[e.code]=true;if(MG.on&&e.code==='Space'){e.preventDefault();mgHit();return;}
+  if(!e.repeat&&!/INPUT|TEXTAREA/.test(e.target?.tagName||'')){const mo=!$('#modal').hidden;
+    if(e.code==='Escape'){e.preventDefault();if(mo){const b=$('#modal [data-act="closePaper"],#modal [data-act="closeModal"],#modal [data-act="scClose"]:not(:disabled)');if(b)b.click();}else if(phase==='phone')openPhone();else{const b=$('#panel [data-act="inBack"],#panel [data-act="back"],#panel [data-act="decorDone"],#panel [data-act="wake"]');if(b&&!$('#panel').hidden)b.click();}return;}
+    if(P&&P.paths&&!mo&&phase!=='title'){if(e.code==='Tab'||e.code==='KeyP'){e.preventDefault();if(!$('#btnPhone').disabled)openPhone();return;}if(e.code==='KeyN'){showPaper();return;}if(e.code==='KeyM'){showMissions();return;}}
+    else if(e.code==='Tab')e.preventDefault();
+    if(e.code==='KeyF'&&!$('#prompt').hidden&&!$('#prompt').disabled&&!mo){ACT.enter();return;}}if((e.code==='KeyE'||e.code==='Space'||e.code==='Enter')&&!$('#prompt').hidden&&!$('#prompt').disabled&&$('#modal').hidden&&!(e.target&&/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName))){e.preventDefault();ACT.enter();}});addEventListener('keyup',e=>{K[e.code]=false;});addEventListener('blur',()=>{for(const k in K)K[k]=false;});
 {const joy=$('#joy'),nub=joy.firstElementChild;const set=e=>{const r=joy.getBoundingClientRect();let x=(e.clientX-r.left-r.width/2)/(r.width/2),y=(e.clientY-r.top-r.height/2)/(r.height/2);const l=Math.hypot(x,y);if(l>1){x/=l;y/=l;}JOY.x=x;JOY.y=y;nub.style.transform=`translate(${x*30}px,${y*30}px)`;};
   joy.addEventListener('pointerdown',e=>{JOY.on=true;joy.setPointerCapture(e.pointerId);set(e);});joy.addEventListener('pointermove',e=>{if(JOY.on)set(e);});
   const end=()=>{JOY.on=false;JOY.x=JOY.y=0;nub.style.transform='';};joy.addEventListener('pointerup',end);joy.addEventListener('pointercancel',end);}
@@ -2190,7 +2317,8 @@ function win(){phase='win';P.cash-=(P.pentPrice||GOAL);renderHUD();pent=buildPen
 /* ============ actions ============ */
 const ACT={
   newgame:()=>{closeModal();newGame();},continue:()=>continueGame(),
-  mute:()=>{muted=!muted;$('#btnMute').textContent=muted?'소리 끔':'소리 켬';},
+  mute:()=>{muted=!muted;const b=$('#btnMute');b.querySelector('.lb').textContent=muted?'음소거':'소리';b.querySelector('.snd').style.display=muted?'none':'';b.style.opacity=muted?.6:1;},
+  howto:()=>modal(`<div class="eyebrow">게임 방법</div><h3>살아남아서, 떡상하라</h3><p>자정마다 월세가 나가요. 알바·경매·주식·코인·길에 떨어진 돈까지, 뭐든 해서 10억 펜트하우스를 사면 승리. 파산하면 그 인생은 끝이에요.</p><div class="howk"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>이동 (폰: 조이스틱 · 바닥 탭)</span><span><kbd>Shift</kbd></span><span>달리기</span><span><kbd>E</kbd></span><span>들어가기 · 집기 · 말 걸기</span><span><kbd>Tab</kbd></span><span>휴대폰 (주식·코인·뉴스·배달)</span><span><kbd>N</kbd> <kbd>M</kbd></span><span>신문 · 오늘의 미션</span><span><kbd>Esc</kbd></span><span>닫기 · 뒤로</span><span>마우스</span><span>끌어서 시점 회전, 휠로 확대</span></div><div class="row"><button class="btn go" data-act="closeModal">알겠어</button></div>`),
   giveup:()=>{if(phase==='title')return;modal(`<h3>새 인생을 시작할까요?</h3><p>지금 인생은 기록 없이 끝나요.</p><div class="row"><button class="btn" data-act="closeModal">계속하기</button><button class="btn red" data-act="newgame">새 인생</button></div>`);},
   closeModal:()=>closeModal(),missions:()=>{if(P)showMissions();},scReveal:()=>scratchEnd(),scClose:()=>closeModal(),mgStart:()=>mgStart(),mgHit:()=>mgHit(),workFull:()=>{closeModal();startWork();},closePaper:()=>{closeModal();renderCurrent();},paper:()=>{if(P)showPaper();},
   showRival:()=>{closeModal();const ai=P.ais[P._rival];P._rival=null;if(ai)rivalWin(ai);},
