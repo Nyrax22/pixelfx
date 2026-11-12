@@ -125,6 +125,21 @@ button:focus-visible{outline:2px solid var(--hazard);outline-offset:2px}
 .qhead .big{font-family:var(--display);font-size:24px}
 .qhead .pp{font-family:var(--mono);font-size:20px;font-weight:700}
 
+.meter{display:inline-block;width:44px;height:7px;background:#2c2924;border-radius:3px;overflow:hidden;align-self:center}
+.meter i{display:block;height:100%;width:50%;background:var(--money);transition:width .3s}
+.meter.low i{background:var(--bid)}
+.warn-list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px}
+.warn-list li{font-size:13px;padding:6px 9px;border-left:3px solid var(--bid);background:#2a1c18}
+.warn-list li.ok{border-color:var(--money);background:#1b2a20}
+.sect{font-size:11px;letter-spacing:.14em;color:var(--muted);margin:14px 0 0;font-family:var(--mono)}
+.hub button .tm{font-family:var(--mono);font-size:11px;color:var(--hazard)}
+.shopgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:10px}
+.prod{display:flex;flex-direction:column;gap:2px;text-align:left;padding:10px;border:1px solid var(--line);background:#24211c;border-radius:3px;min-width:0}
+.prod:hover:not(:disabled){border-color:var(--hazard)}
+.prod:disabled{opacity:.4;cursor:not-allowed}
+.prod b{font-size:14px}.prod small{color:var(--muted);font-size:12px}.prod .pp{font-family:var(--mono);color:var(--hazard);font-size:13px}
+.loan{padding:10px 12px;border:1px solid var(--line);border-radius:3px;margin-top:8px}
+.loan h4{margin:0 0 4px;font-size:15px}
 #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 58px);transform:translateX(-50%);z-index:12;display:grid;gap:6px;width:min(560px,calc(100% - 32px));pointer-events:none}
 @media (max-width:700px){#toast{top:calc(env(safe-area-inset-top,0px) + 96px)}}
 .toast{background:#000d;border:1px solid var(--line);padding:9px 12px;border-radius:3px;font-size:14px;animation:tin .25s ease-out}
@@ -187,11 +202,12 @@ button:focus-visible{outline:2px solid var(--hazard);outline-offset:2px}
 <div id="stage"></div>
 
 <header id="hud" hidden>
-  <span class="chip"><small>D+</small><b id="hDay">1</b></span>
+  <span class="chip"><small>D+</small><b id="hDay">1</b><b id="hTime" style="color:var(--hazard)">08:00</b></span>
   <span class="chip cash"><small>현금</small><b id="hCash">0</b></span>
-  <span class="chip"><small>순자산</small><b id="hWorth">0</b></span>
-  <span class="chip rank"><small>순위</small><b id="hRank">-</b></span>
-  <span class="chip rent" id="hRentChip"><small>월세</small><b id="hRent">7일 뒤</b></span>
+  <span class="chip" id="hDebtChip" hidden><small>빚</small><b id="hDebt" style="color:var(--bid)">0</b></span>
+  <span class="chip"><small>포만감</small><span class="meter"><i id="hFood"></i></span></span>
+  <span class="chip"><small>체력</small><span class="meter"><i id="hHp"></i></span></span>
+  <span class="chip rent" id="hRentChip"><small>월세</small><b id="hRent">오늘 밤</b></span>
   <span class="hud-spacer"></span>
   <button class="iconbtn" id="btnMute" data-act="mute" aria-label="소리 켜고 끄기">소리 켬</button>
   <button class="iconbtn" data-act="giveup">새 인생</button>
@@ -204,14 +220,14 @@ button:focus-visible{outline:2px solid var(--hazard);outline-offset:2px}
 
 <div id="title">
   <div class="wrap">
-    <div class="eyebrow">경매 · 주식 · 코인 로그라이크</div>
+    <div class="eyebrow">생존 · 경매 · 주식 · 코인 로그라이크</div>
     <h1>인생<span>떡상</span></h1>
-    <p class="tag">반지하 자취방, 통장에는 1,000만 원. 목표는 <b>10억 펜트하우스</b>입니다.<br>라이벌 플레이어1~4도 같은 신문을 읽고 움직여요. 먼저 떡상하는 사람이 이깁니다.</p>
+    <p class="tag">반지하 자취방, 통장에는 100만 원. 그런데 <b>오늘 밤 바로 첫 월세</b>가 나갑니다.<br>밥 챙겨 먹고, 고장 나면 고치고, 빚은 갚으면서 10억 펜트하우스를 노리세요. <b>한 번 파산하면 끝</b>이고 총점이 남아요.</p>
     <div class="how">
-      <div><b>아침 신문</b>오늘 밤 오를 종목 힌트. 출처별로 믿을 만한 정도가 달라요</div>
-      <div><b>주식 · 코인</b>가상 기업 8곳과 코인 4종. 장 마감은 잠잘 때</div>
-      <div><b>창고 경매</b>라이벌과 실시간 입찰, 열어봐야 아는 운빨</div>
-      <div><b>순위 레이스</b>순자산 순위로 매일 성적이 나와요</div>
+      <div><b>생존</b>포만감·체력 관리, 장보기, 고장 수리, 알바</div>
+      <div><b>돈 벌기</b>창고 경매, 가상 주식 8종목, 코인 4종</div>
+      <div><b>아침 신문</b>오늘 밤 오를 종목 힌트. 출처마다 믿을 만한 정도가 달라요</div>
+      <div><b>대출</b>은행·캐피탈·사채. 상환일에 못 갚으면 파산</div>
     </div>
     <div class="row">
       <button class="btn go" id="btnNew" data-act="newgame">새 인생 시작</button>
@@ -235,11 +251,11 @@ function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();r
 function wpick(o){let t=0;for(const k in o)t+=o[k];let x=Math.random()*t;for(const k in o){x-=o[k];if(x<=0)return k;}return Object.keys(o)[0];}
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
 
-const START_CASH=1000, GOAL=100000;
+const START_CASH=100, GOAL=100000;
 const TIERS=[
-  {name:'자취방',to:'자취방으로',dep:0,rent:15,food:1.5,slots:4},
-  {name:'옥탑방',to:'옥탑방으로',dep:500,rent:30,food:2,slots:6},
-  {name:'오피스텔',to:'오피스텔로',dep:3000,rent:80,food:3,slots:9},
+  {name:'자취방',to:'자취방으로',dep:0,rent:30,food:1.5,slots:4},
+  {name:'옥탑방',to:'옥탑방으로',dep:500,rent:45,food:2,slots:6},
+  {name:'오피스텔',to:'오피스텔로',dep:3000,rent:90,food:3,slots:9},
 ];
 const STOCKS=[
   {id:'NEO',name:'네오칩스',sector:'반도체',group:'tech',p0:52000,vol:.022,up:['{n}, AI 서버용 칩 주문 폭주','{n}, 차세대 2나노 공정 수율 안정화'],dn:['반도체 재고 급증… {n} 직격탄 우려','{n}, 최대 고객사 이탈설']},
@@ -321,7 +337,7 @@ function aiMorning(W){for(const ai of W.ais){if(ai.out)continue;const S=STYLES[a
   let used=0;for(const id in w){ai.pos[id]=invest*w[id];used+=ai.pos[id];}ai.cash=total-used;}}
 function aiNight(W,rets){for(const ai of W.ais){if(ai.out)continue;const S=STYLES[ai.style];for(const id in ai.pos)ai.pos[id]*=1+rets[id];
   ai.cash+=ai.pending;ai.pending=0;if(Math.random()<S.off){const sc=25*(1+ai.tier*1.6);ai.cash+=sc*(ai.style==='auction'?rand(-.15,.5):rand(-.3,.4));}
-  const t=TIERS[ai.tier];ai.cash-=t.food;if(W.day%7===0)ai.cash-=t.rent;
+  const t=TIERS[ai.tier];ai.cash-=t.food;if(W.day%7===1)ai.cash-=t.rent;
   ai.prev=ai.worth;ai.worth=aiWorth(ai);const nt=TIERS[ai.tier+1];if(nt&&ai.worth>nt.dep*4&&ai.cash>nt.dep-t.dep){ai.cash-=nt.dep-t.dep;ai.tier++;}
   if(ai.worth<=0)ai.out=true;}}
 /*SIM-END*/
@@ -331,7 +347,7 @@ const $=s=>document.querySelector(s);
 function mrng(s){let a=s>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 const rp=(r,a)=>a[Math.floor(r()*a.length)];
 function won(m){const neg=m<0;m=Math.abs(m);let s;
-  if(m<1){const k=Math.round(m*10);s=k?k+'천':'0';}
+  if(m<1){const w=Math.round(m*10000);return (neg&&w?'-':'')+w.toLocaleString('ko-KR')+'원';}
   else{m=Math.round(m);if(m>=10000){const e=Math.floor(m/10000),rest=m%10000;s=e+'억'+(rest?' '+rest.toLocaleString('ko-KR')+'만':'');}else s=m.toLocaleString('ko-KR')+'만';}
   return (neg?'-':'')+s+'원';}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -558,6 +574,33 @@ function buildTrade(){const s=new THREE.Scene();s.background=new THREE.Color(0x0
   const ch=new THREE.Group();ch.add(mesh(G.box(.6,.08,.6),M(0x1a1a1a),0,.55,0),mesh(G.box(.6,.8,.08),M(0x1a1a1a),0,1.0,.3),mesh(G.cyl(.04,.04,.5,6),M(0x555555),0,.28,0));ch.position.set(.1,0,1.0);s.add(ch);
   return s;}
 const scTrade=buildTrade();
+const FOODCOLS=[0xe84a3a,0xf2c14a,0x3a8ae8,0x4ac87a,0xf28a3a,0xb05ae8,0xffffff];
+function buildStore(){const s=new THREE.Scene();s.background=new THREE.Color(0x1b1f26);s.fog=new THREE.Fog(0x1b1f26,12,26);
+  s.add(new THREE.HemisphereLight(0xf2f6ff,0x2a2e36,1.15));const pl=new THREE.PointLight(0xffffff,12,12,1.2);pl.position.set(0,3.2,1);s.add(pl);
+  const d=new THREE.DirectionalLight(0xffffff,.5);d.position.set(3,8,6);d.castShadow=true;s.add(d);
+  const tile=canvasTex(128,128,(g,w,h)=>{g.fillStyle='#d8dbe0';g.fillRect(0,0,w,h);g.fillStyle='#c4c8ce';g.fillRect(0,0,64,64);g.fillRect(64,64,64,64);},[10,8]);
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(14,12),new THREE.MeshStandardMaterial({map:tile,roughness:.6}));fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;s.add(fl);
+  s.add(mesh(G.box(14,4,.2),M(0xeef0f2,{flat:false}),0,2,-3));
+  const sign=textPlane('떡상마트 24',2.8,.6,{bg:'#1d8a4a',fg:'#ffffff'});sign.position.set(0,3.4,-2.88);s.add(sign);
+  for(const x of[-2.2,0,2.2]){const sh=new THREE.Group();sh.add(mesh(G.box(1.8,1.6,.1),M(0x9aa3ad),0,.8,-.25));for(const y of[.45,.9,1.35]){sh.add(mesh(G.box(1.8,.03,.5),M(0x7a838d),0,y-.18,0));for(let i=0;i<7;i++)sh.add(mesh(G.box(.18,.24,.2),M(pick(FOODCOLS)),-.75+i*.25,y-.04,.05));}sh.position.set(x,0,-1.2);s.add(sh);}
+  const fr=new THREE.Group();fr.add(mesh(G.box(2.4,2.1,.7),M(0xd8dde4),0,1.05,0));fr.add(mesh(G.box(2.2,1.8,.02),M(0xdff2ff,{e:0xbfe6ff,ei:.6,op:.55}),0,1.1,.36));for(let i=0;i<10;i++){fr.add(mesh(G.cyl(.06,.06,.3,8),M(pick(FOODCOLS)),-.9+i*.2,1.55,.1));fr.add(mesh(G.cyl(.06,.06,.3,8),M(pick(FOODCOLS)),-.9+i*.2,.85,.1));}fr.position.set(-4.4,0,-2.4);s.add(fr);
+  const ctr=new THREE.Group();ctr.add(mesh(G.box(1.8,1,.7),M(0x2a2d33),0,.5,0),mesh(G.box(.4,.3,.3),M(0x111111),.4,1.15,0));ctr.position.set(3.8,0,.4);ctr.rotation.y=-.5;s.add(ctr);
+  const cl=makePerson({shirt:0x1d8a4a,pants:0x2a2a2a,face:true});cl.g.position.set(4.3,0,-.4);cl.g.rotation.y=-.5;s.add(cl.g);
+  return s;}
+const scStore=buildStore();
+function buildBank(){const s=new THREE.Scene();s.background=new THREE.Color(0x1a1c20);s.fog=new THREE.Fog(0x1a1c20,12,26);
+  s.add(new THREE.HemisphereLight(0xfff6e8,0x2a2a2a,1.1));const pl=new THREE.PointLight(0xffe8c8,12,12,1.2);pl.position.set(0,3.2,1.5);s.add(pl);
+  const d=new THREE.DirectionalLight(0xffffff,.5);d.position.set(3,8,6);d.castShadow=true;s.add(d);
+  const marble=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#e9e5dc';g.fillRect(0,0,w,h);g.strokeStyle='rgba(120,110,95,.25)';g.lineWidth=2;for(let i=0;i<14;i++){g.beginPath();g.moveTo(Math.random()*w,0);g.bezierCurveTo(Math.random()*w,h/3,Math.random()*w,h*2/3,Math.random()*w,h);g.stroke();}},[4,4]);
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(14,12),new THREE.MeshStandardMaterial({map:marble,roughness:.3}));fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;s.add(fl);
+  s.add(mesh(G.box(14,4.4,.2),M(0x23324a,{flat:false}),0,2.2,-3));
+  const sign=textPlane('떡상은행',2.6,.6,{bg:'#23324a',fg:'#ffc531'});sign.position.set(0,3.5,-2.88);s.add(sign);
+  s.add(mesh(G.box(6.4,1.05,.8),M(0x6a4a30),0,.525,-1.2),mesh(G.box(6.6,.06,.95),M(0x3a2414),0,1.08,-1.2),mesh(G.box(6.4,.9,.03),M(0xdff0ff,{op:.2,r:.05}),0,1.55,-1.0));
+  for(const x of[-1.6,1.6]){const t=makePerson({shirt:0x23324a,pants:0x1a1a1a,face:true,glasses:x>0});t.g.position.set(x,0,-2);s.add(t.g);}
+  const num=textPlane('017',1,.45,{bg:'#160606',fg:'#ff3b30',font:'IBM Plex Mono'});num.position.set(-4.2,2.6,-2.88);s.add(num);
+  for(const x of[-5.4,5.4])s.add(mesh(G.cyl(.25,.2,.5,10),M(0xb8653a),x,.25,-2.2),mesh(new THREE.IcosahedronGeometry(.5,0),M(0x3a8a4a),x,.95,-2.2));
+  return s;}
+const scBank=buildBank();
 function drawLine(g,hist,x,y,w,h,{fill=true,lw=3}={}){if(!hist||hist.length<2)return;const mn=Math.min(...hist),mx=Math.max(...hist),rg=(mx-mn)||1;const up=hist.at(-1)>=hist[0];const col=up?'#ff4d55':'#4d8dff';
   const X=i=>x+i/(hist.length-1)*w,Y=v=>y+h-(v-mn)/rg*h;g.beginPath();hist.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));
   if(fill){g.save();g.lineTo(x+w,y+h);g.lineTo(x,y+h);g.closePath();const gr=g.createLinearGradient(0,y,0,y+h);gr.addColorStop(0,up?'rgba(255,77,85,.35)':'rgba(77,141,255,.35)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fill();g.restore();g.beginPath();hist.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));}
@@ -618,9 +661,15 @@ function buildRoom(tier){const s=new THREE.Scene();const R={scene:s,slots:[],leg
     add(mesh(G.box(1.9,1.9,.35),M(0x6a4a34),-.6,.95,-2.0));for(const y of[.5,1.05,1.6])add(mesh(G.box(1.8,.04,.38),M(0x5a4030),-.6,y,-1.95));
     const pl=new THREE.PointLight(0xffe2b8,10,9,1.3);pl.position.set(.5,2.5,0);add(pl);
     R.slots=[];for(const y of[.52,1.07,1.62])for(const x of[-1.15,-.6,-.05])R.slots.push([x,y,-1.95]);R.view={target:new THREE.Vector3(0,1,-.3),dist:8.5,pitch:.5,yaw:.6,yl:[.05,1.35],pl:[.15,.9],dl:[4,13]};}
+  const boilerM=M(0xf2f2ee),phoneM=M(0x111111,{e:0x223355,ei:.5});
+  if(tier===0){add(mesh(G.box(.35,.5,.2),boilerM,-1.88,1.95,-1.5));add(mesh(G.box(.08,.015,.16),phoneM,-.9,.29,.5));R.app={fridge:[1.55,1.25,-1.6],boiler:[-1.75,2.5,-1.5],phone:[-.9,.65,.5]};}
+  if(tier===1){add(mesh(G.box(.55,1,.55),M(0xeeeeee),-.95,.55,-3.2));add(mesh(G.box(.35,.5,.2),boilerM,-4.28,1.95,-1.2));add(mesh(G.box(.08,.015,.16),phoneM,1.6,.73,.8));R.app={fridge:[-.95,1.4,-3.2],boiler:[-4.1,2.5,-1.2],phone:[1.6,1.15,.8]};}
+  if(tier===2){add(mesh(G.box(.6,1.1,.6),M(0xdedede),2.1,.55,1.7));add(mesh(G.box(.35,.5,.2),boilerM,2.2,2.0,-2.1));add(mesh(G.box(.08,.015,.16),phoneM,.3,.42,1.2));R.app={fridge:[2.1,1.5,1.7],boiler:[2.2,2.55,-2.05],phone:[.3,.85,1.2]};}
+  R.appRoot=new THREE.Group();s.add(R.appRoot);
   R.itemRoot=new THREE.Group();s.add(R.itemRoot);return R;}
+function refreshAppliances(){if(!room||!room.appRoot||!P)return;room.appRoot.clear();for(const k in APPL){if(!P.broken[k]||!room.app)continue;const sp=labelSprite(APPL[k].name+' 고장',{bg:'#c8202b',fg:'#ffffff',scale:.3});sp.position.set(...room.app[k]);room.appRoot.add(sp);}}
 function refreshRoomItems(){if(!room)return;room.itemRoot.clear();P.room.forEach((id,i)=>{const it=itemById(id);if(!it||!room.slots[i])return;const m=buildItemModel(it,P.tier===1&&i>=3?.8:.48);m.position.set(...room.slots[i]);m.rotation.y=rand(-.4,.4);room.itemRoot.add(m);});}
-function ensureRoom(){if(!room||room.tier!==P.tier){room=buildRoom(P.tier);room.tier=P.tier;}refreshRoomItems();}
+function ensureRoom(){if(!room||room.tier!==P.tier){room=buildRoom(P.tier);room.tier=P.tier;}refreshRoomItems();refreshAppliances();}
 
 /* ============ penthouse ending ============ */
 function buildPenthouse(){const s=new THREE.Scene();s.background=new THREE.Color(0x141a3a);s.fog=new THREE.Fog(0x141a3a,30,90);s.add(new THREE.HemisphereLight(0xb0c0ff,0x302838,.8));
@@ -662,23 +711,28 @@ const rb=q=>`<span class="rbadge" style="background:${RAR[q].col}">${RAR[q].name
 
 /* ============ state ============ */
 let P=null,mod={},phase='title';
-const META_KEY='ddeoksang-meta-v1',SAVE_KEY='ddeoksang-save-v1';
-function loadMeta(){try{return JSON.parse(localStorage.getItem(META_KEY))||{runs:0,wins:0,best:null};}catch(e){return{runs:0,wins:0,best:null};}}
+const META_KEY='ddeoksang-meta-v2',SAVE_KEY='ddeoksang-save-v2';
+function loadMeta(){try{return JSON.parse(localStorage.getItem(META_KEY))||{runs:0,best:0};}catch(e){return{runs:0,best:0};}}
 function saveMeta(m){try{localStorage.setItem(META_KEY,JSON.stringify(m));}catch(e){}}
 function saveRun(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(P,(k,v)=>k[0]==='_'?undefined:v));}catch(e){}}
 function loadRun(){try{return JSON.parse(localStorage.getItem(SAVE_KEY));}catch(e){return null;}}
 function clearRun(){try{localStorage.removeItem(SAVE_KEY);}catch(e){}}
 const itemById=id=>P.inv.find(x=>x.id===id);
 function luck(){let l=mod.luck||0;for(const id of P.room){const it=itemById(id);if(it&&!it.fake)l+=RAR[it.rar].pt;}return l;}
-function rentIn(){return 7-((P.day-1)%7);}
+function rentIn(){return ((1-P.day)%7+7)%7;}
 function holdVal(id){const h=P.hold[id];return h?h.qty*P.mkt[id].price/10000:0;}
-function myWorth(){let v=P.cash+TIERS[P.tier].dep;for(const id in P.hold)v+=holdVal(id);for(const it of P.inv)v+=(it.appraised?it.trueV:it.estV)*.7;return v;}
+function debt(){return (P.loans||[]).reduce((t,l)=>t+l.owed,0);}
+function myWorth(){let v=P.cash+TIERS[P.tier].dep-debt();for(const id in P.hold)v+=holdVal(id);for(const it of P.inv)v+=(it.appraised?it.trueV:it.estV)*.7;return v;}
 function ranking(){const rows=[{name:'나',me:true,worth:myWorth(),prev:P.prevWorth,color:0xffc531}];for(const a of P.ais)rows.push({name:a.name,style:STYLES[a.style].label,worth:a.out?0:a.worth,prev:a.prev,out:a.out,done:a.done,color:a.color});return rows.sort((a,b)=>b.worth-a.worth);}
 function myRank(){return ranking().findIndex(r=>r.me)+1;}
 const hex=c=>'#'+c.toString(16).padStart(6,'0');
-function renderHUD(){if(!P)return;$('#hud').hidden=false;$('#hDay').textContent=P.day;$('#hCash').textContent=won(P.cash);$('#hCash').style.color=P.cash<0?'var(--bid)':'';
-  $('#hWorth').textContent=won(myWorth());$('#hRank').textContent=myRank()+'/'+(P.ais.length+1);const ri=rentIn();$('#hRent').textContent=(ri===1?'오늘 밤 ':ri+'일 뒤 ')+won(TIERS[P.tier].rent);$('#hRentChip').classList.toggle('warn',ri<=2);}
-function lotLevel(){return P.tier*.8+Math.max(0,Math.log2(Math.max(1,myWorth())/START_CASH))*.6;}
+function hhmm(t){const tot=Math.round(t*60);const h=Math.floor(tot/60)%24,m=tot%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
+function setMeter(id,v){const el=$('#'+id);el.style.width=clamp(v,0,100)+'%';el.parentElement.classList.toggle('low',v<25);}
+function renderHUD(){if(!P||!P.broken)return;$('#hud').hidden=false;$('#hDay').textContent=P.day;$('#hTime').textContent=hhmm(P.time);$('#hCash').textContent=won(P.cash);$('#hCash').style.color=P.cash<0?'var(--bid)':'';
+  const d=debt();$('#hDebtChip').hidden=d<=0;$('#hDebt').textContent=won(d);setMeter('hFood',P.food);setMeter('hHp',P.hp);
+  const ri=rentIn();$('#hRent').textContent=(ri===0?'오늘 밤 ':ri+'일 뒤 ')+won(TIERS[P.tier].rent);$('#hRentChip').classList.toggle('warn',ri<=1);
+  P.stats.maxWorth=Math.max(P.stats.maxWorth||0,myWorth());}
+function lotLevel(){return P.tier*.8+Math.max(0,Math.log2(Math.max(1,myWorth())/300))*.6;}
 
 /* ============ auction lots ============ */
 function rarityRoll(bonus){const w=[30,44,17,7.5,1.5];w[0]*=Math.exp(-bonus*.5);w[2]*=Math.exp(bonus*.3);w[3]*=Math.exp(bonus*.6);w[4]*=Math.exp(bonus*.85);let t=w.reduce((a,b)=>a+b),x=Math.random()*t;for(let i=0;i<5;i++){x-=w[i];if(x<=0)return i;}return 1;}
@@ -699,31 +753,32 @@ function makeRumor(items){const good=items.filter(i=>i.rar>=3&&!i.fake&&!i.speci
 /* ============ life events (printed in the paper) ============ */
 const LIFE=[
   {w:30},
-  {w:6,t:'출근길 보도블록 사이에서 만 원짜리를 주웠다. +1만원',f:()=>{P.cash+=1;}},
+  {w:6,t:'보도블록 사이에서 만 원짜리를 주웠다. +1만원',f:()=>{P.cash+=1;}},
   {w:4,t:'만물상 골목에 손님이 몰린다. 오늘 만물상 매입가 +25%',f:()=>{mod.shop=1.25;}},
   {w:4,t:'경기가 얼어붙어 만물상이 짜게 군다. 오늘 매입가 -25%',f:()=>{mod.shop=.75;}},
-  {w:4,t:'으슬으슬 몸살 기운. 오늘 경매는 창고 2개만 보고 온다.',f:()=>{mod.lots=2;}},
+  {w:4,t:'으슬으슬 몸살 기운이 돈다. 체력 -15',f:()=>{P.hp=Math.max(1,P.hp-15);}},
   {w:2.5,t:'경매장이 공사 중이라 오늘은 경매가 없다.',f:()=>{mod.lots=0;}},
-  {w:4,t:'집주인 할머니가 반찬을 나눠주셨다. 오늘 식비 0원.',f:()=>{mod.noFood=true;}},
+  {w:4,t:'집주인 할머니가 반찬을 나눠주셨다. 장보기 꾸러미 +1',f:()=>{P.pantry.groc=(P.pantry.groc||0)+1;}},
   {w:3,t:'문 앞에 길고양이가 앉아 있다. 왠지 운이 좋다. 오늘 운 +3',f:()=>{mod.luck=3;}},
-  {w:3,t:'휴대폰 액정이 박살났다. 수리비',f:()=>{const c=Math.round(8*(1+P.tier*.6));P.cash-=c;return ' -'+won(c);}},
-  {w:2,cond:()=>P.tier===0&&P.room.length>0,t:'밤새 비가 와서 반지하 자취방에 물이 찼다. 침수된 물건:',f:()=>{const it=itemById(pick(P.room));it.trueV=r1(it.trueV*.15);it.estV=r1(it.estV*.2);it.name='물먹은 '+it.name;it.rar=0;return ' '+it.name;}},
-  {w:2,cond:()=>P.tier===1,t:'옆 옥탑 이웃이 고기를 나눠줬다. 오늘 운 +2, 식비 0원.',f:()=>{mod.luck=2;mod.noFood=true;}},
+  {w:3,t:'관리비 고지서가 날아왔다.',f:()=>{const c=Math.round(4*(1+P.tier));P.cash-=c;return ' -'+won(c);}},
+  {w:2,cond:()=>P.tier===0&&P.room.length>0,t:'밤새 비가 와서 반지하에 물이 찼다. 침수된 물건:',f:()=>{const it=itemById(pick(P.room));it.trueV=r1(it.trueV*.15);it.estV=r1(it.estV*.2);it.name='물먹은 '+it.name;it.rar=0;return ' '+it.name;}},
+  {w:2,cond:()=>P.tier===1,t:'옆 옥탑 이웃이 고기를 나눠줬다. 포만감 +30, 오늘 운 +2',f:()=>{P.food=Math.min(100,P.food+30);mod.luck=2;}},
   {w:2,t:'편의점에서 복권을 한 장 샀다(-5천원). 만물상에서 긁을 수 있다.',f:()=>{P.cash-=.5;P.inv.push({id:P.nextId++,cat:'box',rar:1,fake:false,special:'lotto',name:'복권 한 장',trueV:.1,estV:.1,appraised:true,vis:randi(1,1e9)});}},
 ];
 function rollLife(){const pool=LIFE.filter(e=>!e.cond||e.cond());const o={};pool.forEach((e,i)=>o[i]=e.w);const e=pool[+wpick(o)];if(!e.t)return null;const r=e.f?e.f():'';return e.t+(r||'');}
 
 /* ============ new game / morning ============ */
-function newGame(){ensureAudio();const meta=loadMeta();meta.runs=(meta.runs||0)+1;saveMeta(meta);
-  P={run:meta.runs,day:1,cash:START_CASH,tier:0,inv:[],room:[],nextId:1,hold:{},mkt:initMarket(),ais:makeAIs(),events:[],news:[],lastEvents:null,lastRets:null,crash:[],
-    auctionDone:false,prevWorth:START_CASH,dayStart:START_CASH,life:null,auctionTip:null,feed:[],stats:{won:0,earned:0,best:null,fakes:0,legend:0,trades:0,bestTrade:null}};
+function newGame(){ensureAudio();const meta=loadMeta();meta.runs=(meta.runs||0)+1;saveMeta(meta);room=null;
+  P={run:meta.runs,day:1,time:8,cash:START_CASH,food:70,hp:80,credit:620,loans:[],pantry:{kimbap:1,ramen:2},broken:{fridge:false,boiler:false,phone:false},
+    tier:0,inv:[],room:[],nextId:1,hold:{},mkt:initMarket(),ais:makeAIs(),events:[],news:[],lastEvents:null,lastRets:null,crash:[],
+    auctionDone:false,prevWorth:START_CASH,dayStart:START_CASH,life:null,auctionTip:null,feed:[],stats:{won:0,earned:0,best:null,fakes:0,legend:0,trades:0,bestTrade:null,maxWorth:START_CASH,work:0}};
   $('#title').hidden=true;genDay(P);morning(true);}
-function continueGame(){ensureAudio();const s=loadRun();if(!s)return newGame();P=s;$('#title').hidden=true;mod=P.mod||{};enterHub(true);showPaper();}
-function morning(first){phase='hub';mod={};P.auctionDone=false;P.dayStart=P.cash;
-  P.life=first?null:rollLife();
+function continueGame(){ensureAudio();const s=loadRun();if(!s)return newGame();P=s;room=null;$('#title').hidden=true;mod=P.mod||{};enterHub(true);showPaper();}
+function morning(first){phase='hub';mod={};P.auctionDone=false;P.time=8;P.dayStart=P.cash;const lines=[];
+  if(!first){const l=rollLife();if(l)lines.push(l);for(const k in APPL){if(!P.broken[k]&&Math.random()<Math.max(.01,APPL[k].p-luck()*.004)){P.broken[k]=true;lines.push(`${APPL[k].subj} 고장 났다! ${APPL[k].eff}.`);}}}
+  P.life=first?'반지하 자취방 첫날. 통장에는 100만 원인데, 오늘 밤 바로 첫 월세 30만 원이 나간다. 밥부터 챙기자.':(lines.join(' ')||'평범한 아침이다.');
   P.auctionTip=null;if(Math.random()<.55){const th=pick(THEMES.filter(t=>t.w));P.auctionTip=th.name;if(Math.random()<.75)mod.forceTheme=th.name;}
   aiMorning(P);P.mod=mod;saveRun();enterHub(true);showPaper(first);}
-function enterHub(snap){phase='hub';ensureRoom();cur=room.scene;setView(room.view,snap);renderHub();}
 
 /* ============ the paper ============ */
 const LB=l=>l==='단독'||l==='속보'?'hi':l==='분석'?'mid':'lo';
@@ -744,28 +799,104 @@ function showPaper(first){sfx.paper();const news=P.news;const stocks=news.filter
       <div class="sec"><h5>어제 장 마감</h5><ul class="mv">${moves}</ul></div>
       <div class="sec"><h5>부자 랭킹</h5><ul class="prank">${rk}</ul>${feed?`<ul class="news" style="margin-top:8px;font-size:13px">${feed}</ul>`:''}</div>
       <div class="sec"><h5>경매장 소식</h5><p style="margin:0;font-weight:700">${P.auctionTip?`업계에 따르면 오늘 경매장에 「${esc(P.auctionTip)}」 창고가 나온다.`:'오늘 경매 출품작은 베일에 싸여 있다.'}</p></div>
-      <div class="sec"><h5>오늘 아침</h5><p style="margin:0">${first?'반지하 자취방에서 눈을 떴다. 통장에는 1,000만 원. 오늘부터 인생 떡상 프로젝트 시작.':esc(P.life||'평범한 아침이다.')}</p></div>
+      <div class="sec"><h5>오늘 아침</h5><p style="margin:0">${esc(P.life||'평범한 아침이다.')}</p></div>
     </div>
     <p class="tip">[단독]·[속보]는 대체로 맞고, [분석]은 반반, [찌라시]·[커뮤니티]는 대개 틀립니다. 좋은 소식이 이미 가격에 반영돼 오히려 떨어질 때도 있어요. 주가는 오늘 밤 잠들 때 움직입니다.</p>
     <div class="row"><button class="btn go" data-act="closePaper">신문 접기</button></div>`,'paper');}
 
-/* ============ hub ============ */
-function renderHub(){if(phase!=='hub')return;renderHUD();const t=TIERS[P.tier],nt=TIERS[P.tier+1];const diff=myWorth()-P.prevWorth;
+/* ============ daily life ============ */
+const STORE=[
+  {id:'kimbap',name:'삼각김밥',price:.15,sat:15,desc:'포만감 +15'},
+  {id:'ramen',name:'컵라면',price:.15,sat:22,hp:-1,desc:'포만감 +22 · 체력 -1'},
+  {id:'dosirak',name:'편의점 도시락',price:.55,sat:40,desc:'포만감 +40'},
+  {id:'salad',name:'샐러드',price:.65,sat:20,hp:6,desc:'포만감 +20 · 체력 +6'},
+  {id:'groc',name:'장보기 꾸러미',price:1.6,sat:35,hp:3,servings:3,desc:'3끼분 · 끼당 포만감 +35 · 냉장 보관'},
+  {id:'energy',name:'에너지 드링크',price:.25,sat:3,hp:5,desc:'체력 +5'},
+  {id:'vitamin',name:'종합 비타민',price:2.5,sat:0,hp:20,desc:'체력 +20'},
+];
+const APPL={
+  fridge:{name:'냉장고',subj:'냉장고가',tech:15,buy:55,p:.07,eff:'장보기 꾸러미가 밤새 상해요'},
+  boiler:{name:'보일러',subj:'보일러가',tech:20,buy:0,p:.06,eff:'잘 때 체력이 깎여요'},
+  phone:{name:'휴대폰',subj:'휴대폰이',tech:12,buy:40,p:.06,eff:'증권 앱·배달·캐피탈을 못 써요'},
+};
+const LOANS={
+  bank:{name:'떡상은행 신용대출',rate:.001,term:28,minCredit:600,lim:()=>80+Math.max(0,myWorth())*.5,note:'영업시간 08~16시 · 빌릴 때 1시간'},
+  cap:{name:'번개캐피탈',rate:.004,term:14,minCredit:450,lim:()=>120+Math.max(0,myWorth())*.3,note:'휴대폰으로 신청'},
+  shark:{name:'급전 사채',rate:.02,term:7,minCredit:0,lim:()=>300,note:'언제든 · 빌릴 때마다 신용점수 -80'},
+};
+function spend(h){P.time+=h;const starving=P.food<=0;P.food=Math.max(0,P.food-5*h);if(P.food<=0)P.hp-=(starving?8:4)*h;P.hp=clamp(P.hp,0,100);renderHUD();
+  if(P.hp<=0){collapse();return false;}
+  if(P.time>=26){toast('새벽 2시. 그대로 곯아떨어졌다. 체력 -10','bad');P.hp=Math.max(1,P.hp-10);sleep(true);return false;}
+  return true;}
+function collapse(){const why=P.food<=0?'굶주림':'과로';const cost=25+P.tier*15;P.hp=45;P.food=Math.max(P.food,40);P.time=Math.min(25.5,P.time+5);let note;
+  if(P.cash>=cost){P.cash-=cost;note=`병원비 ${won(cost)}을 냈다.`;}else{P.loans.push({type:'hosp',name:'병원비 분할 납부',owed:cost,rate:.003,due:P.day+14});note=`병원비 ${won(cost)}은 14일 안에 갚아야 한다. 못 갚으면 파산.`;}
+  stamp('응급실');sfx.bad();phase='hub';renderHUD();hidePanel();
+  modal(`<div class="eyebrow">D+${P.day} · ${hhmm(P.time)}</div><h3>쓰러졌다</h3><p>${why}로 쓰러져 응급실에 실려 갔다. ${note}</p><div class="row"><button class="btn go" data-act="hub">집으로</button></div>`);}
+function enterHub(snap){phase='hub';ensureRoom();cur=room.scene;setView(room.view,snap);renderHub();}
+function greeting(){if(P.food<15)return '배고파서 아무것도 못 하겠다';if(P.hp<25)return '몸이 천근만근이다';if(rentIn()===0&&P.cash<TIERS[P.tier].rent)return '오늘 밤 월세가 모자라다';if(P.time>=22)return '벌써 밤이 깊었다';if(P.time<10)return '좋은 아침';return '오늘 뭐 하지?';}
+function renderHub(){if(phase!=='hub')return;renderHUD();const t=TIERS[P.tier],nt=TIERS[P.tier+1];const tm=P.time;
+  const warns=[];const ri=rentIn();
+  if(ri===0)warns.push([P.cash>=t.rent?'ok':'',`오늘 밤 월세 ${won(t.rent)}`+(P.cash>=t.rent?' · 낼 돈 있음':' · 현금 부족! 모자라면 주식·물건이 헐값에 팔리고, 그래도 모자라면 파산')]);
+  for(const l of P.loans){const d=l.due-P.day;if(d<=2)warns.push([P.cash>=l.owed?'ok':'',`${l.name} 상환 ${d<=0?'오늘 밤':'D-'+d} · ${won(l.owed)}`]);}
+  if(P.food<25)warns.push(['',`배가 고프다(포만감 ${Math.round(P.food)}). 0이 되면 체력이 줄어요.`]);
+  if(P.hp<30)warns.push(['',`몸이 무겁다(체력 ${Math.round(P.hp)}). 0이 되면 응급실행.`]);
+  for(const k in APPL)if(P.broken[k])warns.push(['',`${APPL[k].name} 고장 · ${APPL[k].eff}`]);
+  const pc=Object.values(P.pantry).reduce((a,b)=>a+b,0);const nb=Object.values(P.broken).filter(Boolean).length;const lots=mod.lots??3;const moveCost=nt?nt.dep-t.dep:0;
+  const btn=(act,title,sub,o={})=>`<button data-act="${act}" ${o.dis?'disabled':''}><b>${title}</b><small>${sub}</small>${o.time?`<span class="tm">${o.time}</span>`:''}</button>`;
   const rk=ranking().map((r,i)=>{const d=r.prev?r.worth/r.prev-1:0;return `<li class="${r.me?'me':''}"><span class="n">${i+1}</span><span class="sw" style="background:${hex(r.color)}"></span><span>${r.me?'나':esc(r.name)} <small>${r.style?esc(r.style):''}${r.out?' · 파산':r.done?' · 졸업':''}</small></span><span class="w">${won(r.worth)}</span><span class="d ${cls(d)}">${r.out?'-':pct(d)}</span></li>`;}).join('');
-  const lots=mod.lots??3;
-  const moveCost=nt?nt.dep-t.dep:0;
-  setPanel(`<div class="eyebrow">D+${P.day} · ${t.name} · ${myRank()}위</div><h2>오늘 순자산 ${diff>=0?'+':''}${won(diff)}</h2>
-    <div class="hub">
-      <button data-act="paper"><b>신문 다시 보기</b><small>일간 떡상 제${P.day}호</small></button>
-      <button data-act="toTrade"><b>증권 앱</b><small>주식 8종목 · 코인 4종</small></button>
-      <button data-act="toAuction" ${P.auctionDone||lots===0?'disabled':''}><b>경매장</b><small>${lots===0?'오늘은 휴업':P.auctionDone?'오늘 경매 끝':`창고 ${lots}개 · 라이벌 출동`}</small></button>
-      <button data-act="toShop"><b>만물상</b><small>물건 ${P.inv.length}개 · 감정·흥정</small></button>
-      ${nt?`<button data-act="move" ${P.cash<moveCost?'disabled':''}><b>${nt.to} 이사</b><small>보증금 +${won(moveCost)} · 월세 ${won(nt.rent)}</small></button>`:`<button disabled><b>오피스텔 거주 중</b><small>다음은 펜트하우스</small></button>`}
-      <button data-act="buyPent" ${P.cash<GOAL?'disabled':''}><b>펜트하우스 매입</b><small>현금 ${won(GOAL)} 필요</small></button>
+  setPanel(`<div class="eyebrow">D+${P.day} · ${hhmm(tm)} · ${t.name} · 순자산 ${won(myWorth())} · ${myRank()}위</div><h2>${greeting()}</h2>
+    ${warns.length?`<ul class="warn-list">${warns.map(([c,w])=>`<li class="${c}">${esc(w)}</li>`).join('')}</ul>`:''}
+    <div class="sect">생활</div><div class="hub">
+      ${btn('eat','밥 먹기',`먹을 것 ${pc}개${P.broken.phone?'':' · 배달 가능'}`,{time:'20분'})}
+      ${btn('store','편의점','음식 · 비타민',{time:'30분'})}
+      ${btn('work','편의점 알바','+7만원',{dis:tm>18,time:'6시간 · 18시 전'})}
+      ${btn('repair','수리',nb?`고장 ${nb}건`:'고장 없음',{dis:!nb})}
+    </div>
+    <div class="sect">돈</div><div class="hub">
+      ${btn('toTrade','증권 앱',P.broken.phone?'휴대폰 고장':'주식 8 · 코인 4',{dis:P.broken.phone,time:'30분'})}
+      ${btn('toAuction','경매장',lots===0?'오늘 휴업':P.auctionDone?'오늘 경매 끝':`창고 ${lots}개 · 라이벌 출동`,{dis:P.auctionDone||lots===0||tm>15,time:'4시간 · 15시 전'})}
+      ${btn('toShop','만물상',`물건 ${P.inv.length}개 · 감정·흥정`,{dis:tm>21,time:'1시간'})}
+      ${btn('bank','은행 · 대출',debt()>0?`빚 ${won(debt())}`:`신용점수 ${P.credit}`)}
+    </div>
+    <div class="sect">집</div><div class="hub">
+      ${btn('paper','신문 다시 보기',`일간 떡상 제${P.day}호`)}
+      ${nt?btn('move',`${nt.to} 이사`,`보증금 +${won(moveCost)} · 월세 ${won(nt.rent)}`,{dis:P.cash<moveCost}):btn('noop','오피스텔 거주 중','다음은 펜트하우스',{dis:true})}
+      ${btn('buyPent','펜트하우스 매입',`현금 ${won(GOAL)} 필요`,{dis:P.cash<GOAL})}
     </div>
     <ol class="rk">${rk}</ol>
-    <p class="muted" style="font-size:12px;margin:10px 0 0">자면 식비 ${mod.noFood?'0원':won(t.food)}이 나가고 오늘 밤 장이 마감됩니다.${rentIn()===1?` <b class="loss">오늘 밤 월세 ${won(t.rent)}.</b> 모자라면 주식·물건이 강제로 팔려요.`:''}</p>
     <div class="row"><button class="btn go" data-act="sleep">잠자기 · 장 마감</button></div>`);}
+function renderEat(){phase='eat';renderHUD();const own=STORE.filter(s=>(P.pantry[s.id]||0)>0);
+  setPanel(`<div class="eyebrow">냉장고 · 포만감 ${Math.round(P.food)} · 체력 ${Math.round(P.hp)}</div><h2>뭐 먹지?</h2>
+    <div class="shopgrid">${own.map(s=>`<button class="prod" data-act="eatItem" data-arg="${s.id}"><b>${s.name} ×${P.pantry[s.id]}</b><small>${s.desc}</small><span class="pp">먹기 · 20분</span></button>`).join('')}
+    <button class="prod" data-act="deliver" ${P.broken.phone||P.cash<2.2?'disabled':''}><b>배달 치킨</b><small>포만감 +60 · ${P.broken.phone?'휴대폰 고장':'휴대폰으로 주문'}</small><span class="pp">2만 2천원 · 40분</span></button></div>
+    ${own.length?'':'<p class="muted">먹을 게 없다. 편의점에 가거나 배달을 시키자.</p>'}
+    <div class="row"><button class="btn go" data-act="hub">돌아가기</button></div>`);}
+function goStore(){phase='store';cur=scStore;setView({target:new THREE.Vector3(0,1.3,-1),yaw:0,pitch:.18,dist:6.5,yl:[-.6,.6],pl:[.05,.5],dl:[4,10]},true);renderStore();}
+function renderStore(){renderHUD();setPanel(`<div class="eyebrow">떡상마트 24 · 현금 ${won(P.cash)}</div><h2>장 보기</h2>
+  <div class="shopgrid">${STORE.map(s=>`<button class="prod" data-act="buyFood" data-arg="${s.id}" ${P.cash<s.price?'disabled':''}><b>${s.name}</b><small>${s.desc}</small><span class="pp">${won(s.price)} · 보유 ${P.pantry[s.id]||0}</span></button>`).join('')}</div>
+  <div class="row"><button class="btn go" data-act="hub">집으로</button></div>`);}
+function renderRepair(){phase='repair';renderHUD();const ks=Object.keys(APPL).filter(k=>P.broken[k]);const sp=Math.round(Math.min(.9,.55+luck()*.03)*100);
+  setPanel(`<div class="eyebrow">수리 · 현금 ${won(P.cash)}</div><h2>${ks.length?'고장 난 물건':'고장 난 게 없다'}</h2>
+    ${ks.map(k=>{const a=APPL[k];return `<div class="loan"><h4>${a.name} 고장</h4><div class="muted" style="font-size:13px">${a.eff}</div><div class="row">
+      <button class="btn go sm" data-act="fixTech" data-arg="${k}" ${P.cash<a.tech?'disabled':''}>기사 부르기 ${won(a.tech)} · 1시간</button>
+      <button class="btn sm" data-act="fixSelf" data-arg="${k}" ${P.cash<3?'disabled':''}>셀프 수리 3만원 · 2시간 · 성공 ${sp}%</button>
+      ${a.buy?`<button class="btn ghost sm" data-act="fixBuy" data-arg="${k}" ${P.cash<a.buy?'disabled':''}>새로 사기 ${won(a.buy)}</button>`:''}</div></div>`;}).join('')}
+    <div class="row"><button class="btn go" data-act="hub">돌아가기</button></div>`);}
+function goBank(){phase='bank';cur=scBank;setView({target:new THREE.Vector3(0,1.4,-1),yaw:0,pitch:.15,dist:6.5,yl:[-.6,.6],pl:[.05,.5],dl:[4,10]},true);renderBank();}
+function loanRemaining(type){const used=P.loans.filter(l=>l.type===type).reduce((t,l)=>t+l.owed,0);return Math.max(0,Math.floor(LOANS[type].lim()-used));}
+function renderBank(){renderHUD();
+  const mine=P.loans.map((l,i)=>`<div class="loan"><h4>${esc(l.name)} · ${won(l.owed)}</h4><div class="muted" style="font-size:13px">상환일 ${l.due-P.day<=0?'<b class="loss">오늘 밤</b>':'D-'+(l.due-P.day)} · 하루 이자 ${(l.rate*100).toFixed(1)}% · 상환일에 못 갚으면 파산</div><div class="row"><button class="btn sm" data-act="repay" data-arg="${i}:50" ${P.cash<1?'disabled':''}>50만원 갚기</button><button class="btn go sm" data-act="repay" data-arg="${i}:all" ${P.cash<1?'disabled':''}>전액 갚기</button></div></div>`).join('');
+  const offers=Object.keys(LOANS).map(k=>{const L=LOANS[k];const rem=loanRemaining(k);const why=P.credit<L.minCredit?`신용점수 ${L.minCredit} 이상 필요`:k==='bank'&&(P.time<8||P.time>16)?'지금은 영업시간이 아님':k==='cap'&&P.broken.phone?'휴대폰 고장':'';const dis=!!why||rem<1;
+    return `<div class="loan"><h4>${L.name}</h4><div class="muted" style="font-size:13px">하루 이자 ${(L.rate*100).toFixed(1)}% · ${L.term}일 뒤 원금과 이자를 한 번에 상환 · 남은 한도 ${won(rem)}<br>${L.note}${why?` · <b class="loss">${why}</b>`:''}</div>
+      <div class="row"><button class="btn sm" data-act="borrow" data-arg="${k}:50" ${dis||rem<50?'disabled':''}>50만원</button><button class="btn sm" data-act="borrow" data-arg="${k}:200" ${dis||rem<200?'disabled':''}>200만원</button><button class="btn go sm" data-act="borrow" data-arg="${k}:max" ${dis?'disabled':''}>한도까지</button></div></div>`;}).join('');
+  setPanel(`<div class="eyebrow">떡상은행 · 신용점수 ${P.credit} · 빚 ${won(debt())}</div><h2>대출</h2>${mine?`<div class="sect">내 대출</div>${mine}`:''}<div class="sect">빌릴 수 있는 곳</div>${offers}
+    <p class="muted" style="font-size:12px">제때 갚으면 신용점수가 오르고, 은행 한도도 순자산에 따라 늘어요.</p><div class="row"><button class="btn go" data-act="hub">돌아가기</button></div>`);}
+function borrow(type,amt){const L=LOANS[type];const rem=loanRemaining(type);const a=amt==='max'?rem:Math.min(+amt,rem);if(a<1)return;if(type==='bank'&&!spend(1))return;
+  P.cash+=a;P.loans.push({type,name:L.name,owed:a,rate:L.rate,due:P.day+L.term});if(type==='shark')P.credit=Math.max(300,P.credit-80);sfx.cash();toast(`${L.name}에서 ${won(a)} 빌렸다. ${L.term}일 뒤 상환.`,type==='shark'?'bad':'good');if(phase==='bank')renderBank();}
+function repay(i,amt){const l=P.loans[i];if(!l)return;let a=amt==='all'?l.owed:Math.min(+amt,l.owed);a=Math.min(a,P.cash);if(a<=0)return;P.cash-=a;l.owed-=a;
+  if(l.owed<.05){P.loans.splice(i,1);P.credit=Math.min(900,P.credit+25);toast(`${l.name} 완납! 신용점수 +25`,'good');}else toast(`${won(a)} 상환`,'good');sfx.cash();renderBank();}
+function work(){if(P.time>18){toast('알바는 18시 전에만 시작할 수 있어요.','bad');return;}if(!spend(6))return;let pay=7;let msg=`편의점 알바 6시간 · +${won(pay)}`;if(Math.random()<.12){pay+=3;msg+=' · 사장님이 보너스 +3만원';}
+  P.cash+=pay;P.stats.work=(P.stats.work||0)+1;sfx.cash();stamp('+'+pay+'만',true);toast(msg,'good');renderHub();}
 
 /* ============ trading ============ */
 const TS={tab:'stock',sel:'NEO'};
@@ -893,40 +1024,49 @@ function removeItem(id){P.inv=P.inv.filter(x=>x.id!==id);P.room=P.room.filter(x=
 function sellItem(id,quiet){const it=itemById(id);if(!it||it.refused)return 0;P.cash+=it.offer;P.stats.earned+=it.offer;const v=it.offer;removeItem(id);if(!quiet){sfx.cash();toast(`${it.name} 판매 +${won(v)}`,'good');}return v;}
 
 /* ============ night ============ */
-function sleep(){const t=TIERS[P.tier];P.prevWorth=myWorth();P.cash-=mod.noFood?0:t.food;
-  const rentDay=P.day%7===0;let evicted=false,msg=[];
-  if(rentDay){if(P.cash<t.rent){let sold=0;
-      for(const id of Object.keys(P.hold)){if(P.cash>=t.rent)break;const v=holdVal(id);P.cash+=v;delete P.hold[id];sold++;}
-      const order=P.inv.filter(i=>i.special!=='lotto').sort((a,b)=>(P.room.includes(a.id)?1:0)-(P.room.includes(b.id)?1:0)||b.trueV-a.trueV);
-      for(const it of order){if(P.cash>=t.rent)break;P.cash+=r1(Math.max(.1,it.trueV*.5));sold++;removeItem(it.id);}
-      if(P.cash<t.rent){if(P.tier===0){bankrupt();return;}const refund=t.dep-TIERS[P.tier-1].dep;P.cash+=refund-t.rent;P.tier--;P.room=P.room.slice(0,TIERS[P.tier].slots);room=null;evicted=true;}
-      else{P.cash-=t.rent;msg.push(`월세가 모자라 자산 ${sold}건을 강제로 팔았다.`);}}
-    else{P.cash-=t.rent;msg.push(`월세 -${won(t.rent)}`);}}
+function liquidate(need){let n=0;for(const id of Object.keys(P.hold)){if(P.cash>=need)break;P.cash+=holdVal(id);delete P.hold[id];n++;}
+  const order=P.inv.filter(i=>i.special!=='lotto').sort((a,b)=>(P.room.includes(a.id)?1:0)-(P.room.includes(b.id)?1:0)||b.trueV-a.trueV);
+  for(const it of order){if(P.cash>=need)break;P.cash+=r1(Math.max(.1,it.trueV*.5));n++;removeItem(it.id);}return n;}
+function pay(amount,what,msgs){if(P.cash>=amount){P.cash-=amount;return true;}const n=liquidate(amount);if(P.cash>=amount){P.cash-=amount;msgs.push(`${what} 낼 돈이 모자라 자산 ${n}건을 헐값에 팔았다.`);return true;}return false;}
+function sleep(late){if(!P||phase==='over'||phase==='win'||phase==='title')return;closeModal();const t=TIERS[P.tier];P.prevWorth=myWorth();const msgs=[];
+  P.food=Math.max(0,P.food-15);
+  if(P.broken.boiler){P.hp-=12;msgs.push('보일러가 고장 나서 밤새 떨었다. 체력 -12');}else if(P.food>20)P.hp+=late?10:22;else if(P.food>0){P.hp-=8;msgs.push('배가 고파 잠을 설쳤다. 체력 -8');}else{P.hp-=22;msgs.push('굶은 채로 잠들었다. 체력 -22');}
+  P.hp=clamp(P.hp,0,100);
+  if(P.broken.fridge&&P.pantry.groc>0){msgs.push(`냉장고 고장으로 장보기 꾸러미 ${P.pantry.groc}개가 상했다.`);P.pantry.groc=0;}
+  let evicted=false;
+  if(rentIn()===0){if(pay(t.rent,'월세',msgs)){P.credit=Math.min(900,P.credit+5);msgs.push(`월세 -${won(t.rent)}`);}
+    else{if(P.tier===0){gameOver(`D+${P.day} 밤, 월세 ${won(t.rent)}을 못 냈다. 팔 것도 남지 않았다.`);return;}const refund=t.dep-TIERS[P.tier-1].dep;P.cash+=refund-t.rent;P.tier--;P.room=P.room.slice(0,TIERS[P.tier].slots);room=null;evicted=true;}}
+  for(const l of P.loans)l.owed*=1+l.rate;
+  for(const l of P.loans.slice()){if(l.due<=P.day){if(pay(l.owed,l.name+' 상환금',msgs)){P.loans.splice(P.loans.indexOf(l),1);P.credit=Math.min(900,P.credit+40);msgs.push(`${l.name} 상환 완료 · 신용점수 +40`);}
+    else{gameOver(`${l.name} 상환일. ${won(l.owed)}을 갚지 못했다.`);return;}}}
+  if(P.cash<0){liquidate(0);if(P.cash<0){gameOver(`현금이 ${won(P.cash)}인데 팔 것이 없다.`);return;}}
+  if(P.hp<=0){const cost=25+P.tier*15;P.hp=40;if(P.cash>=cost)P.cash-=cost;else P.loans.push({type:'hosp',name:'병원비 분할 납부',owed:cost,rate:.003,due:P.day+15});msgs.push(`밤새 앓다가 응급실에 갔다. 병원비 ${won(cost)}`);}
   const rets=resolveDay(P);aiNight(P,rets);
   for(const ai of P.ais){if(ai.out&&!ai.reportedOut){ai.reportedOut=true;P.feed.push(`D+${P.day} ${ai.name}, 끝내 파산`);}
     const d=ai.prev?ai.worth/ai.prev-1:0;if(!ai.out&&Math.abs(d)>.35)P.feed.push(`D+${P.day} ${ai.name}(${STYLES[ai.style].label}) 하루 만에 ${d>0?'+':''}${(d*100).toFixed(0)}%`);}
   if(P.feed.length>12)P.feed=P.feed.slice(-12);
-  P.day++;msg.forEach(m=>toast(m,'bad'));
+  P.day++;P.time=8;P.stats.maxWorth=Math.max(P.stats.maxWorth||0,myWorth());
+  msgs.forEach(m=>toast(m,/완료|^월세 -/.test(m)?'':'bad'));
   const winner=P.ais.find(a=>!a.done&&!a.out&&a.worth>=GOAL);
   genDay(P);
-  if(evicted){modal(`<div class="eyebrow">월세 미납</div><h3>쫓겨났다</h3><p>월세를 못 내서 ${TIERS[P.tier+1].name}에서 나왔다. 보증금을 돌려받아 <b>${TIERS[P.tier].name}</b>(으)로 옮긴다.</p><div class="row"><button class="btn go" data-act="toMorning">다음 날</button></div>`);sfx.bad();return;}
+  if(evicted){modal(`<div class="eyebrow">월세 미납</div><h3>쫓겨났다</h3><p>월세를 못 내서 ${TIERS[P.tier+1].name}에서 나왔다. 보증금을 돌려받아 <b>${TIERS[P.tier].to}</b> 옮긴다.</p><div class="row"><button class="btn go" data-act="toMorning">다음 날</button></div>`);sfx.bad();return;}
   if(winner){rivalWin(winner);return;}
   morning();}
 function rivalWin(ai){phase='rival';sfx.bad();const rk=myRank();
   modal(`<div class="eyebrow">D+${P.day} 속보</div><h3>${esc(ai.name)}, 먼저 떡상</h3><p><b>${esc(ai.name)}</b>(${esc(STYLES[ai.style].label)})이(가) 순자산 ${won(ai.worth)}을 찍고 펜트하우스를 계약했다.</p><p>지금 내 순위는 <b>${rk}위</b>, 순자산 ${won(myWorth())}.</p>
-    <div class="row"><button class="btn" data-act="newgame">새 인생</button><button class="btn go" data-act="keepGoing">끝까지 가보기</button></div><p class="muted" style="font-size:12px">끝까지 가보기를 고르면 ${esc(ai.name)}은(는) 레이스에서 빠지고, 나는 계속 펜트하우스를 노립니다.</p>`);
+    <div class="row"><button class="btn" data-act="giveupNow">여기서 끝내고 점수 보기</button><button class="btn go" data-act="keepGoing">계속 살아남기</button></div><p class="muted" style="font-size:12px">계속하면 ${esc(ai.name)}은(는) 레이스에서 빠지고, 나는 파산할 때까지 계속 점수를 쌓아요.</p>`);
   ai._pending=true;}
-function bankrupt(){phase='over';clearRun();hidePanel();sfx.bad();const s=P.stats;
-  modal(`<div class="eyebrow">인생 #${P.run} · D+${P.day}</div><h3>파산 엔딩</h3><p>자취방 월세 ${won(TIERS[0].rent)}도 못 냈다. 주식도 물건도 다 팔고 짐을 쌌다.</p>
-    <div class="grid2"><div class="stat"><small>매매 횟수</small><b>${s.trades}</b></div><div class="stat"><small>낙찰 횟수</small><b>${s.won}</b></div><div class="stat"><small>최고의 한 방</small><b style="font-size:13px">${s.bestTrade?esc(s.bestTrade.name)+' '+won(s.bestTrade.v):'없음'}</b></div></div>
-    <p class="muted">다음 인생에선 신문도, 시장도, 라이벌 스타일도 전부 새로 섞여요.</p><div class="row"><button class="btn go" data-act="newgame">다시 태어나기</button></div>`);}
+function scoreParts(winFlag){const s=P.stats;const bt=s.bestTrade&&s.bestTrade.v>0?s.bestTrade.v:0;const mw=Math.max(0,s.maxWorth||0);
+  const p=[['생존',`${P.day}일`,P.day*100],['최고 순자산',won(mw),Math.round(mw/10)],['경매 낙찰',`${s.won}회`,s.won*30],['전설 아이템',`${s.legend}개`,s.legend*300],['최고의 한 방',bt?`${s.bestTrade.name} +${won(bt)}`:'없음',Math.round(bt/20)]];
+  if(winFlag)p.push(['펜트하우스 입주','10억',30000]);return p;}
+function scoreBlock(parts){const tot=parts.reduce((t,x)=>t+x[2],0);return{tot,html:`<div class="grid2">${parts.map(x=>`<div class="stat"><small>${x[0]} · ${esc(x[1])}</small><b>+${x[2].toLocaleString('ko-KR')}</b></div>`).join('')}</div>
+  <div class="stat" style="margin-top:8px;border-color:var(--hazard)"><small>총점</small><b style="font-size:30px;color:var(--hazard)">${tot.toLocaleString('ko-KR')}점</b></div>`};}
+function endScreen(title,reason,winFlag){clearRun();hidePanel();const meta=loadMeta();const {tot,html}=scoreBlock(scoreParts(winFlag));const nb=tot>(meta.best||0);if(nb)meta.best=tot;saveMeta(meta);
+  modal(`<div class="eyebrow">인생 #${P.run} · D+${P.day} · ${winFlag?'클리어':'게임 오버'}</div><h3>${title}</h3><p>${esc(reason)}</p>${html}<p class="muted">${nb?'최고 점수 경신!':`최고 점수 ${(meta.best||0).toLocaleString('ko-KR')}점`}</p><div class="row"><button class="btn go" data-act="newgame">다시 태어나기</button></div>`);}
+function gameOver(reason){phase='over';sfx.bad();stamp('파산');renderHUD();endScreen('파산',reason,false);}
 let pent=null;
-function win(){phase='win';P.cash-=GOAL;renderHUD();clearRun();const meta=loadMeta();meta.wins=(meta.wins||0)+1;if(!meta.best||P.day<meta.best)meta.best=P.day;saveMeta(meta);
-  pent=buildPenthouse();cur=pent.s;setView({target:new THREE.Vector3(0,1.6,0),yaw:.6,pitch:.28,dist:15,yl:[-99,99],auto:.1},true);hidePanel();stamp('떡상!',true);sfx.reveal(4);
-  const s=P.stats;const rk=ranking();const done=P.ais.filter(a=>a.done).length;
-  modal(`<div class="eyebrow">인생 #${P.run} · D+${P.day}</div><h3>인생 떡상</h3><p>반지하 자취방에서 시작해 <b>${P.day}일 만에</b> 10억 펜트하우스 열쇠를 받았다.${done?` (먼저 떡상한 라이벌 ${done}명)`:' 라이벌 중 1등!'}</p>
-    <div class="grid2"><div class="stat"><small>매매 횟수</small><b>${s.trades}</b></div><div class="stat"><small>최고의 한 방</small><b style="font-size:13px">${s.bestTrade?esc(s.bestTrade.name)+' +'+won(s.bestTrade.v):'없음'}</b></div><div class="stat"><small>낙찰 횟수</small><b>${s.won}</b></div><div class="stat"><small>경매 최고 발견</small><b style="font-size:13px">${s.best?esc(s.best.name):'없음'}</b></div></div>
-    <p class="muted">최단 기록 D+${meta.best}. 다음 판은 시장도 라이벌도 다르게 굴러갑니다.</p><div class="row"><button class="btn go" data-act="newgame">새 인생</button></div>`);}
+function win(){phase='win';P.cash-=GOAL;renderHUD();pent=buildPenthouse();cur=pent.s;setView({target:new THREE.Vector3(0,1.6,0),yaw:.6,pitch:.28,dist:15,yl:[-99,99],auto:.1},true);stamp('떡상!',true);sfx.reveal(4);
+  const done=P.ais.filter(a=>a.done).length;endScreen('인생 떡상',`반지하 자취방에서 시작해 ${P.day}일 만에 10억 펜트하우스 열쇠를 받았다.${done?` 먼저 떡상한 라이벌 ${done}명.`:' 라이벌 중 1등!'}`,true);}
 
 /* ============ actions ============ */
 const ACT={
@@ -959,6 +1099,26 @@ const ACT={
   sleep:()=>sleep(),toMorning:()=>{closeModal();const w=P.ais.find(a=>!a.done&&!a.out&&a.worth>=GOAL);if(w){rivalWin(w);return;}morning();},
   keepGoing:()=>{for(const a of P.ais)if(a._pending){a.done=true;a._pending=false;P.feed.push(`D+${P.day} ${a.name}, 펜트하우스 입주로 레이스 졸업`);}closeModal();const w=P.ais.find(a=>!a.done&&!a.out&&a.worth>=GOAL);if(w){rivalWin(w);return;}morning();},
 };
+Object.assign(ACT,{
+  hub:()=>{closeModal();if(!P||phase==='over'||phase==='win')return;enterHub();},
+  eat:()=>renderEat(),
+  eatItem:a=>{const s=STORE.find(x=>x.id===a);if(!s||!(P.pantry[a]>0))return;P.pantry[a]--;P.food=Math.min(100,P.food+s.sat);P.hp=clamp(P.hp+(s.hp||0),0,100);sfx.good();toast(`${s.name} 먹었다. 포만감 ${Math.round(P.food)}`,'good');if(spend(1/3)&&phase==='eat')renderEat();},
+  deliver:()=>{if(P.broken.phone||P.cash<2.2)return;P.cash-=2.2;P.food=Math.min(100,P.food+60);sfx.good();toast('치킨 도착! 포만감 +60','good');if(spend(2/3)&&phase==='eat')renderEat();},
+  store:()=>{if(!spend(.5))return;goStore();},
+  buyFood:a=>{const s=STORE.find(x=>x.id===a);if(!s||P.cash<s.price)return;P.cash-=s.price;P.pantry[a]=(P.pantry[a]||0)+(s.servings||1);sfx.bid();renderStore();},
+  work:()=>work(),repair:()=>renderRepair(),
+  fixTech:k=>{const a=APPL[k];if(P.cash<a.tech)return;P.cash-=a.tech;P.broken[k]=false;refreshAppliances();sfx.good();toast(`${a.name} 수리 완료`,'good');if(spend(1)&&phase==='repair')renderRepair();},
+  fixSelf:k=>{const a=APPL[k];if(P.cash<3)return;P.cash-=3;if(Math.random()<Math.min(.9,.55+luck()*.03)){P.broken[k]=false;refreshAppliances();sfx.good();toast(`셀프 수리 성공! ${a.name}이(가) 멀쩡해졌다`,'good');}else{sfx.bad();toast('셀프 수리 실패… 부품값만 날렸다','bad');}if(spend(2)&&phase==='repair')renderRepair();},
+  fixBuy:k=>{const a=APPL[k];if(!a.buy||P.cash<a.buy)return;P.cash-=a.buy;P.broken[k]=false;refreshAppliances();sfx.cash();toast(`새 ${a.name} 장만`,'good');renderRepair();},
+  bank:()=>goBank(),borrow:a=>{const [k,v]=a.split(':');borrow(k,v);},repay:a=>{const [i,v]=a.split(':');repay(+i,v);},
+  toTrade:()=>{if(P.broken.phone){toast('휴대폰이 고장 나서 증권 앱을 못 열어요.','bad');return;}if(!spend(.5))return;toTrade();},
+  toAuction:()=>{if(P.time>15||P.auctionDone||(mod.lots??3)===0)return;if(!spend(4))return;goAuction();},
+  toShop:()=>{if(phase==='hub'){if(P.time>21)return;if(!spend(1))return;}goShop();},
+  noop:()=>{},
+  sleep:()=>sleep(false),
+  giveupNow:()=>{closeModal();phase='over';endScreen('여기까지','라이벌이 먼저 떡상하는 걸 보고 레이스를 끝냈다.',false);},
+  keepGoing:()=>{for(const a of P.ais)if(a._pending){a.done=true;a._pending=false;P.feed.push(`D+${P.day} ${a.name}, 펜트하우스 입주로 레이스 졸업`);}closeModal();const w=P.ais.find(a=>!a.done&&!a.out&&a.worth>=GOAL);if(w){rivalWin(w);return;}morning();},
+});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||b.disabled)return;ensureAudio();if(actx&&actx.state==='suspended')actx.resume();ACT[b.dataset.act]?.(b.dataset.arg,b);});
 document.addEventListener('keydown',e=>{if(phase==='auction'&&A.state==='bid'){if(e.key===' '||e.key==='1'){e.preventDefault();ACT.bid('1');}if(e.key==='5')ACT.bid('5');}if(phase==='unbox'&&(e.key===' '||e.key==='Enter')){const b=panel.querySelector('[data-act="reveal"],[data-act="nextUnbox"]');if(b){e.preventDefault();b.click();}}});
 
@@ -973,15 +1133,16 @@ function frame(now){const rdt=Math.min(.5,(now-last)/1000);const dt=Math.min(.05
   if(phase==='unbox'&&U.cur&&U.cur._holder)U.cur._holder.rotation.y+=dt*.8;
   if(cur===scShop){SH.display.rotation.y+=dt*.7;SH.kim.head.rotation.y=Math.sin(T0*.7)*.3;}
   if(room&&cur===room.scene&&room.update)room.update(dt,T0);
+  if(room&&room.appRoot)for(const c of room.appRoot.children)c.material.opacity=.65+.35*Math.sin(T0*6);
   if(pent&&cur===pent.s)pent.me.armR.rotation.z=2.4+Math.sin(T0*6)*.4;
   updateTweens(dt);updateBursts(dt);updateView(dt);renderer.render(cur,camera);requestAnimationFrame(frame);}
 
 /* ============ boot ============ */
 cur=scAuction;
-(function titleLot(){P={tier:0,nextId:1,room:[],inv:[],hold:{},cash:START_CASH};const lot=genLot('수집가의 창고');populateUnit(lot);setShutter(.5);P=null;})();
+(function titleLot(){P={tier:0,nextId:1,room:[],inv:[],hold:{},cash:START_CASH,loans:[]};const lot=genLot('수집가의 창고');populateUnit(lot);setShutter(.5);P=null;})();
 setView({target:new THREE.Vector3(0,1.3,-1),yaw:-.5,pitch:.2,dist:11,yl:[-99,99],auto:.06},true);
 applyCam();
 const meta=loadMeta();if(loadRun())$('#btnCont').hidden=false;
-$('#rec').textContent=meta.runs?`지금까지 ${meta.runs}번의 인생 · 떡상 ${meta.wins||0}번${meta.best?` · 최단 D+${meta.best}`:''}`:'';
+$('#rec').textContent=meta.runs?`지금까지 ${meta.runs}번의 인생 · 최고 점수 ${(meta.best||0).toLocaleString('ko-KR')}점`:'';
 requestAnimationFrame(frame);
 </script>
