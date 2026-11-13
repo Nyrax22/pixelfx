@@ -344,6 +344,11 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
   #panel{width:calc(100% - 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 5px);max-height:58vh}
 }
 
+#dlg{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);transform:translateX(-50%);width:min(640px,calc(100% - 16px));box-sizing:border-box;z-index:8;background:linear-gradient(var(--glass2),var(--glass));border:2px solid var(--frame);border-radius:16px;padding:12px 14px;box-shadow:0 0 0 2px #000,0 5px 0 2px #7a5a14,0 18px 50px #000c;animation:boxin .2s cubic-bezier(.2,1.4,.4,1)}
+.dtx{font-size:16px;line-height:1.55;color:#fff}.dtx .nm{display:inline-block;background:var(--frame);color:#2a1c00;padding:1px 10px;border-radius:10px;margin-right:8px;font-size:13px}.dtx .nm.bad{background:#ff5b4a;color:#fff}.dtx small{font-size:12px}
+.dch{display:grid;gap:6px;margin-top:10px}.dch .btn{display:flex;align-items:center;gap:10px;text-align:left;font-size:15px}.dch kbd{position:static;flex-shrink:0}
+#dlg .mgbar{margin:8px 0 2px}
+body.shift #hot,body.shift #quest,body.shift #mini,body.shift #hint{display:none!important}
 @media (prefers-reduced-motion:reduce){#stamp.on{animation-duration:.01s}.toast,.pin{animation:none}}
 </style>
 
@@ -381,6 +386,7 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
 <div id="hint" hidden><span class="key"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>이동</span><span class="key"><kbd>Shift</kbd>달리기</span><span class="key"><kbd>E</kbd>상호작용</span><span class="key">마우스 끌기 · 시점</span><span class="tch">조이스틱으로 이동 · 화면을 끌어 시점 회전 · 바닥을 눌러도 걸어가요</span></div>
 <div id="joy" hidden><i></i></div>
 <div id="drivebar" hidden></div><div id="inbar" hidden></div>
+<div id="dlg" hidden></div>
 <div id="toast"></div>
 <div id="stamp"></div>
 <div id="modal" hidden><div class="box" id="modalBox"></div></div>
@@ -429,9 +435,9 @@ const TIERS=[
   {name:'아파트',to:'아파트로',dep:12000,rent:160,food:4,slots:12},
 ];
 const STOCKS=[
-  {id:'NEO',name:'네오칩스',sector:'반도체',group:'tech',p0:52000,vol:.022,up:['{n}, AI 서버용 칩 주문 폭주','{n}, 차세대 2나노 공정 수율 안정화'],dn:['반도체 재고 급증… {n} 직격탄 우려','{n}, 최대 고객사 이탈설']},
-  {id:'HBB',name:'한빛바이오',sector:'바이오',group:'bio',p0:18500,vol:.04,up:['{n}, 비만 치료제 해외 기술수출 협상','{n} 신약, 허가 임박'],dn:['{n} 임상 환자 부작용 보고','{n} 연구소장 돌연 사임']},
-  {id:'GRM',name:'그린모빌',sector:'전기차',group:'industry',p0:34000,vol:.03,up:['전기차 보조금 대폭 확대… {n} 수혜','{n} 신형 배터리, 주행거리 900km 달성'],dn:['{n} 차량 화재 잇따라','{n}, 주력 공장 가동 중단']},
+  {id:'NEO',name:'네오칩스',sector:'반도체',group:'tech',p0:52000,vol:.022,up:['{n}, HBM 차세대 제품 퀄테스트 통과','{n}, AI 서버용 칩 주문 폭주','{n}, 차세대 2나노 공정 수율 안정화'],dn:['{n}, 美 수출 통제 대상 거론','반도체 재고 급증… {n} 직격탄 우려','{n}, 최대 고객사 이탈설']},
+  {id:'HBB',name:'한빛바이오',sector:'바이오',group:'bio',p0:18500,vol:.04,up:['{n}, 美 FDA 품목허가 신청 완료','{n}, 비만 치료제 해외 기술수출 협상','{n} 신약, 허가 임박'],dn:['{n} 임상 환자 부작용 보고','{n} 연구소장 돌연 사임']},
+  {id:'GRM',name:'그린모빌',sector:'전기차',group:'industry',p0:34000,vol:.03,up:['전기차 보조금 대폭 확대… {n} 수혜','{n} 신형 배터리, 주행거리 900km 달성'],dn:['전기차 캐즘 장기화… {n} 판매 부진','{n} 차량 화재 잇따라','{n}, 주력 공장 가동 중단']},
   {id:'MNF',name:'맛나푸드',sector:'식품',group:'consumer',p0:12300,vol:.012,up:['{n} 매운라면, 수출 신기록','{n} 편의점 도시락 점유율 1위'],dn:['원재료값 폭등… {n} 마진 비상','{n} 제품 이물질 검출 논란']},
   {id:'STE',name:'스타엔터',sector:'엔터',group:'consumer',p0:27800,vol:.035,up:['{n} 걸그룹 루미너스, 월드투어 전석 매진','{n} 신인 데뷔곡 글로벌 차트 1위'],dn:['{n} 간판 그룹 멤버 탈퇴설','{n} 소속 배우 사생활 논란']},
   {id:'DYS',name:'대양조선',sector:'조선',group:'industry',p0:9800,vol:.025,up:['{n}, LNG 운반선 수주 싹쓸이','{n} 친환경 선박 대규모 계약'],dn:['{n} 노조, 무기한 파업 예고','{n} 해양플랜트 손실 반영 예정']},
@@ -447,10 +453,10 @@ const COINS=[
 const ASSETS=[...STOCKS.map(s=>({...s,kind:'stock'})),...COINS.map(c=>({...c,kind:'coin'}))];
 const AID=Object.fromEntries(ASSETS.map(a=>[a.id,a]));
 const GEN={
-  stockUp:['{n}, 분기 실적 시장 예상 크게 웃돌 듯','{n}, 해외 대형 수주 계약 임박','외국인, {n} 대량 매수 조짐','{n}, 자사주 대규모 매입 검토','{n}, 정부 핵심 사업자 선정 유력'],
-  stockDn:['{n}, 회계 부정 의혹 제기','{n} 대표, 검찰 소환 통보','{n}, 대규모 유상증자 추진설','{n} 공장 화재… 생산 차질 우려','{n} 핵심 임원 줄퇴사'],
-  coinUp:['{n}, 대형 거래소 상장 확정','유명 셀럽이 SNS에 {n} 언급','고래 지갑, {n} 대량 매집 포착','{n} 메인넷 업그레이드 하루 앞으로','해외 결제업체, {n} 결제 도입 검토'],
-  coinDn:['{n} 해킹 피해 의혹','{n} 개발팀 지갑에서 대량 이체 포착','금융당국, {n} 조사 착수','고래, {n} 대량 매도 정황','{n} 상장폐지 검토설'],
+  stockUp:['{n}, 어닝 서프라이즈… 영업익 컨센서스 50% 상회','{n}, 밸류업 공시… 자사주 전량 소각','외국인, {n} 5거래일 연속 순매수','{n}, 분기 실적 시장 예상 크게 웃돌 듯','{n}, 해외 대형 수주 계약 임박','외국인, {n} 대량 매수 조짐','{n}, 자사주 대규모 매입 검토','{n}, 정부 핵심 사업자 선정 유력'],
+  stockDn:['{n}, 어닝 쇼크… 적자 전환','{n} 최대주주, 지분 블록딜 매각','{n}에 공매도 잔고 급증','{n}, 회계 부정 의혹 제기','{n} 대표, 검찰 소환 통보','{n}, 대규모 유상증자 추진설','{n} 공장 화재… 생산 차질 우려','{n} 핵심 임원 줄퇴사'],
+  coinUp:['{n}, 현물 ETF 승인 기대감 고조','{n} 김치 프리미엄 5% 돌파','{n}, 대형 거래소 상장 확정','유명 셀럽이 SNS에 {n} 언급','고래 지갑, {n} 대량 매집 포착','{n} 메인넷 업그레이드 하루 앞으로','해외 결제업체, {n} 결제 도입 검토'],
+  coinDn:['고래 지갑, {n} 3억 달러어치 거래소로 이체','{n} 연동 거래소 출금 중단','{n} 해킹 피해 의혹','{n} 개발팀 지갑에서 대량 이체 포착','금융당국, {n} 조사 착수','고래, {n} 대량 매도 정황','{n} 상장폐지 검토설'],
 };
 const MACROS=[
   {t:'한국은행, 기준금리 인하 시사',stock:.03,coin:.06},
@@ -459,11 +465,23 @@ const MACROS=[
   {t:'해외 증시 급락, 공포 확산',stock:-.045,coin:-.1},
   {t:'가상자산 과세 유예 확정',stock:0,coin:.12},
   {t:'정부, 가상자산 규제 강화 예고',stock:0,coin:-.12},
+  {t:'코스피 5% 폭락에 사이드카 발동… 패닉셀 확산',stock:-.05,coin:-.06},
+  {t:'외국인·기관 쌍끌이 매수… 코스피 사상 최고치 경신',stock:.032,coin:.01},
+  {t:'美 연준 금리 인하 단행… 위험자산 일제히 반등',stock:.03,coin:.07},
+  {t:'원·달러 환율 1,500원 돌파… 외국인 이탈 경고등',stock:-.03,coin:.02},
+  {t:'美 중간선거 마무리, 불확실성 해소에 안도 랠리',stock:.022,coin:.04},
+  {t:'비트코인 현물 ETF에 하루 3억 달러 순유입',stock:0,coin:.1},
+  {t:'해외 대형 거래소 해킹… 출금 일시 중단 사태',stock:0,coin:-.11},
+  {t:'정부, 밸류업 세제 혜택 확대… 배당주 들썩',stock:.025,coin:0},
+  {t:'공매도 전면 재개 임박에 시장 긴장',stock:-.025,coin:0},
 ];
 const GROUPS=[
   {g:'tech',t:'AI 열풍… 기술주 동반 랠리 기대',pol:1},{g:'tech',t:'빅테크 규제 법안 발의, 기술주 긴장',pol:-1},
   {g:'consumer',t:'소비심리 3년 만에 최고치',pol:1},{g:'consumer',t:'고물가에 지갑 닫는 소비자',pol:-1},
   {g:'industry',t:'원자재값 급락, 제조업 숨통',pol:1},{g:'industry',t:'원자재값 급등, 제조업 비상',pol:-1},
+  {g:'tech',t:'반도체 슈퍼사이클 재점화… HBM 품귀',pol:1},{g:'tech',t:'美, 반도체 관세 부과 검토… 수출주 긴장',pol:-1},
+  {g:'consumer',t:'K-푸드·K-콘텐츠 수출 사상 최대',pol:1},{g:'industry',t:'조선 수주 잔고 사상 최대… 3년치 일감',pol:1},
+  {g:'bio',t:'美 FDA, 신약 심사 기간 단축 발표',pol:1},{g:'bio',t:'바이오 기술특례 상장사 줄줄이 적자',pol:-1},
 ];
 const LABEL_REL={단독:.85,속보:.85,분석:.55,찌라시:.27,커뮤니티:.27};
 function newsText(a,pol){const pool=a.kind==='coin'?(pol>0?GEN.coinUp:GEN.coinDn):[...(pol>0?GEN.stockUp:GEN.stockDn),...(pol>0?a.up:a.dn),...(pol>0?a.up:a.dn)];return pick(pool).replace('{n}',a.name);}
@@ -484,7 +502,7 @@ function genDay(W){const E=[],N=[];
 function computeRets(W){const rets={};for(const a of ASSETS)rets[a.id]=(a.kind==='stock'?.0008:0)+gauss()*a.vol;
   for(const e of W.events){if(e.kind==='macro'){for(const a of ASSETS)rets[a.id]+=(a.kind==='stock'?e.m.stock:e.m.coin)*rand(.7,1.3);}else if(e.kind==='group'){for(const a of ASSETS)if(a.group===e.g)rets[a.id]+=e.ret*rand(.7,1.3);}else rets[e.id]+=e.ret*rand(.75,1.15);}
   W.crash=[];for(const a of ASSETS){if(a.kind==='coin'&&a.tier!=='major'&&Math.random()<(a.tier==='meme'?.035:.015)){rets[a.id]-=rand(.45,.85);W.crash.push(a.id);}}
-  for(const a of ASSETS)rets[a.id]=Math.max(-.92,rets[a.id]);return rets;}
+  for(const a of ASSETS)rets[a.id]=a.kind==='stock'?clamp(rets[a.id],-.3,.3):Math.max(-.92,rets[a.id]);return rets;}
 function resolveDay(W){const rets=W.todayRets||computeRets(W);W.todayRets=null;
   for(const a of ASSETS){const s=W.mkt[a.id];const r=rets[a.id];s.price=Math.max(a.kind==='stock'?100:.001,(s.close??s.price)*(1+r));s.close=s.price;s.ret=r;s.hist.push(s.price);if(s.hist.length>40)s.hist.shift();}
   W.lastEvents=W.events;W.lastNews=W.news;W.lastRets=rets;W.lastCrash=W.crash;return rets;}
@@ -1038,7 +1056,7 @@ function planDay(){P.paths={};
 function startDay(first){mod={};const lines=[];if(!first){const l=rollLife();if(l)lines.push(l);}
   P.life=first?'반지하 자취방 첫날. 통장에는 100만 원. 오늘 자정에 첫 월세 30만 원이 빠져나간다. 시계는 현실보다 3배 빠르게 흐르고, 게임을 꺼도 멈추지 않는다.':(lines.join(' ')||'평범한 하루가 시작됐다.');
   P.auctionTip=null;let force=null;if(Math.random()<.55){const th=pick(THEMES.filter(t=>t.w));P.auctionTip=th.name;if(Math.random()<.75)force=th.name;}
-  aiMorning(P);for(const a of ASSETS){const s=P.mkt[a.id];s.close=s.price;s.ret=0;s.intra=[s.price];}
+  aiMorning(P);for(const a of ASSETS){const s=P.mkt[a.id];s.close=s.price;s.ret=0;s.limit=null;s.intra=[s.price];}
   P.todayRets=computeRets(P);planDay();P.sampleT=P.time;
   const n=mod.lots??3;P.lots=[];const fi=randi(0,Math.max(0,n-1));for(let i=0;i<n;i++){const lot=genLot(i===fi?force:null);lot.at=LOT_TIMES[i];lot.done=false;lot.result=null;lot.att=pickAttendees();P.lots.push(lot);}
   if(phase==='auction'&&!OFF)auctionLobby();
@@ -1047,7 +1065,8 @@ function startDay(first){mod={};const lines=[];if(!first){const l=rollLife();if(
 function updatePrices(){const k=clamp((P.time-MKT_OPEN)/(MKT_CLOSE-MKT_OPEN),0,1);
   for(const a of ASSETS){const s=P.mkt[a.id],p=P.paths[a.id],r=P.todayRets[a.id];let f=k;if(p.at!=null){const x=clamp((P.time-p.at)/1.2,0,1);f=x*x*(3-2*x);}
     const nz=a.vol*1.1*(Math.sin(k*18.8+p.ph[0])*.5+Math.sin(k*44+p.ph[1])*.3+Math.sin(k*82+p.ph[2])*.2)*Math.sin(Math.PI*k);
-    s.price=Math.max(a.kind==='stock'?100:.001,s.close*(1+r*f)*(1+nz));s.ret=s.price/s.close-1;}
+    s.price=Math.max(a.kind==='stock'?100:.001,s.close*(1+r*f)*(1+nz));if(a.kind==='stock')s.price=clamp(s.price,s.close*.7,s.close*1.3);s.ret=s.price/s.close-1;
+    const lim=a.kind==='stock'?(s.ret>=.2995?'up':s.ret<=-.2995?'dn':null):null;if(lim&&s.limit!==lim&&!OFF)notify(`${a.name} ${lim==='up'?'상한가 직행! (+30%)':'하한가 추락… (-30%)'}`,lim==='up');s.limit=lim;}
   if(P.time-P.sampleT>=.25){P.sampleT=P.time;for(const a of ASSETS)P.mkt[a.id].intra.push(P.mkt[a.id].price);}}
 function fireNews(){
   for(const e of P.events){if(e.fired||P.time<e.at)continue;e.fired=true;
@@ -1069,7 +1088,7 @@ function timers(){
   if(phase==='roadtrip'||(phase==='phone'&&PH.prev==='roadtrip')){if(!RT.ev&&absNow()>=(RT.start+RT.end)/2){RT.ev=true;roadEvent();}if(absNow()>=RT.end){if(phase==='phone')closePhone();arriveRoad();}}}
 let hudT=0;
 function tick(rdt){const dh=rdt*TSCALE/3600;P.time+=dh;body(dh);breakdowns(dh);updatePrices();fireNews();auctionClock();timers();
-  hudT+=rdt;if(hudT>.25){hudT=0;if(P.missions&&myWorth()-(P.prevWorth||0)>=10)mis('profit');renderHUD();liveRefresh();}
+  hudT+=rdt;if(hudT>.25){hudT=0;{const need=(rentIn()===0?rentNow()+(P.car?CARS[P.car.id].price*.003:0):0)+P.loans.filter(l=>l.due<=P.day).reduce((t,l)=>t+l.owed*(1+l.rate),0);const k=P.time>=23?2:P.time>=20?1:0;if(need>0&&P.cash<need&&Object.keys(P.hold).length&&k>(P.warnK||0)&&P.warnDay!==P.day+'-'+k){P.warnDay=P.day+'-'+k;P.warnK=k;toast(`⚠ 자정에 ${won(need)}이 빠져나가는데 현금은 ${won(P.cash)}. 모자라면 주식·코인이 자동으로 팔려요!`,'bad');sfx.bad();}if(P.time<20)P.warnK=0;}if(P.missions&&myWorth()-(P.prevWorth||0)>=10)mis('profit');renderHUD();liveRefresh();}
   if(P.hp<=0){collapse();return;}
   if(P.time>=24)midnight();}
 function autoEat(){if(P.food>=35)return;const s=STORE.filter(s=>(P.pantry[s.id]||0)>0&&s.sat>0).sort((a,b)=>b.sat-a.sat)[0];if(!s)return;P.pantry[s.id]--;P.food=Math.min(100,P.food+s.sat);P.hp=clamp(P.hp+(s.hp||0),0,100);OFFLOG.push(`배가 고파서 ${J(s.name,'을','를')} 꺼내 먹었다.`);}
@@ -1095,8 +1114,8 @@ function liveRefresh(){
 /* ---------- timed actions: you can only use the phone ---------- */
 const BZ={active:false};
 const BUSYDEF={
-  work:d=>({title:'편의점 알바 중',place:'떡상마트 24 계산대',note:`6시간 꽉 채우면 7만 원. 현실 시간으로 ${realDur(6)} 걸려요. 중간에 조퇴하면 일한 만큼만 받아요.`,stop:'조퇴하기',
-    done:early=>{const h=clamp(absNow()-BZ.start,0,6);let pay=r1(h/6*7);let msg=`알바 ${dur(h)} · +${won(pay)}`;if(!early&&Math.random()<.12){pay+=3;msg+=' · 사장님 보너스 +3만원';}P.cash+=pay;P.stats.work=(P.stats.work||0)+1;if(!early)mis('work');say(msg,'good');if(!OFF){sfx.cash();stamp('+'+won(pay).replace('원',''),true);}}}),
+  work:d=>({title:'편의점 알바 중',place:'떡상마트 24 계산대',note:`시급 10,320원(2026 최저시급) · 6시간이면 ${won(WAGE*6)}. 현실 시간으로 ${realDur(6)} 걸려요. 중간에 조퇴하면 일한 만큼만 받아요.`,stop:'조퇴하기',
+    done:early=>{const h=clamp(absNow()-BZ.start,0,6);let pay=r1(h*WAGE);let msg=`알바 ${dur(h)} · +${won(pay)}`;if(!early&&Math.random()<.12){pay+=3;msg+=' · 사장님 보너스 +3만원';}P.cash+=pay;P.stats.work=(P.stats.work||0)+1;if(!early)mis('work');say(msg,'good');if(!OFF){sfx.cash();stamp('+'+won(pay).replace('원',''),true);}}}),
   luck:d=>({title:`${LUCKS[d.kind].name} 중`,place:(CITIES[d.city]||{}).name||'',note:LUCKS[d.kind].desc,done:()=>luckResult(d.kind)}),
   hosp:d=>({title:'입원 치료 중',place:'떡상대학병원 정형외과',note:d.note,done:()=>{P.hp=Math.min(100,Math.max(P.hp,35)+d.sev*.7);P.food=Math.max(P.food,70);if(d.gain){P.cash+=d.gain;say(`퇴원! 상대 보험사 합의금 +${won(d.gain)}`,'good');if(!OFF){sfx.cash();stamp('+'+won(d.gain).replace('원',''),true);}}else say('퇴원했다. 차 조심하자.');}}),
   fixT:d=>({title:'수리 기사님 기다리는 중',place:'우리 집',note:`${APPL[d.k].name} 수리를 맡겼어요.`,done:()=>{P.broken[d.k]=false;refreshAppliances();say(`${APPL[d.k].name} 수리 완료`,'good');}}),
@@ -1429,6 +1448,7 @@ renderer.domElement.addEventListener('pointerup',e=>{if(!tapStart||!P)return;con
   if(hit){const b=BID[hit.object.userData.bid];WD.target=new THREE.Vector3(b.door.x,0,b.door.z);WD.auto=b.id;return;}
   const p=new THREE.Vector3();if(ray.ray.intersectPlane(FLOOR,p)){WD.target=new THREE.Vector3(clamp(p.x,-67,67),0,clamp(p.z,-36,65));WD.auto=null;}});
 addEventListener('keydown',e=>{K[e.code]=true;if(MG.on&&e.code==='Space'){e.preventDefault();mgHit();return;}
+  if(SH2.on&&$('#modal').hidden){if(e.code==='Space'&&SH2.stage==='scan'){e.preventDefault();shHit();return;}const m=/^(Digit|Numpad)([1-4])$/.exec(e.code);if(m){const b=$('#dlg').querySelectorAll('.dch button')[+m[2]-1];if(b&&!$('#dlg').hidden){e.preventDefault();b.click();}return;}if(e.code==='Escape'){shQuit();return;}}
   if(!e.repeat&&!/INPUT|TEXTAREA/.test(e.target?.tagName||'')){const mo=!$('#modal').hidden;
     if(e.code==='Escape'){e.preventDefault();if(mo){const b=$('#modal [data-act="closePaper"],#modal [data-act="closeModal"],#modal [data-act="scClose"]:not(:disabled)');if(b)b.click();}else if(phase==='phone')openPhone();else{const b=$('#panel [data-act="inBack"],#panel [data-act="back"],#panel [data-act="decorDone"],#panel [data-act="wake"]');if(b&&!$('#panel').hidden)b.click();}return;}
     if(P&&P.paths&&!mo&&phase!=='title'){if(e.code==='Tab'||e.code==='KeyP'){e.preventDefault();if(!$('#btnPhone').disabled)openPhone();return;}if(e.code==='KeyN'){showPaper();return;}if(e.code==='KeyM'){showMissions();return;}}
@@ -1655,7 +1675,7 @@ function repay(i,amt){const l=P.loans[i];if(!l)return;let a=amt==='all'?l.owed:M
   if(l.owed<.05){P.loans.splice(i,1);P.credit=Math.min(900,P.credit+25);toast(`${l.name} 완납! 신용점수 +25`,'good');}else toast(`${won(a)} 상환`,'good');sfx.cash();renderBank();}
 function collapse(){const why=P.food<=0?'굶주림으로':'과로로';const cost=25+P.tier*15;P.hp=45;P.food=Math.max(P.food,40);P.time+=3;let note;
   if(P.cash>=cost){P.cash-=cost;note=`병원비 ${won(cost)}을 냈다.`;}else{P.loans.push({type:'hosp',name:'병원비 분할 납부',owed:cost,rate:.003,due:P.day+14});note=`병원비 ${won(cost)}은 14일 안에 갚아야 한다. 못 갚으면 파산.`;}
-  BZ.active=false;if(phase==='auction'&&A.lot&&!A.lot.done){A.out=true;if(A.state==='bid')endLot();}
+  if(SH2.on)shiftEnd(true);BZ.active=false;if(phase==='auction'&&A.lot&&!A.lot.done){A.out=true;if(A.state==='bid')endLot();}
   if(phase==='drive'||phase==='roadtrip'||phase==='travel'){}
   if(phase==='roadtrip'){RT.end+=3;phase='roadtrip';say(`운전 중 ${why} 쓰러져 휴게소 의무실에 실려 갔다. ${note}`,'bad');return;}
   if(phase==='travel'){say(`이동 중 ${why} 쓰러졌다. ${note}`,'bad');return;}
@@ -1733,7 +1753,7 @@ function renderPhone(){renderHUD();const tab=TS.tab;const list=tab==='mine'?ASSE
   if(tab!=='news'&&(!AID[TS.sel]||(tab!=='mine'&&AID[TS.sel].kind!==tab)||(tab==='mine'&&!P.hold[TS.sel])))TS.sel=list[0]?.id||TS.sel;
   const a=AID[TS.sel],s=P.mkt[TS.sel],h=P.hold[TS.sel];const v=holdVal(TS.sel);const pl=h?v-h.cost:0;
   const rows=tab==='news'?P.news.map(n=>{const st=n.fired?(n.isTrue?'<b class="up">터졌다</b>':'<b class="muted">사실무근</b>'):`<span class="muted">${n.binary?'14:00 발표':n.when}</span>`;return `<button class="tr" data-act="${n.id?'newsGo':'noop'}" data-arg="${n.id||''}"><span class="nm" style="white-space:normal"><small style="margin:0 4px 0 0">[${n.label}]</small>${esc(n.text)}</span><span class="p"></span><span class="c">${st}</span></button>`;}).join('')
-    :list.map(x=>{const st=P.mkt[x.id];const hv=holdVal(x.id);return `<button class="tr ${x.id===TS.sel?'sel':''}" data-act="tsel" data-arg="${x.id}"><span class="nm">${esc(x.name)}<small>${esc(x.sector)}</small>${hv?`<span class="hold">보유 ${won(hv)}</span>`:''}</span><span class="p" id="lp-${x.id}">${fmtP(st.price)}</span><span class="c ${cls(st.ret)}" id="lc-${x.id}">${pct(st.ret)}</span></button>`;}).join('')||'<p class="muted">보유 중인 종목이 없어요.</p>';
+    :list.map(x=>{const st=P.mkt[x.id];const hv=holdVal(x.id);return `<button class="tr ${x.id===TS.sel?'sel':''}" data-act="tsel" data-arg="${x.id}"><span class="nm">${esc(x.name)}<small>${esc(x.sector)}</small>${hv?`<span class="hold">보유 ${won(hv)}</span>`:''}</span><span class="p" id="lp-${x.id}">${fmtP(st.price)}</span><span class="c ${cls(st.ret)}" id="lc-${x.id}">${st.limit==='up'?'↑상한':st.limit==='dn'?'↓하한':pct(st.ret)}</span></button>`;}).join('')||'<p class="muted">보유 중인 종목이 없어요.</p>';
   const invested=Object.keys(P.hold).reduce((t,id)=>t+holdVal(id),0);
   const detail=tab==='news'?`<p class="muted" style="font-size:13px;margin:8px 0 0">오늘 신문 기사 상태예요. 시간은 기사 옆 예상 시점이고, 터지면 가격이 움직여요. 기사를 누르면 해당 종목으로 가요.</p>`:a?`<div class="detail" style="border-top:none;margin-top:6px;padding-top:4px"><div class="qhead"><span class="big">${esc(a.name)}</span><span class="pp ${cls(s.ret)}" id="qpp">${fmtP(s.price)} <small style="font-size:14px">${pct(s.ret)}</small></span></div>
     <canvas id="chart"></canvas>${P.news.filter(n=>n.id===a.id).map(n=>`<div class="muted" style="font-size:12px;margin-top:4px">[${n.label}] ${esc(n.text)} · ${n.fired?(n.isTrue?'터졌다':'사실무근'):(n.binary?'14:00 발표':n.when)}</div>`).join('')}
@@ -1747,9 +1767,11 @@ function renderPhone(){renderHUD();const tab=TS.tab;const list=tab==='mine'?ASSE
     <div class="row"><button class="btn ghost sm" data-act="paper">신문</button><button class="btn ghost sm" data-act="deliver" ${P.cash<2.2||P.loc!=='seoul'||['travel','roadtrip','busy'].includes(PH.prev)?'disabled':''}>배달 치킨 2.2만</button><button class="btn ghost sm" data-act="capLoan" ${P.credit<450?'disabled':''}>캐피탈 50만</button><button class="btn go sm" data-act="phone">닫기</button></div>`);drawChart();}
 function buy(f){const a=AID[TS.sel],p=P.mkt[TS.sel].price;const amt=P.cash*f;if(amt<=0){toast('현금이 없어요.','bad');return;}
   let qty=a.kind==='stock'?Math.floor(amt*10000/p):amt*10000/p;if(a.kind==='stock'&&qty<1){toast('1주도 못 사요. 현금이 모자라요.','bad');return;}
-  const cost=qty*p/10000;P.cash-=cost;const h=P.hold[TS.sel]||(P.hold[TS.sel]={qty:0,cost:0});h.qty+=qty;h.cost+=cost;P.stats.trades++;mis('trade');sfx.bid();toast(`${a.name} ${won(cost)} 매수`,'good');renderPhone();}
+  const fee=a.kind==='stock'?.00015:.0005;if(a.kind==='stock'){while(qty>0&&qty*p/10000*(1+fee)>P.cash)qty--;if(qty<1){toast('1주도 못 사요. 현금이 모자라요.','bad');return;}}else qty/=1+fee;if(P.mkt[TS.sel].limit==='up'&&a.kind==='stock'){toast('상한가 잠김! 매도 물량이 없어 체결되지 않았어요.','bad');return;}
+  const cost=qty*p/10000*(1+fee);P.cash-=cost;const h=P.hold[TS.sel]||(P.hold[TS.sel]={qty:0,cost:0});h.qty+=qty;h.cost+=cost;P.stats.trades++;mis('trade');sfx.bid();
+  const bill=rentIn()<=1?rentNow():0;toast(`${a.name} ${won(cost)} 매수 체결 · 수수료 ${(fee*100).toFixed(3)}%`+(bill&&P.cash<bill?` · ⚠ 남은 현금 ${won(P.cash)}, ${rentIn()===0?'오늘':'내일'} 자정 월세 ${won(bill)}!`:''),bill&&P.cash<bill?'bad':'good');renderPhone();}
 function sell(f){const a=AID[TS.sel],h=P.hold[TS.sel];if(!h)return;const p=P.mkt[TS.sel].price;let qty=a.kind==='stock'?Math.max(1,Math.floor(h.qty*f)):h.qty*f;if(f>=1)qty=h.qty;qty=Math.min(qty,h.qty);
-  const proceeds=qty*p/10000;const costPart=h.cost*(qty/h.qty);const plv=proceeds-costPart;P.cash+=proceeds;h.qty-=qty;h.cost-=costPart;if(h.qty<=1e-9||(a.kind==='stock'&&h.qty<1))delete P.hold[TS.sel];
+  if(P.mkt[TS.sel].limit==='dn'&&a.kind==='stock'){toast('하한가 잠김! 사려는 사람이 없어 팔리지 않았어요.','bad');return;}const proceeds=qty*p/10000*(1-(a.kind==='stock'?.00015+.002:.0005));const costPart=h.cost*(qty/h.qty);const plv=proceeds-costPart;P.cash+=proceeds;h.qty-=qty;h.cost-=costPart;if(h.qty<=1e-9||(a.kind==='stock'&&h.qty<1))delete P.hold[TS.sel];
   if(!P.stats.bestTrade||plv>P.stats.bestTrade.v)P.stats.bestTrade={name:a.name,v:plv};sfx.cash();toast(`${a.name} ${won(proceeds)} 매도 (${plv>=0?'+':''}${won(plv)})`,plv>=0?'good':'bad');renderPhone();}
 
 /* ============ Korea: map, travel, cities ============ */
@@ -1960,6 +1982,7 @@ function buildStoreIn(){const s=new THREE.Scene();s.userData.noEnv=true;s.backgr
   S('seat',-3.2,3.05,0,()=>'창가 자리에서 먹기',()=>{sub='eat';inPause(renderEat);},{dis:()=>!Object.values(P.pantry).some(v=>v>0)});
   S('exit',.8,3.62,0,()=>cartN()?'나가기 (계산 안 한 건 내려놓기)':'나가기',()=>ACT.leave());
   d0.bar=()=>cartN()?`<span class="chip">🧺 ${cartN()}개 · ${won(cartTotal())}</span><button class="btn sm" data-act="cartClear">다 내려놓기</button>`:'<span class="chip">🧺 빈 바구니</span>';
+  d0.clerk=clerk;d0.pose=()=>SH2.on;
   d0.update=dt=>{clerk.head.rotation.y=Math.sin(T0*.6)*.4;animWalk(clerk,0,0);};
   return d0;}
 const cartN=()=>Object.values(IW.cart).reduce((a,b)=>a+b,0);
@@ -2091,7 +2114,7 @@ function scratchEnd(){if(SC.done)return;SC.done=true;const cv=$('#scCv');if(cv)c
   if(SC.prize){P.cash+=SC.prize;renderHUD();if(SC.prize>=50){stamp(SC.prize>=500?'1등!!':'대박!',true);sfx.reveal(4);}else if(SC.prize>=5){stamp('당첨!',true);sfx.reveal(3);}else sfx.good();toast(`당첨! +${won(SC.prize)}`,'good');}else{sfx.bad();toast('꽝… 다음 기회에.','bad');}}
 /* ---- cashier minigame ---- */
 const MG={on:false};
-function workChoice(){const late=P.time>=22||P.time<6;modal(`<div class="eyebrow">떡상마트 24 · 점장</div><h3>"마침 손이 모자랐는데!"</h3><p>어떻게 일할까요?</p><div class="loan"><h4>한 타임 계산대 보기 · 바코드 찍기 게임</h4><div class="muted" style="font-size:13px">직접 플레이. 게임 시간 2시간이 지나고, 잘 찍을수록 많이 받아요(최대 약 5만원).</div><div class="row"><button class="btn go sm" data-act="mgStart" ${late?'disabled':''}>${late?'06~22시에만 가능':'지금 시작'}</button></div></div>
+function workChoiceOld(){const late=P.time>=22||P.time<6;modal(`<div class="eyebrow">떡상마트 24 · 점장</div><h3>"마침 손이 모자랐는데!"</h3><p>어떻게 일할까요?</p><div class="loan"><h4>한 타임 계산대 보기 · 바코드 찍기 게임</h4><div class="muted" style="font-size:13px">직접 플레이. 게임 시간 2시간이 지나고, 잘 찍을수록 많이 받아요(최대 약 5만원).</div><div class="row"><button class="btn go sm" data-act="mgStart" ${late?'disabled':''}>${late?'06~22시에만 가능':'지금 시작'}</button></div></div>
   <div class="loan"><h4>6시간 풀타임 · 7만원</h4><div class="muted" style="font-size:13px">자동으로 진행(현실 ${realDur(6)}). 그동안 휴대폰만 쓸 수 있어요.</div><div class="row"><button class="btn sm" data-act="workFull" ${P.time>18||P.time<6?'disabled':''}>${P.time>18||P.time<6?'06~18시에만 시작':'풀타임 근무'}</button></div></div><div class="row"><button class="btn ghost" data-act="closeModal">다음에요</button></div>`);}
 const MG_ITEMS=['삼각김밥','컵라면','바나나우유','도시락','캔커피','새콤젤리','감자칩','생수','초코바','컵얼음','샌드위치','소시지'];
 function mgStart(){Object.assign(MG,{on:true,i:0,n:12,hit:0,perf:0,x:0,dir:1,sp:.9,zone:[.4,.6],wait:0,combo:0,best:0});
@@ -2136,6 +2159,109 @@ function updateChat(dt){WD.chatT=(WD.chatT??4)-dt;if(WD.chatT>0||phase!=='world'
 const RAIN={pts:null};
 function updateRain(dt){const on=!!(P&&P.rain)&&cur===scWorld;if(!RAIN.pts){const n=1400,geo=new THREE.BufferGeometry(),p=new Float32Array(n*6);for(let i=0;i<n;i++){const x=rand(-22,22),y=rand(0,18),z=rand(-22,22);p.set([x,y,z,x+.05,y-.55,z],i*6);}geo.setAttribute('position',new THREE.BufferAttribute(p,3));RAIN.pts=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:0xbcd0e8,transparent:true,opacity:.42,depthWrite:false}));RAIN.pts.frustumCulled=false;scWorld.add(RAIN.pts);}
   RAIN.pts.visible=on;if(!on)return;const a=RAIN.pts.geometry.attributes.position;for(let i=0;i<a.count;i+=2){let y=a.getY(i)-dt*19;if(y<0)y+=18;a.setY(i,y);a.setY(i+1,y-.55);}a.needsUpdate=true;RAIN.pts.position.set(view.t.x,0,view.t.z);}
+
+/* ============ convenience-store shift: customers, barcode scanning, 진상 ============ */
+const WAGE=1.032; // 2026 최저시급 10,320원 (단위: 만원)
+const SH2={on:false};
+const R=()=>Math.random();
+const JIN=[
+  {who:'반말 아저씨',look:{shirt:0x4a4a52,pants:0x2a2a2a,hair:0x6a6a6a,hairStyle:'short'},open:'야, 담배. 빨리 줘.',ch:[
+    ['웃으며 "어떤 담배 찾으세요, 손님?"',()=>({m:'끝까지 반말이었지만 별일 없이 지나갔다. 멘탈이 조금 깎였다.',hp:-5,rep:1})],
+    ['"반말하시면 응대가 어렵습니다"',()=>R()<.5?{m:'아저씨가 머쓱해하며 존댓말로 바꿨다. 뒤에 선 손님이 엄지를 들어 줬다.',rep:2}:{m:'"너 몇 살이야!" 고함이 터졌다. 점장에게 컴플레인이 들어갔다.',rep:-2,hp:-8}],
+    ['나도 반말로 "무슨 담배?"',()=>R()<.3?{m:'의외로 "허허, 그래 그래" 하고 웃으며 갔다.',rep:0}:{m:'본사 고객센터에 민원이 접수됐다. 경위서를 쓰느라 시급 1시간분이 날아갔다.',pay:-WAGE,rep:-3}]]},
+  {who:'다 먹은 도시락 환불',look:{shirt:0xc87a9a,pants:0x3a3a4a,hairStyle:'long',hair:0x3a2414},open:'이거 맛없어서 환불해 줘요. (빈 도시락 통을 내민다)',ch:[
+    ['"취식하신 상품은 환불이 어렵습니다"',()=>R()<.6?{m:'투덜대더니 그냥 나갔다.',rep:1,hp:-4}:{m:'"사장 나와!" 10분 동안 소리를 질렀다.',hp:-10}],
+    ['내 돈으로 몰래 환불해 준다',()=>({m:'조용해졌다. 대신 내 돈 5,500원이 사라졌다.',pay:-.55})],
+    ['점장님께 전화한다',()=>({m:'점장이 와서 원칙대로 정리했다. "잘 버텼어요."',rep:2,hp:-3})]]},
+  {who:'술 취한 손님',night:true,look:{shirt:0x8a3a2a,pants:0x2a2a3a,hair:0x1d1a17},open:'(비틀) 여기… 소주… 외상 되지? 내가 내일 줄게~',ch:[
+    ['"외상은 안 됩니다" 단호하게',()=>{const x=R();return x<.5?{m:'중얼거리며 비틀비틀 나갔다.',rep:1,hp:-3}:x<.8?{m:'홧김에 과자 진열대를 넘어뜨리고 나갔다. 정리하느라 녹초가 됐다.',hp:-12}:{m:'"농담이야~" 하며 지갑을 꺼내 계산했다. 거스름돈은 가지래.',tip:.5,rep:1};}],
+    ['112에 신고한다',()=>({m:'경찰이 와서 데려갔다. 점장이 "고생했다"며 1만원을 더 챙겨 줬다.',pay:1,hp:-4,rep:2})],
+    ['그냥 소주 한 병 주고 보낸다',()=>({m:'조용히 보냈지만 CCTV를 본 점장에게 한소리 들었다. 소줏값도 내 돈.',pay:-.2,rep:-2})]]},
+  {who:'앳된 얼굴의 손님',look:{shirt:0x2a3a6a,pants:0x2a2a3a,hair:0x1d1a17},open:'저기… 담배 하나랑 맥주 주세요. (교복 바지가 살짝 보인다)',ch:[
+    ['"신분증 보여 주세요"',()=>R()<.7?{m:'"아… 집에 두고 왔는데…" 하더니 도망쳤다. 점장이 칭찬했다.',rep:3}:{m:'진짜 대학생이었다. "요즘 다 검사하죠?" 웃으며 계산했다.',rep:1,tip:.2}],
+    ['귀찮으니 그냥 판다',()=>R()<.4?{m:'청소년 판매 단속이었다! 가게가 영업정지 위기, 점장이 과태료 일부를 일당에서 뺐다.',pay:-5,rep:-6,hp:-6}:{m:'아무 일 없었지만 찝찝하다.',rep:-1}]]},
+  {who:'동전 폭탄 손님',look:{shirt:0x6a8a5a,pants:0x4a4038,hairStyle:'bun',hair:0x9a9a9a},open:'(10원짜리를 한 봉지 쏟으며) 이걸로 계산할게요~ 세어 봐요.',ch:[
+    ['하나하나 센다',()=>{passTime(.25);return{m:'10원짜리 312개… 정확히 맞았다. 미안하다며 껌 하나를 줬다.',hp:-3,rep:1};}],
+    ['"동전은 일부만 가능합니다"',()=>R()<.5?{m:'"그럼 카드로 할게요" 의외로 순순히.',rep:0}:{m:'"돈은 돈이지!" 실랑이 끝에 결국 다 셌다.',hp:-7}]]},
+  {who:'통화하는 손님',look:{shirt:0x2a2a2a,pants:0x1a1a1a,hairStyle:'long',hair:0x6a4a2a,glasses:true},open:'(통화하면서 손가락으로 담배 진열대를 툭툭 친다)',ch:[
+    ['통화가 끝날 때까지 기다린다',()=>({m:'3분 뒤 "아 저거요" 한마디. 인내심 레벨이 올랐다.',hp:-2,rep:1})],
+    ['"몇 번 찾으세요?" 크게 묻는다',()=>R()<.5?{m:'"아, 죄송해요" 하고 전화를 내렸다.',rep:1}:{m:'째려보더니 휙 나가 버렸다. 매출 하나 날렸다.',rep:-1}]]},
+  {who:'1+1 우기는 손님',look:{shirt:0xd8a040,pants:0x3a3a3a,hairStyle:'short',hair:0x3a2414},open:'이거 1+1이잖아요! 하나 더 가져갈게요. (행사는 어제 끝났다)',ch:[
+    ['행사 기간 안내문을 보여 준다',()=>R()<.6?{m:'"아, 끝났구나" 하고 수긍했다.',rep:1}:{m:'"광고 보고 왔는데 사기냐!" 큰소리가 났다.',hp:-6}],
+    ['그냥 하나 더 준다',()=>({m:'손님은 웃으며 갔지만 재고가 안 맞는다. 차액은 내 몫.',pay:-.15,rep:-2})]]},
+  {who:'컵라면 엎은 손님',look:{shirt:0x3a7ac8,pants:0x2a2a3a,hair:0x1d1a17},open:'아 뜨거! 국물 쏟았는데 치워 줘요. 그리고 새 걸로 하나 줘요, 공짜로.',ch:[
+    ['걸레질하고 새 컵라면은 결제 안내',()=>R()<.3?{m:'손님이 미안했는지 "잔돈은 넣어 둬요" 했다.',hp:-5,rep:1,tip:.5}:{m:'투덜댔지만 결국 결제했다. 바닥은 반짝반짝.',hp:-5,rep:1}],
+    ['"직접 치워 주시겠어요?"',()=>R()<.5?{m:'의외로 휴지로 직접 닦고 갔다.',rep:0}:{m:'앱에 별점 1개 리뷰가 올라왔다. "알바가 불친절"',rep:-3}]]},
+  {who:'치근대는 손님',look:{shirt:0x5a3a6a,pants:0x2a2a2a,hair:0x1d1a17},open:'알바 몇 시에 끝나? 번호 좀 줘 봐~',ch:[
+    ['"근무 중이라 곤란합니다"',()=>R()<.7?{m:'멋쩍게 웃으며 나갔다.',hp:-3}:{m:'계속 서성대서 점장이 출동했다. 출입 금지 조치.',hp:-6,rep:1}],
+    ['CCTV를 가리키며 단호하게 거절',()=>({m:'움찔하더니 바로 나갔다. 깔끔.',rep:1})]]},
+  {who:'돈 던지는 손님',look:{shirt:0x1a1a1a,pants:0x1a1a1a,hairStyle:'bald',tie:0x8a2a2a},open:'(카운터에 지폐를 휙 던지며) 거스름돈.',ch:[
+    ['말없이 주워서 계산한다',()=>({m:'기분이 상했지만 참았다.',hp:-6})],
+    ['"돈은 손으로 건네주세요"',()=>R()<.5?{m:'잠깐 멈칫하더니 "미안해요" 하고 사과했다.',rep:2}:{m:'욕설이 날아왔다. 녹화된 영상으로 신고 접수, 점장이 위로금 2만원을 줬다.',hp:-10,pay:2}]]},
+  {who:'스무고개 손님',look:{shirt:0x9a5a7a,pants:0x3a3a3a,hairStyle:'long',hair:0x1d1a17},open:'그거 있잖아요, 그거. 빨간 거… 매운 거… 아니 그거 말고.',ch:[
+    ['끈기 있게 같이 찾는다',()=>{passTime(.15);return R()<.6?{m:'결국 찾았다! "역시 알바생이 최고야!"',rep:1,tip:.3}:{m:'20분 만에 찾았는데 "그냥 안 살래요."',hp:-6};}],
+    ['"매대 둘러보시고 오세요"',()=>({m:'혼자 찾아왔다. 효율적이다.',rep:0})]]},
+];
+const NICE=[
+  {who:'단골 할머니',look:{shirt:0xc8a0b0,pants:0x5a4a3a,hairStyle:'bun',hair:0xcfcfcf,smile:true},open:'학생, 늘 수고가 많네~ 이거 먹어요. (요구르트를 건넨다)',ch:[['"감사합니다!"',()=>({m:'요구르트를 받았다. 체력 +5, 기분 최고!',hp:5,rep:1})]]},
+  {who:'정장 신사',look:{shirt:0x2a3040,pants:0x1a1a22,tie:0x2a5a9a,smile:true},open:'거스름돈은 됐어요. 늦게까지 고생 많네요.',ch:[['"감사합니다!"',()=>({m:'팁 1만원을 받았다!',tip:1,rep:1})]]},
+];
+const CUST_LINES=['카드요.','봉투 하나 주세요.','포인트 적립이요~','영수증은 버려 주세요.','현금이요.','이거 데워 주세요.'];
+const SCAN_ITEMS=[['삼각김밥',0xffffff],['컵라면',0xe8382e],['바나나우유',0xf2c230],['도시락',0x2a2420],['캔커피',0x6a3a1a],['생수',0x9ad6ff],['감자칩',0xf28a1a],['초코바',0x5a2a10],['맥주',0x2fbf5a],['샌드위치',0xf2e0b0]];
+function dlg(html,choices){const b=$('#dlg');b.innerHTML=`<div class="dtx">${html}</div>${choices&&choices.length?`<div class="dch">${choices.map(([t,act,arg],i)=>`<button class="btn ${i===0?'go':''}" data-act="${act}" data-arg="${arg??''}"><kbd>${i+1}</kbd><span>${t}</span></button>`).join('')}</div>`:''}`;b.hidden=false;}
+function dlgHide(){$('#dlg').hidden=true;}
+function workChoice(){const late=P.time>=22||P.time<6;const fired=P.fired&&P.fired>=P.day;
+  if(fired){modal(`<div class="eyebrow">떡상마트 24 · 점장</div><h3>"당분간은 안 나와도 돼요."</h3><p>지난 근무 평가가 너무 나빴다. ${P.fired-P.day+1}일 뒤에 다시 와 보자.</p><div class="row"><button class="btn go" data-act="closeModal">…네</button></div>`);return;}
+  modal(`<div class="eyebrow">떡상마트 24 · 점장</div><h3>"마침 손이 모자랐는데!"</h3><p>시급은 2026년 최저시급 <b>10,320원</b>. ${late?'<b>야간 타임</b>이라 취객이 많아요. 대신 끝나면 야간 보너스 1만원.':'손님 응대는 직접 해야 해요.'}</p>
+  <div class="loan"><h4>카운터 근무 · 직접 플레이</h4><div class="muted" style="font-size:13px">손님 8명을 받아요. 바코드를 찍고, 진상 손님은 대처를 골라요. 게임 시간 약 3~4시간, 응대가 좋으면 팁과 점장 보너스.</div><div class="row"><button class="btn go sm" data-act="shiftStart" ${P.hp<15?'disabled':''}>${P.hp<15?'체력이 너무 낮아요':'카운터 서기'}</button></div></div>
+  <div class="loan"><h4>6시간 풀타임 · ${won(WAGE*6)}</h4><div class="muted" style="font-size:13px">자동 진행(현실 ${realDur(6)}). 그동안 휴대폰만 쓸 수 있어요.</div><div class="row"><button class="btn sm" data-act="workFull" ${P.time>18||P.time<6?'disabled':''}>${P.time>18||P.time<6?'06~18시에만 시작':'풀타임 근무'}</button></div></div><div class="row"><button class="btn ghost" data-act="closeModal">다음에요</button></div>`);}
+function shiftStart(){closeModal();const d=itr('store');if(!IW.on||IW.def!==d)return;const night=P.time>=22||P.time<5;
+  Object.assign(SH2,{on:true,d,n:0,total:8,hours:0,pay:0,tips:0,rep:0,jin:0,perf:0,night,c:null,stage:'intro',x:0,dir:1,zone:[.4,.6],wait:0,items:[],log:[]});
+  IW.paused=true;setPrompt(null);$('#inbar').hidden=true;hidePanel();document.body.classList.add('shift');if(d.clerk)d.clerk.g.visible=false;
+  setView({target:new THREE.Vector3(2.9,1.1,1.3),yaw:.42,pitch:.3,dist:4.4,yl:[-.2,1.1],pl:[.1,.8],dl:[2.8,7]},true);
+  dlg(`<b class="nm">점장</b>${night?'야간 부탁해요. 취한 손님 오면 무리하지 말고 신고해요!':'오늘 손님 많을 거예요. 친절하게, 근데 당하지는 말고!'} <small class="muted">손님 ${SH2.total}명 · 시급 10,320원</small>`,[['근무 시작!','shGo'],['역시 다음에…','shQuit']]);}
+function shGo(){dlgHide();SH2.stage='gap';SH2.wait=.6;}
+function shSpawn(){const S=SH2;const jp=S.night?.5:.3;let ev=null;const r=R();if(r<jp)ev={...pick(JIN.filter(j=>S.night||!j.night)),jin:true};else if(r<jp+.08)ev={...pick(NICE),nice:true};
+  const look=ev?ev.look:{shirt:pick([0x5a7a9a,0x9a5a7a,0x6a8a5a,0xc8a050,0x8a8a8a,0x3a6a8a]),pants:pick([0x2a2a3a,0x3a3a3a,0x4a4038]),hair:pick([0x1d1a17,0x3a2414,0x9a9a9a]),hairStyle:pick(['short','long','bun'])};
+  const f=makePerson(look);f.g.position.set(.8,0,3.7);S.d.scene.add(f.g);S.c={f,ev,path:[[1.25,2.6],[2.12,1.3]],ph:0,done:false};S.stage='walkin';}
+function shBubble(text){const c=SH2.c;if(!c)return;if(c.bub){c.f.g.remove(c.bub);c.bub.material.map.dispose();}const t=text.length>22?text.slice(0,21)+'…':text;c.bub=labelSprite(t,{bg:'#ffffff',fg:'#1a1a1a',scale:.24});c.bub.position.set(0,2.05,0);c.f.g.add(c.bub);}
+function shItems(n){const S=SH2;for(const m of S.items)S.d.scene.remove(m);S.items=[];for(let i=0;i<n;i++){const it=pick(SCAN_ITEMS);const m=mesh(i%2?G.cyl(.04,.04,.14,10):G.box(.14,.1,.1),M(it[1],{flat:false,r:.4}),2.82,1.1,.95+i*.22);m.userData.nm=it[0];S.d.scene.add(m);S.items.push(m);}}
+function shArrive(){const S=SH2,c=S.c;c.f.g.rotation.y=Math.PI/2;animWalk(c.f,0,0);
+  if(c.ev){shBubble(c.ev.open);if(c.ev.jin)S.jin++;sfx[c.ev.jin?'bad':'good']();S.stage='talk';dlg(`<b class="nm ${c.ev.jin?'bad':''}">${c.ev.jin?'진상':'손님'} · ${c.ev.who}</b>${c.ev.open}`,c.ev.ch.map((x,i)=>[x[0],'shc',i]));}
+  else{shBubble(pick(['안녕하세요~','이거 계산이요.','(물건을 내려놓는다)']));shScan(randi(1,4));}}
+function shScan(n){const S=SH2;shItems(n);S.stage='scan';S.left=n;S.combo=0;shNextBar();}
+function shNextBar(){const S=SH2;const w=Math.max(.11,.26-S.n*.016);const a=rand(.06,.94-w);S.zone=[a,a+w];S.sp=.8+S.n*.1+(S.night?.15:0);S.x=R()<.5?0:1;S.dir=S.x?-1:1;S.wait=0;
+  const nm=S.items[S.items.length-S.left]?.userData.nm||'상품';dlg(`<b class="nm">계산</b>${nm} 찍기 <small class="muted">남은 상품 ${S.left}개</small><div class="mgbar"><i style="left:${a*100}%;width:${w*100}%"></i><b id="shCur"></b></div>`,[['삑! (스페이스)','shHit']]);}
+function shHit(){const S=SH2;if(S.stage!=='scan'||S.wait>0)return;const c=(S.zone[0]+S.zone[1])/2,w=S.zone[1]-S.zone[0],d=Math.abs(S.x-c);
+  if(d<w/2){const perfect=d<w*.18;if(perfect)S.perf++;S.combo++;sfx[perfect?'cash':'bid']();const m=S.items[S.items.length-S.left];if(m){S.d.scene.remove(m);burst(S.d.scene,m.position.clone(),perfect?0x4ade80:0xffe08a,14,1.2);}S.left--;
+    if(S.left<=0){S.wait=.5;S.stage='pay';shBubble(pick(CUST_LINES));const tip=S.combo>=3&&R()<.12+luck()*.01?.3:0;S.tips+=tip;if(tip)toast('손님: "손이 빠르시네요~" 팁 +3,000원','good');setTimeout(()=>shLeave(),700);}else{S.wait=.25;setTimeout(shNextBar,250);}}
+  else{S.combo=0;sfx.bad();S.wait=.35;shBubble(pick(['안 찍혔는데요?','빨리 좀요…','다시 찍어 주세요']));setTimeout(()=>{if(SH2.stage==='scan')shNextBar();},350);}}
+function shChoose(i){const S=SH2,c=S.c;if(S.stage!=='talk'||!c)return;const o=c.ev.ch[i][1]();S.pay+=o.pay||0;S.tips+=o.tip||0;S.rep+=o.rep||0;if(o.hp)P.hp=clamp(P.hp+o.hp,1,100);
+  S.log.push((c.ev.jin?'진상 · ':'')+c.ev.who+': '+o.m);renderHUD();(o.rep>0||o.tip||o.hp>0?sfx.good:o.rep<0||(o.pay||0)<0||(o.hp||0)<-5?sfx.bad:sfx.bid)();
+  S.stage='result';dlg(`<b class="nm">${c.ev.who}</b>${o.m}${o.tip?` <b class="gain">팁 +${won(o.tip)}</b>`:''}${o.pay?` <b class="${o.pay>0?'gain':'loss'}">${o.pay>0?'+':''}${won(o.pay)}</b>`:''}${o.hp?` <small class="muted">체력 ${o.hp>0?'+':''}${o.hp}</small>`:''}`,[['다음 손님','shNext']]);}
+function shNext(){const S=SH2,c=S.c;if(S.stage==='result'&&c&&c.ev&&!c.left){if(c.ev.jin||R()<.5){dlgHide();shLeave();}else shScan(randi(1,3));}}
+function shLeave(){const S=SH2,c=S.c;if(!c)return;c.left=true;if(c.bub){c.f.g.remove(c.bub);c.bub=null;}for(const m of S.items)S.d.scene.remove(m);S.items=[];dlgHide();c.path=[[1.25,2.6],[.8,3.9]];S.stage='walkout';
+  const h=.42;S.hours+=h;passTime(h);S.n++;}
+function shiftTick(dt){const S=SH2;if(!S.on)return;if(phase!=='store'||cur!==S.d.scene){shiftEnd(true);return;}
+  const me=S.d.me;me.g.position.set(3.85,0,1.3);me.g.rotation.set(0,-Math.PI/2,0);animWalk(me,0,0);
+  if(S.stage==='scan'){if(S.wait>0)S.wait-=dt;else{S.x+=S.dir*S.sp*dt;if(S.x>1){S.x=1;S.dir=-1;}if(S.x<0){S.x=0;S.dir=1;}const cu=$('#shCur');if(cu)cu.style.left=S.x*100+'%';}}
+  if(S.stage==='gap'){S.wait-=dt;if(S.wait<=0){if(S.n>=S.total)return shiftEnd(false);shSpawn();}}
+  const c=S.c;if(c&&(S.stage==='walkin'||S.stage==='walkout')){const t=c.path[0];const g=c.f.g;const dx=t[0]-g.position.x,dz=t[1]-g.position.z,l=Math.hypot(dx,dz);
+    if(l<.06){c.path.shift();if(!c.path.length){if(S.stage==='walkin')shArrive();else{S.d.scene.remove(g);S.c=null;S.stage='gap';S.wait=rand(.4,1.1);}}}
+    else{const sp=1.7*dt;g.position.x+=dx/l*Math.min(sp,l);g.position.z+=dz/l*Math.min(sp,l);g.rotation.y=Math.atan2(dx,dz);c.ph+=dt*8;animWalk(c.f,c.ph,1);}}}
+function shQuit(){if(!SH2.on)return;if(SH2.stage==='intro'){shiftEnd(true,true);return;}shiftEnd(true);}
+function shiftEnd(early,none){const S=SH2;if(!S.on)return;S.on=false;dlgHide();document.body.classList.remove('shift');if(S.c){S.d.scene.remove(S.c.f.g);S.c=null;}for(const m of S.items)S.d.scene.remove(m);S.items=[];if(S.d.clerk)S.d.clerk.g.visible=true;
+  if(none){inBack();return;}
+  const wage=r1(S.hours*WAGE),nightB=S.night&&!early&&S.n>=S.total?1:0;let boss=0,fired=false;if(!early&&S.rep>=5){boss=2;}if(S.rep<=-6){fired=true;P.fired=P.day+2;}
+  const total=Math.max(0,r1(wage+S.pay+S.tips+nightB+boss));P.cash+=total;P.stats.work=(P.stats.work||0)+1;P.stats.jin=(P.stats.jin||0)+S.jin;if(!early)mis('work');renderHUD();
+  if(total>=6){stamp('알바왕',true);sfx.reveal(3);}else sfx.cash();
+  const grade=fired?'F · 잘렸다':S.rep>=5?'S · 에이스':S.rep>=2?'A · 믿음직':S.rep>=-1?'B · 무난':S.rep>=-5?'C · 불안':'D';
+  modal(`<div class="eyebrow">근무 끝 · ${dur(S.hours)}</div><h3>${fired?'"내일부터 안 나와도 돼요."':S.rep>=5?'"자네 정직원 생각 없나?"':early?'"벌써 가요…?"':'"수고했어요~"'}</h3>
+    <ul class="prank"><li><span>받은 손님</span><b>${S.n}명</b></li><li><span>진상 손님</span><b>${S.jin}명</b></li><li><span>완벽 스캔</span><b>${S.perf}</b></li><li><span>점장 평가</span><b>${grade}</b></li>
+    <li><span>시급 ${dur(S.hours)}</span><b>${won(wage)}</b></li>${S.tips?`<li><span>팁</span><b class="gain">+${won(S.tips)}</b></li>`:''}${S.pay?`<li><span>사건·사고</span><b class="${S.pay>0?'gain':'loss'}">${S.pay>0?'+':''}${won(S.pay)}</b></li>`:''}${nightB?`<li><span>야간 보너스</span><b class="gain">+${won(nightB)}</b></li>`:''}${boss?`<li><span>점장 보너스</span><b class="gain">+${won(boss)}</b></li>`:''}
+    <li><span><b>오늘 일당</b></span><b class="gain">+${won(total)}</b></li></ul>
+    ${S.log.length?`<p class="muted" style="font-size:12.5px;line-height:1.55">${S.log.map(esc).join('<br>')}</p>`:''}${fired?'<p class="loss" style="font-size:13px">2일 동안 이 편의점에서 일할 수 없어요.</p>':''}<div class="row"><button class="btn go" data-act="closeModal">퇴근</button></div>`);
+  inBack();}
 
 const ENC=[
   {t:'떨어진 지갑',d:'보도 한가운데 두툼한 지갑이 떨어져 있다. 주변엔 아무도 없다.',o:[
@@ -2265,10 +2391,12 @@ function removeItem(id){P.inv=P.inv.filter(x=>x.id!==id);P.room=P.room.filter(x=
 function sellItem(id,quiet){const it=itemById(id);if(!it||it.refused)return 0;P.cash+=it.offer;P.stats.earned+=it.offer;const v=it.offer;removeItem(id);if(!quiet){sfx.cash();toast(`${it.name} 판매 +${won(v)}`,'good');}return v;}
 
 /* ============ midnight ============ */
-function liquidate(need){let n=0;for(const id of Object.keys(P.hold)){if(P.cash>=need)break;P.cash+=holdVal(id);delete P.hold[id];n++;}
+function liquidate(need){let n=0;const ids=Object.keys(P.hold).sort((a,b)=>(AID[b].kind==='coin')-(AID[a].kind==='coin')||holdVal(b)-holdVal(a));
+  for(const id of ids){if(P.cash>=need)break;const h=P.hold[id],a=AID[id],p=P.mkt[id].price*.97;const short=need-P.cash;let q=short*10000/p;if(a.kind==='stock')q=Math.ceil(q);q=Math.min(q,h.qty);if(q<=0)continue;
+    const got=q*p/10000;P.cash+=got;h.cost-=h.cost*(q/h.qty);h.qty-=q;if(h.qty<=1e-9||(a.kind==='stock'&&h.qty<1))delete P.hold[id];n++;(P.forced=P.forced||[]).push(`${a.name} ${a.kind==='stock'?Math.round(q).toLocaleString('ko-KR')+'주':q.toFixed(3)+'개'} → ${won(got)}`);}
   const order=P.inv.filter(i=>i.special!=='lotto').sort((a,b)=>(P.room.includes(a.id)?1:0)-(P.room.includes(b.id)?1:0)||b.trueV-a.trueV);
   for(const it of order){if(P.cash>=need)break;P.cash+=r1(Math.max(.1,it.trueV*.5));n++;removeItem(it.id);}return n;}
-function pay(amount,what,msgs){if(P.cash>=amount){P.cash-=amount;return true;}const n=liquidate(amount);if(P.cash>=amount){P.cash-=amount;msgs.push(`${what} 낼 돈이 모자라 자산 ${n}건을 헐값에 팔았다.`);return true;}return false;}
+function pay(amount,what,msgs){if(P.cash>=amount){P.cash-=amount;return true;}const n=liquidate(amount);if(P.cash>=amount){P.cash-=amount;msgs.push(`${what} 낼 현금이 모자라 보유 종목 일부를 시장가보다 3% 싸게 강제 매도했다.`);return true;}return false;}
 function midnight(){P.time-=24;const t=TIERS[P.tier];P.prevWorth=myWorth();const msgs=[];
   for(const n of P.news){const L=n.label;P.lstats[L]=P.lstats[L]||{t:0,n:0};P.lstats[L].n++;if(n.isTrue)P.lstats[L].t++;}
   if(P.pick){P.pickN++;if(P.mkt[P.pick].price>P.mkt[P.pick].close)P.pickHit++;}
@@ -2296,6 +2424,7 @@ function midnight(){P.time-=24;const t=TIERS[P.tier];P.prevWorth=myWorth();const
   if(evicted&&phase==='home'){if(OFF){phase='world';cur=scWorld;WD.pos.set(HOME_DOOR.x,0,HOME_DOOR.z);}else leave();}
   startDay();
   if(evicted){if(OFF)say(`월세를 못 내서 ${TIERS[P.tier].to} 쫓겨났다.`,'bad');else{modal(`<div class="eyebrow">월세 미납</div><h3>쫓겨났다</h3><p>월세를 못 내서 ${TIERS[P.tier+1].name}에서 나왔다. 보증금을 돌려받아 <b>${TIERS[P.tier].to}</b> 옮긴다.</p><div class="row"><button class="btn go" data-act="closeModal">확인</button></div>`);sfx.bad();}}
+  if(P.forced&&P.forced.length){const L=P.forced;P.forced=[];if(OFF)OFFLOG.push('강제 매도: '+L.join(', '));else if(!winner&&!evicted)modal(`<div class="eyebrow">${gameDate()} 자정 · 떡상증권</div><h3>반대매매 알림</h3><p>월세·보험료·상환금을 낼 현금이 부족해서, 필요한 만큼만 보유 자산을 <b>시장가보다 3% 싸게</b> 자동으로 팔았어요.</p><ul class="prank">${L.map(x=>`<li><span>${esc(x)}</span></li>`).join('')}</ul><p class="muted" style="font-size:13px">주식을 사 둘 때는 다가오는 월세만큼 현금을 남겨 두세요. 자정이 가까워지면 미리 경고해 드려요.</p><div class="row"><button class="btn go" data-act="closeModal">확인</button></div>`);}
   if(winner){if(OFF)P._rival=P.ais.indexOf(winner);else rivalWin(winner);}}
 let RVprev='world';
 function rivalWin(ai){RVprev=phase==='rival'?RVprev:phase;phase='rival';sfx.bad();const rk=myRank();
@@ -2320,7 +2449,7 @@ const ACT={
   mute:()=>{muted=!muted;const b=$('#btnMute');b.querySelector('.lb').textContent=muted?'음소거':'소리';b.querySelector('.snd').style.display=muted?'none':'';b.style.opacity=muted?.6:1;},
   howto:()=>modal(`<div class="eyebrow">게임 방법</div><h3>살아남아서, 떡상하라</h3><p>자정마다 월세가 나가요. 알바·경매·주식·코인·길에 떨어진 돈까지, 뭐든 해서 10억 펜트하우스를 사면 승리. 파산하면 그 인생은 끝이에요.</p><div class="howk"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>이동 (폰: 조이스틱 · 바닥 탭)</span><span><kbd>Shift</kbd></span><span>달리기</span><span><kbd>E</kbd></span><span>들어가기 · 집기 · 말 걸기</span><span><kbd>Tab</kbd></span><span>휴대폰 (주식·코인·뉴스·배달)</span><span><kbd>N</kbd> <kbd>M</kbd></span><span>신문 · 오늘의 미션</span><span><kbd>Esc</kbd></span><span>닫기 · 뒤로</span><span>마우스</span><span>끌어서 시점 회전, 휠로 확대</span></div><div class="row"><button class="btn go" data-act="closeModal">알겠어</button></div>`),
   giveup:()=>{if(phase==='title')return;modal(`<h3>새 인생을 시작할까요?</h3><p>지금 인생은 기록 없이 끝나요.</p><div class="row"><button class="btn" data-act="closeModal">계속하기</button><button class="btn red" data-act="newgame">새 인생</button></div>`);},
-  closeModal:()=>closeModal(),missions:()=>{if(P)showMissions();},scReveal:()=>scratchEnd(),scClose:()=>closeModal(),mgStart:()=>mgStart(),mgHit:()=>mgHit(),workFull:()=>{closeModal();startWork();},closePaper:()=>{closeModal();renderCurrent();},paper:()=>{if(P)showPaper();},
+  closeModal:()=>closeModal(),missions:()=>{if(P)showMissions();},scReveal:()=>scratchEnd(),scClose:()=>closeModal(),mgStart:()=>mgStart(),shiftStart:()=>shiftStart(),shGo:()=>shGo(),shHit:()=>shHit(),shc:a=>shChoose(+a),shNext:()=>shNext(),shQuit:()=>shQuit(),mgHit:()=>mgHit(),workFull:()=>{closeModal();startWork();},closePaper:()=>{closeModal();renderCurrent();},paper:()=>{if(P)showPaper();},
   showRival:()=>{closeModal();const ai=P.ais[P._rival];P._rival=null;if(ai)rivalWin(ai);},
   enter:()=>{if(inWalking()&&IW.near){if(!(IW.near.dis&&IW.near.dis()))IW.near.act();return;}const n=WD.nearObj;if(!n)return;if(phase==='drive'){if(n.kind==='door'){driveOut();enterBuilding(n.b.id);}return;}if(phase!=='world')return;if(n.kind==='enc')openEnc();else if(n.kind==='car')driveIn();else enterBuilding(n.b.id);},
   leave:()=>{if(phase==='auction'&&A.state==='bid'){A.out=true;endLot();return;}A.lot=null;leave();},
@@ -2400,7 +2529,7 @@ function frame(now){const rdt=Math.min(.5,(now-last)/1000);const dt=Math.min(.05
     if(phase==='travel'||(phase==='phone'&&PH.prev==='travel')){const a=KR.pins[TV.from],b=KR.pins[TV.to],k=clamp((absNow()-TV.start)/(TV.end-TV.start),0,1),air=TV.to==='jeju'||TV.from==='jeju';KR.train.position.set(a.x+(b.x-a.x)*k,1+Math.sin(k*Math.PI)*(air?3.2:.5),a.z+(b.z-a.z)*k);KR.train.rotation.y=Math.atan2(-(b.z-a.z),b.x-a.x);}}
   if(P&&P.loc&&P.loc!=='seoul'&&cityScenes[P.loc]&&cur===cityScenes[P.loc].s){const cs=cityScenes[P.loc],d=todAt(P.time);if(cs.dome===undefined){cs.dome=makeDome();if(cs.dome)cs.s.add(cs.dome);}skyTint(d,cs.dome,cs.s);cs.sun.color.copy(d.sun);cs.sun.intensity=1.7*d.si;cs.hemi.intensity=.3+.75*d.hemi;if(cs.s.userData.boat){cs.s.userData.boat.position.y=Math.sin(T0*1.3)*.12;cs.s.userData.boat.rotation.z=Math.sin(T0*.9)*.05;}}
   const touch=navigator.maxTouchPoints>0;$('#joy').hidden=!((phase==='world'||phase==='drive'||inWalking())&&P&&touch);$('#drivebar').hidden=phase!=='drive';
-  mgTick(rdt);drawMinimap(dt);
+  mgTick(rdt);shiftTick(Math.min(dt,.05));drawMinimap(dt);
   updateTweens(dt);updateBursts(dt);updateView(dt);
   if(cur!==lastCur){lastCur=cur;applyEnv(cur);const f=$('#fade');f.style.transition='none';f.style.opacity='1';requestAnimationFrame(()=>{f.style.transition='opacity .5s ease-out';f.style.opacity='0';});}
   perf.t+=rdt;perf.n++;if(perf.t>3){if(perf.t/perf.n>.045&&bloom.enabled&&!perf.cut){bloom.enabled=false;perf.cut=true;}perf.t=0;perf.n=0;}
