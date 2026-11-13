@@ -1298,6 +1298,7 @@ function buildWorld(){const s=new THREE.Scene();s.userData.noEnv=true;s.backgrou
     if(w>5&&d>5&&r()<.75){const tx=x+(r()-.5)*(w-3),tz=z+(r()-.5)*(d-3);s.add(mesh(G.cyl(.7,.7,1.3,12),tankM,tx,h+.75,tz));for(const [a,b2] of[[-.45,-.45],[.45,-.45],[-.45,.45],[.45,.45]])s.add(mesh(G.box(.08,.4,.08),M(0x5a5d62),tx+a,h+.2,tz+b2));}
     const nAC=1+Math.floor(r()*3);for(let i=0;i<nAC;i++)s.add(mesh(G.box(.9,.6,.6),acM,x+(r()-.5)*(w-1.6),h+.3,z+(r()-.5)*(d-1.6)));
     if(w>7&&d>5&&r()<.6)s.add(mesh(G.box(2.2,2,2.2),hutM,x+(r()-.5)*(w-3),h+1,z+(r()-.5)*(d-3)));};
+  const gab=(x,z,w,d,h)=>h<=8&&Math.min(w,d)<=12&&Math.abs(Math.round(x*3+z*5))%3!==1;
   const fIdx={e:0,w:1,s:4,n:5};
   for(const b of BUILDINGS){const bk=b.id==='home'||b.id==='shop',st=bk?2.2:2.6;const side=TM(bk?'brick':'plaster',Math.max(b.w,b.d)/st,b.h/st,{ns:.6,color:bk?0xc8beb8:new THREE.Color(b.wall).multiplyScalar(1.2).getHex()})||M(new THREE.Color(b.wall).multiplyScalar(.82).getHex(),{flat:false});const top=TM('concrete',b.w/4,b.d/4,{color:0x8a8a8a})||M(0x4a4a4e,{flat:false});const mats=[side,side,top,top,side,side];mats[fIdx[b.face]]=facadeMat(b);
     const body=new THREE.Mesh(G.box(b.w,b.h,b.d),mats);body.position.set(b.x,b.h/2,b.z);body.castShadow=true;body.receiveShadow=true;body.userData.bid=b.id;s.add(body);
@@ -1307,7 +1308,37 @@ function buildWorld(){const s=new THREE.Scene();s.userData.noEnv=true;s.backgrou
     s.add(mesh(G.box(n[0]?.9:2,.08,n[0]?2:.9),M(0x6a665e),fx+n[0]*.5,.04,fz+n[1]*.5));
     const ring=new THREE.Mesh(new THREE.RingGeometry(.75,.98,36),new THREE.MeshBasicMaterial({color:0xffc531,transparent:true,opacity:.3,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.set(b.door.x,.05,b.door.z);s.add(ring);WD.rings[b.id]=ring;
     const tag=labelSprite(b.name,{scale:.85});tag.position.set(b.x+n[0]*b.w*.3,b.h+1.6,b.z+n[1]*b.d*.3);s.add(tag);}
-  for(const [x,z,w,d,h,c] of FILL){const wt=winTex(.5);const m=new THREE.MeshStandardMaterial({color:c,emissive:0xffffff,emissiveMap:wt,emissiveIntensity:0,roughness:.9});if(h>12){WD.sky.push(m);if(TX.facade){m.map=TX.facade.clone();m.map.repeat.set(Math.max(w,d)/5,h/5);m.map.needsUpdate=true;m.color.set(c).multiplyScalar(1.5);}}const lo=TM(Math.abs(x*7+z)%3<1?'brick':'plaster',Math.max(w,d)/2.6,h/2.6,{ns:.6,color:new THREE.Color(c).multiplyScalar(1.3).getHex()});const b=new THREE.Mesh(G.box(w,h,d),h>12?m:(lo||M(c,{flat:false})));b.position.set(x,h/2,z);b.castShadow=true;b.receiveShadow=true;s.add(b);roof(x,z,w,d,h);}
+  for(const [x,z,w,d,h,c] of FILL){const wt=winTex(.5);const m=new THREE.MeshStandardMaterial({color:c,emissive:0xffffff,emissiveMap:wt,emissiveIntensity:0,roughness:.9});if(h>12){WD.sky.push(m);if(TX.facade){m.map=TX.facade.clone();m.map.repeat.set(Math.max(w,d)/5,h/5);m.map.needsUpdate=true;m.color.set(c).multiplyScalar(1.5);}}const lo=TM(Math.abs(x*7+z)%3<1?'brick':'plaster',Math.max(w,d)/2.6,h/2.6,{ns:.6,color:new THREE.Color(c).multiplyScalar(1.3).getHex()});const b=new THREE.Mesh(G.box(w,h,d),h>12?m:(lo||M(c,{flat:false})));b.position.set(x,h/2,z);b.castShadow=true;b.receiveShadow=true;s.add(b);if(!gab(x,z,w,d,h))roof(x,z,w,d,h);}
+  // facade dressing: framed windows, sills, floor ledges, plinths, balconies, storefronts with signs, pitched roofs
+  {const WF=[],WL=[],WD2=[];let sd=7;const rr=()=>{sd=(sd*9301+49297)%233280;return sd/233280;};
+   const NRM={s:[0,1],n:[0,-1],e:[1,0],w:[-1,0]};
+   const wins=(x,z,w,d,h,face,y0)=>{const n=NRM[face],fw=n[0]?d:w;const cols=Math.max(1,Math.floor((fw-.6)/2.3)),step=fw/cols,ry=n[0]?n[0]*Math.PI/2:(n[1]>0?0:Math.PI);
+     for(let y=y0;y<h-1.1;y+=3)for(let i=0;i<cols;i++){const t=-fw/2+step*(i+.5);const px=x+(n[0]?n[0]*(w/2+.03):t),pz=z+(n[1]?n[1]*(d/2+.03):t);WF.push([px,y,pz,ry]);(rr()<.5?WL:WD2).push([px,y,pz,ry]);}};
+   const ledges=(x,z,w,d,h,col)=>{const lm=M(col,{flat:false});s.add(mesh(G.box(w+.18,.5,d+.18),M(0x5a5650,{flat:false}),x,.25,z));for(let y=3;y<h-.8;y+=3)s.add(mesh(G.box(w+.14,.14,d+.14),lm,x,y,z));};
+   const SHOPS=['세탁소','미용실','김밥천국','약국','철물점','문구사','치킨','호프','동네슈퍼','꽃집','안경원','떡집','순대국','비디오대여','PC방','노래방','분식','열쇠'];const SCOL=['#c8342a','#1d6fb8','#2a8a4a','#e08a1a','#6a3aa0','#2a2a2a','#b8325a','#0f7a7a'];
+   const AWN=[0xc8342a,0x1d6fb8,0x2a8a4a,0xe0a020,0xf0ece4,0x6a3aa0];
+   const store=(x,z,w,d,face)=>{const n=NRM[face],fw=(n[0]?d:w)*.84,ry=n[0]?n[0]*Math.PI/2:(n[1]>0?0:Math.PI);const ox=x+n[0]*(w/2),oz=z+n[1]*(d/2);
+     const gm=new THREE.MeshStandardMaterial({color:0x2a3440,roughness:.12,metalness:.5,emissive:0xffe2b0,emissiveIntensity:0});WD.fac.push(gm);
+     const gl=mesh(G.box(fw,2.1,.08),gm,ox+n[0]*.04,1.35,oz+n[1]*.04);gl.rotation.y=ry;s.add(gl);
+     const fr=mesh(G.box(fw+.2,.16,.14),M(0x3a3a3e),ox+n[0]*.06,2.45,oz+n[1]*.06);fr.rotation.y=ry;s.add(fr);
+     const aw=mesh(G.box(fw+.3,.08,1.1),M(AWN[Math.floor(rr()*AWN.length)],{flat:false}),ox+n[0]*.6,2.7,oz+n[1]*.6);aw.rotation.y=ry;aw.rotation.x=0;aw.rotateX(.28);s.add(aw);
+     const nm=SHOPS[Math.floor(rr()*SHOPS.length)],sg=textPlane(nm,Math.min(fw*.8,4.2),.72,{bg:SCOL[Math.floor(rr()*SCOL.length)],fg:'#fff'});sg.position.set(ox+n[0]*.07,3.35,oz+n[1]*.07);sg.rotation.y=ry;s.add(sg);};
+   const balc=(x,z,w,d,h,face)=>{const n=NRM[face],fw=n[0]?d:w,ry=n[0]?n[0]*Math.PI/2:(n[1]>0?0:Math.PI);const cols=Math.max(1,Math.floor((fw-.6)/2.3)),step=fw/cols;
+     for(let y=3;y<h-1.5;y+=3)for(let i=0;i<cols;i+=2){const t=-fw/2+step*(i+.5);const px=x+(n[0]?n[0]*(w/2+.4):t),pz=z+(n[1]?n[1]*(d/2+.4):t);const g=new THREE.Group();
+       g.add(mesh(G.box(1.9,.12,.8),M(0xcfc9be),0,0,0),mesh(G.box(1.9,.75,.05),M(0x9fc0d0,{op:.45}),0,.43,.38),mesh(G.box(1.95,.06,.08),M(0x4a4d52),0,.82,.38));g.position.set(px,y-.25,pz);g.rotation.y=ry;s.add(g);}};
+   const pitched=(x,z,w,d,h)=>{const L=Math.max(w,d)+.5,S=Math.min(w,d)/2+.45,H=Math.min(w,d)*.32;const sh=new THREE.Shape();sh.moveTo(-S,0);sh.lineTo(S,0);sh.lineTo(0,H);sh.closePath();
+     const geo=new THREE.ExtrudeGeometry(sh,{depth:L,bevelEnabled:false});geo.translate(0,0,-L/2);const col=[0x3a5a7a,0x8a3a2a,0x2f5a4a,0x5a5a62,0x6a4a3a][Math.abs(Math.round(x+z))%5];
+     const r=mesh(geo,M(col),x,h,z);if(w>d)r.rotation.y=Math.PI/2;s.add(r);s.add(mesh(G.box(w+.3,.18,d+.3),M(0xe8e2d6),x,h+.05,z));};
+   for(const b of BUILDINGS){if(b.id==='station'||b.id==='auction'||b.id==='dealer')continue;ledges(b.x,b.z,b.w,b.d,b.h,0xd8d2c6);const sides=b.face==='s'||b.face==='n'?['e','w',b.face==='s'?'n':'s']:['s','n',b.face==='e'?'w':'e'];for(const f of sides)wins(b.x,b.z,b.w,b.d,b.h,f,1.7);}
+   for(const [x,z,w,d,h] of FILL){if(h>12)continue;ledges(x,z,w,d,h,0xddd6ca);const front=z<0?'s':'n',road=Math.abs(z)-d/2<10;
+     for(const f of['s','n','e','w'])wins(x,z,w,d,h,f,(road&&f===front)||(f!==front&&rr()<.3)?4.7:1.7);
+     if(road)store(x,z,w,d,front);if(h>=7&&!road)balc(x,z,w,d,h,front);else if(h>=7&&road)balc(x,z,w,d,h,front==='s'?'n':'s');
+     if(gab(x,z,w,d,h))pitched(x,z,w,d,h);}
+   const inst=(arr,geo,mat,dy=0,dz=0)=>{if(!arr.length)return;const im=new THREE.InstancedMesh(geo,mat,arr.length);const o=new THREE.Object3D();arr.forEach(([x,y,z,ry],i)=>{o.position.set(x,y+dy,z);o.rotation.set(0,ry,0);o.translateZ(dz);o.updateMatrix();im.setMatrixAt(i,o.matrix);});im.castShadow=false;im.receiveShadow=true;s.add(im);};
+   const lit=new THREE.MeshStandardMaterial({color:0x34465a,roughness:.15,metalness:.4,emissive:0xffd9a0,emissiveIntensity:0});WD.fac.push(lit);
+   const dark=new THREE.MeshStandardMaterial({color:0x2a3848,roughness:.15,metalness:.4});
+   inst(WF,G.box(1.2,1.5,.1),M(0xece8e0,{flat:false}));inst(WF,G.box(1.42,.1,.28),M(0xd8d2c6,{flat:false}),-.8,.1);
+   inst(WL,G.box(1.0,1.3,.1),lit,0,.03);inst(WD2,G.box(1.0,1.3,.1),dark,0,.03);inst(WF,G.box(.06,1.3,.12),M(0xece8e0,{flat:false}),0,.04);}
   for(let i=0;i<22;i++){const h=rand(18,46),w=rand(7,12);const m=new THREE.MeshStandardMaterial({color:pick([0x3a4258,0x4a5060,0x5a5a62]),emissive:0xffffff,emissiveMap:winTex(.55),emissiveIntensity:0,roughness:.9});WD.sky.push(m);const side=Math.random()<.5?-1:1;let bz=rand(-80,30);while(Math.abs(bz)<w/2+8)bz=rand(-80,30);if(TX.facade){m.map=TX.facade.clone();m.map.repeat.set(w/5,h/5);m.map.needsUpdate=true;m.color.set(0xb8bcc8);}const b=mesh(G.box(w,h,w),m,side*rand(120,165),h/2,bz);b.castShadow=false;s.add(b);}
   // street furniture
   WD.bulbM=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffe6b0,emissiveIntensity:0});const poleM=M(0x2a2d33,{flat:false});
