@@ -413,7 +413,7 @@ body.shift #hot,body.shift #quest,body.shift #mini,body.shift #hint{display:none
   <div class="wrap">
     <div class="sub0">반지하에서 펜트하우스까지</div>
     <h1>인생<span>떡상</span></h1>
-    <p class="tagl">2000년 봄. 통장엔 100만 원, 자정엔 월세. 파산하면 끝.</p>
+    <p class="tagl">2000년 봄. 통장엔 100만 원, 매달 월세. 파산하면 끝.</p>
     <nav class="menu">
       <button class="btn go" id="btnCont" data-act="continue" hidden>이어하기</button>
       <button class="btn go" id="btnNew" data-act="newgame">게임 시작</button>
@@ -546,7 +546,7 @@ function aiMorning(W){for(const ai of W.ais){if(ai.out)continue;const S=STYLES[a
   let used=0;for(const id in w){ai.pos[id]=invest*w[id];used+=ai.pos[id];}ai.cash=total-used;}}
 function aiNight(W,rets){for(const ai of W.ais){if(ai.out)continue;const S=STYLES[ai.style];for(const id in ai.pos)ai.pos[id]*=1+rets[id];
   ai.cash+=ai.pending;ai.pending=0;if(Math.random()<S.off){const sc=25*(1+ai.tier*1.6);ai.cash+=sc*(ai.style==='auction'?rand(-.15,.5):rand(-.3,.4));}
-  const t=TIERS[ai.tier];ai.cash-=t.food;if(W.day%7===1)ai.cash-=t.rent;
+  const t=TIERS[ai.tier];ai.cash-=t.food;if(eraDate(W).getDate()===new Date((W.startDate||ERA0)+432e5).getDate())ai.cash-=t.rent;
   ai.prev=ai.worth;ai.worth=aiWorth(ai);const nt=TIERS[ai.tier+1];if(nt&&ai.worth>nt.dep*4&&ai.cash>nt.dep-t.dep){ai.cash-=nt.dep-t.dep;ai.tier++;}
   if(ai.worth<=0)ai.out=true;}}
 /*SIM-END*/
@@ -1032,7 +1032,8 @@ function loadRun(){try{return JSON.parse(localStorage.getItem(SAVE_KEY));}catch(
 function clearRun(){try{localStorage.removeItem(SAVE_KEY);}catch(e){}}
 const itemById=id=>P.inv.find(x=>x.id===id);
 function luck(){let l=(mod.luck||0)+(P&&P.furn?furnLuck():0)+perk('eye');for(const id of P.room){const it=itemById(id);if(it&&!it.fake)l+=RAR[it.rar].pt;}return l;}
-function rentIn(){return ((1-P.day)%7+7)%7;}
+// rent is due on the move-in date of every game month (e.g. the 2nd); returns days until the next due date
+function rentIn(){const d=eraDate(P),dd=new Date((P.startDate||ERA0)+432e5).getDate(),y=d.getFullYear(),m=d.getMonth(),day=d.getDate();if(day===dd)return 0;const last=k=>new Date(y,m+k+1,0).getDate();const due=k=>Math.min(dd,last(k));if(day<due(0))return due(0)-day;return last(0)-day+due(1);}
 function holdVal(id){const h=P.hold[id];return h?h.qty*P.mkt[id].price/10000:0;}
 function debt(){return (P.loans||[]).reduce((t,l)=>t+l.owed,0);}
 function myWorth(){let v=P.cash+depNow()-debt()+(P.car?carValue():0);for(const id in P.hold)v+=holdVal(id);for(const it of P.inv)v+=(it.appraised?it.trueV:it.estV)*.7;for(const b of (P.biz||[]))v+=bizVal(b);return v;}
@@ -1092,7 +1093,7 @@ let sub=null,OFF=false,OFFLOG=[];
 const absNow=()=>P.day*24+P.time;
 const running=()=>P&&P.paths&&!['title','over','win','rival'].includes(phase);
 const DOW='일월화수목금토';
-function gameDate(day=P.day){const d=new Date(P.startDate+(day-1)*864e5);return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일(${DOW[d.getDay()]})`;}
+function gameDate(day=P.day){const d=new Date(P.startDate+(day-1)*864e5+432e5);return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일(${DOW[d.getDay()]})`;}
 function dur(h){const t=Math.round(Math.max(0,h)*60);const H=Math.floor(t/60),m=t%60;return H?`${H}시간 ${m}분`:`${m}분`;}
 function realDur(h){const s=Math.round(h*3600/TSCALE);return s>=3600?`${Math.floor(s/3600)}시간 ${Math.round(s%3600/60)}분`:s>=60?`${Math.round(s/60)}분`:`${s}초`;}
 function say(msg,c=''){if(!msg)return;if(OFF){OFFLOG.push(msg);return;}toast(msg,c);}
@@ -1155,7 +1156,7 @@ function timers(){
   if(phase==='roadtrip'||(phase==='phone'&&PH.prev==='roadtrip')){if(!RT.ev&&absNow()>=(RT.start+RT.end)/2){RT.ev=true;roadEvent();}if(absNow()>=RT.end){if(phase==='phone')closePhone();arriveRoad();}}}
 let hudT=0;
 function tick(rdt){const dh=rdt*TSCALE/3600;P.time+=dh;body(dh);breakdowns(dh);updatePrices();fireNews();auctionClock();timers();
-  hudT+=rdt;if(hudT>.25){hudT=0;{const need=(rentIn()===0?rentNow()+(P.car?CARS[P.car.id].price*.003:0):0)+P.loans.filter(l=>l.due<=P.day).reduce((t,l)=>t+l.owed*(1+l.rate),0);const k=P.time>=23?2:P.time>=20?1:0;if(need>0&&P.cash<need&&Object.keys(P.hold).length&&k>(P.warnK||0)&&P.warnDay!==P.day+'-'+k){P.warnDay=P.day+'-'+k;P.warnK=k;toast(`⚠ 자정에 ${won(need)}이 빠져나가는데 현금은 ${won(P.cash)}. 모자라면 주식·코인이 자동으로 팔려요!`,'bad');sfx.bad();}if(P.time<20)P.warnK=0;}if(P.missions&&myWorth()-(P.prevWorth||0)>=10)mis('profit');renderHUD();liveRefresh();}
+  hudT+=rdt;if(hudT>.25){hudT=0;{const need=(rentIn()===0?rentNow()+(P.car?CARS[P.car.id].price*.012:0):0)+P.loans.filter(l=>l.due<=P.day).reduce((t,l)=>t+l.owed*(1+l.rate),0);const k=P.time>=23?2:P.time>=20?1:0;if(need>0&&P.cash<need&&Object.keys(P.hold).length&&k>(P.warnK||0)&&P.warnDay!==P.day+'-'+k){P.warnDay=P.day+'-'+k;P.warnK=k;toast(`⚠ 자정에 ${won(need)}이 빠져나가는데 현금은 ${won(P.cash)}. 모자라면 주식·코인이 자동으로 팔려요!`,'bad');sfx.bad();}if(P.time<20)P.warnK=0;}if(P.missions&&myWorth()-(P.prevWorth||0)>=10)mis('profit');renderHUD();liveRefresh();}
   P._achT=(P._achT||0)+rdt;if(P._achT>2){P._achT=0;checkAch();}
   if(!OFF&&P.perkPending>0&&$('#modal').hidden&&$('#dlg').hidden&&!SH2.on&&(phase==='world'||phase==='home'||inWalking()))showPerkPick();
   if(P.hp<=0){collapse();return;}
@@ -1644,7 +1645,7 @@ function goDealer(){walkIn(itr('dealer'),'dealer');}
 function carValue(){return P.car?CARS[P.car.id].price*.6:0;}
 function renderDealer(){renderHUD();const mine=P.car?CARS[P.car.id]:null;
   setPanel(`<div class="eyebrow">떡상모터스 · 현금 ${won(P.cash)}${mine?` · 내 차 ${mine.name}`:''}</div><h2>어떤 차로 모실까요</h2><p class="muted" style="font-size:13px;margin:0">동네에선 직접 운전하고, 다른 도시는 내비를 찍으면 자율주행으로 가요(그동안 휴대폰만). 보험료는 월세 날에 같이 나가요.${mine?` 지금 차는 ${won(carValue())}에 넘길 수 있어요.`:''}</p>
-  ${Object.keys(CARS).map(id=>{const C=CARS[id];const cost=C.price-carValue();const own=P.car&&P.car.id===id;return `<div class="loan"><h4>${C.name} · ${won(C.price)}${own?' <small class="muted">· 타는 중</small>':''}</h4><div class="muted" style="font-size:13px">${C.desc} · 최고 ${Math.round(C.top*7)}km/h · 장거리 소요 ×${C.trip} · 고장률 ${Math.round(C.brk*100)}% · 주 보험료 ${won(C.price*.003)}</div>${own?'':`<div class="row"><button class="btn go sm" data-act="buyCar" data-arg="${id}" ${P.cash<cost?'disabled':''}>${P.car?`내 차 넘기고 ${won(Math.max(0,cost))} 더 내기`:'구매하기'}</button></div>`}</div>`;}).join('')}
+  ${Object.keys(CARS).map(id=>{const C=CARS[id];const cost=C.price-carValue();const own=P.car&&P.car.id===id;return `<div class="loan"><h4>${C.name} · ${won(C.price)}${own?' <small class="muted">· 타는 중</small>':''}</h4><div class="muted" style="font-size:13px">${C.desc} · 최고 ${Math.round(C.top*7)}km/h · 장거리 소요 ×${C.trip} · 고장률 ${Math.round(C.brk*100)}% · 월 보험료 ${won(C.price*.012)}</div>${own?'':`<div class="row"><button class="btn go sm" data-act="buyCar" data-arg="${id}" ${P.cash<cost?'disabled':''}>${P.car?`내 차 넘기고 ${won(Math.max(0,cost))} 더 내기`:'구매하기'}</button></div>`}</div>`;}).join('')}
   ${P.car?'<div class="row"><button class="btn sm" data-act="sellCar">내 차 팔기</button></div>':''}<div class="row"><button class="btn go" data-act="leave">나가기</button></div>`);}
 function buyCar(id){const C=CARS[id];const cost=C.price-carValue();if(P.cash<cost)return;P.cash-=cost;P.car={id};P.carLoc='seoul';P.carPos={x:LOT_X(3),z:12.7,h:Math.PI};placeCar();sfx.reveal(3);stamp('출고!',true);toast(`${C.name} 출고! 공원 옆 주차장 4번 칸에 세워 뒀어요.`,'good');renderDealer();}
 function sellCar(){if(!P.car)return;const v=carValue();if(P.carLoc!=='seoul'){toast('차가 서울에 있어야 팔 수 있어요.','bad');return;}P.cash+=v;toast(`${CARS[P.car.id].name}을 ${won(v)}에 팔았다.`,'good');P.car=null;placeCar();sfx.cash();renderDealer();}
@@ -2419,7 +2420,7 @@ function shiftEnd(early,none){const S=SH2;if(!S.on)return;S.on=false;dlgHide();d
 
 /* ============ era: the calendar starts in 2000 and wages, prices, news and coins follow the in-game date ============ */
 const ERA0=new Date(2000,2,2).getTime();
-function eraDate(W=P){return new Date((W&&W.startDate||ERA0)+((W&&W.day||1)-1)*864e5);}
+function eraDate(W=P){return new Date((W&&W.startDate||ERA0)+((W&&W.day||1)-1)*864e5+432e5);}
 function eraYear(W=P){return eraDate(W).getFullYear();}
 const MINW=[[1999,9,1600],[2000,9,1865],[2001,9,2100],[2002,9,2275],[2003,9,2510],[2004,7,2840],[2006,1,3100],[2007,1,3480],[2008,1,3770],[2009,1,4000],[2010,1,4110],[2011,1,4320],[2012,1,4580],[2013,1,4860],[2014,1,5210],[2015,1,5580],[2016,1,6030],[2017,1,6470],[2018,1,7530],[2019,1,8350],[2020,1,8590],[2021,1,8720],[2022,1,9160],[2023,1,9620],[2024,1,9860],[2025,1,10030],[2026,1,10320],[2027,1,10700]];
 function minWage(W=P){const d=eraDate(W),k=d.getFullYear()*12+d.getMonth()+1;let w=MINW[0][2];for(const [y,m,v] of MINW)if(y*12+m<=k)w=v;return w;}
@@ -2733,7 +2734,7 @@ function midnight(){P.time-=24;const t=TIERS[P.tier];P.prevWorth=myWorth();const
   let evicted=false;
   if(rentIn()===0){if(pay(rentNow(),'월세',msgs)){P.credit=Math.min(900,P.credit+5);msgs.push(`월세 -${won(rentNow())}`);}
     else{if(P.tier===0){gameOver(`${gameDate()} 자정, 월세 ${won(rentNow())}을 못 냈다. 팔 것도 남지 않았다.`);return;}const lower=TIERS[P.tier-1];P.cash+=depNow()-lower.dep-rentNow();P.tier--;P.dep=lower.dep;P.rent=lower.rent;P.room=P.room.slice(0,TIERS[P.tier].slots);room=null;evicted=true;}
-    if(P.car){const ins=r1(CARS[P.car.id].price*.003*(1+(P.insUp||0)*.2));P.cash-=ins;msgs.push(`자동차 보험료 -${won(ins)}`);}}
+    if(P.car){const ins=r1(CARS[P.car.id].price*.012*(1+(P.insUp||0)*.2));P.cash-=ins;msgs.push(`자동차 보험료 -${won(ins)}`);}}
   for(const l of P.loans)l.owed*=1+l.rate;
   for(const l of P.loans.slice()){if(l.due<=P.day){if(pay(l.owed,l.name+' 상환금',msgs)){P.loans.splice(P.loans.indexOf(l),1);P.credit=Math.min(900,P.credit+40);msgs.push(`${l.name} 상환 완료 · 신용점수 +40`);}
     else{gameOver(`${l.name} 상환일 자정. ${won(l.owed)}을 갚지 못했다.`);return;}}}
@@ -2773,7 +2774,7 @@ function win(){phase='win';P.cash-=(P.pentPrice||GOAL);renderHUD();pent=buildPen
 const ACT={
   newgame:()=>{closeModal();newGame();},continue:()=>continueGame(),
   mute:()=>{muted=!muted;const b=$('#btnMute');b.querySelector('.lb').textContent=muted?'음소거':'소리';b.querySelector('.snd').style.display=muted?'none':'';b.style.opacity=muted?.6:1;},
-  howto:()=>modal(`<div class="eyebrow">게임 방법</div><h3>살아남아서, 떡상하라</h3><p>자정마다 월세가 나가요. 알바·경매·주식·코인·길에 떨어진 돈까지, 뭐든 해서 10억 펜트하우스를 사면 승리. 파산하면 그 인생은 끝이에요.</p><div class="howk"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>이동 (폰: 조이스틱 · 바닥 탭)</span><span><kbd>Shift</kbd></span><span>달리기</span><span><kbd>E</kbd></span><span>들어가기 · 집기 · 말 걸기</span><span><kbd>Tab</kbd></span><span>휴대폰 (주식·코인·뉴스·배달)</span><span><kbd>N</kbd> <kbd>M</kbd></span><span>신문 · 오늘의 미션</span><span><kbd>Esc</kbd></span><span>닫기 · 뒤로</span><span>마우스</span><span>끌어서 시점 회전, 휠로 확대</span></div><div class="row"><button class="btn go" data-act="closeModal">알겠어</button></div>`),
+  howto:()=>modal(`<div class="eyebrow">게임 방법</div><h3>살아남아서, 떡상하라</h3><p>매달 이사 온 날짜(2일) 자정에 월세가 나가요. 알바·경매·주식·코인·길에 떨어진 돈까지, 뭐든 해서 10억 펜트하우스를 사면 승리. 파산하면 그 인생은 끝이에요.</p><div class="howk"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>이동 (폰: 조이스틱 · 바닥 탭)</span><span><kbd>Shift</kbd></span><span>달리기</span><span><kbd>E</kbd></span><span>들어가기 · 집기 · 말 걸기</span><span><kbd>Tab</kbd></span><span>휴대폰 (주식·코인·뉴스·배달)</span><span><kbd>N</kbd> <kbd>M</kbd></span><span>신문 · 오늘의 미션</span><span><kbd>Esc</kbd></span><span>닫기 · 뒤로</span><span>마우스</span><span>끌어서 시점 회전, 휠로 확대</span></div><div class="row"><button class="btn go" data-act="closeModal">알겠어</button></div>`),
   giveup:()=>{if(phase==='title')return;modal(`<h3>새 인생을 시작할까요?</h3><p>지금 인생은 기록 없이 끝나요.</p><div class="row"><button class="btn" data-act="closeModal">계속하기</button><button class="btn red" data-act="newgame">새 인생</button></div>`);},
   closeModal:()=>closeModal(),missions:()=>{if(P)showMissions();},scReveal:()=>scratchEnd(),scClose:()=>closeModal(),mgStart:()=>mgStart(),profile:()=>showProfile(),perkPick:a=>perkPick(+a),bizBuy:a=>bizBuy(a),bizUp:a=>bizUp(+a),bizSell:a=>bizSell(+a),jobs:()=>showJobs(),jobApply:a=>jobApply(a),jobc:a=>jobChoose(+a),jobOk:()=>dlgHide(),shiftStart:()=>shiftStart(),shGo:()=>shGo(),shHit:()=>shHit(),shc:a=>shChoose(+a),shNext:()=>shNext(),shQuit:()=>shQuit(),mgHit:()=>mgHit(),workFull:()=>{closeModal();startWork();},closePaper:()=>{closeModal();renderCurrent();},paper:()=>{if(P)showPaper();},
   showRival:()=>{closeModal();const ai=P.ais[P._rival];P._rival=null;if(ai)rivalWin(ai);},
