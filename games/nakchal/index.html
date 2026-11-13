@@ -355,6 +355,16 @@ body.shift #hot,body.shift #quest,body.shift #mini,body.shift #hint{display:none
 .job.off{opacity:.55}.job .ji{font-size:26px;text-align:center}.job .jb b{font-size:15.5px;color:#fff;font-weight:400}.job .jb small{color:#9ab}.job .jm{font-size:12.5px;color:#cfd8ea;margin-top:2px}.job .jm b{color:#ffe27a;font-weight:400}
 .lvb{display:inline-block;background:#e8b84a26;color:var(--frame);border-radius:8px;padding:0 6px;font-size:11.5px}.job .jw{font-size:12px;color:#ff9a8a;margin-top:2px}.job .btn{min-width:62px}
 .slot.job{border-color:#4ade80;color:#7ae0a0}
+#st .ava{pointer-events:auto;cursor:pointer}#st .ava:hover{filter:brightness(1.15)}
+.xpbar{width:170px;height:6px;background:#0a0d14cc;border:1px solid #000;border-radius:4px;overflow:hidden}.xpbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#7ae0ff,#b07aff);transition:width .4s}
+@media(max-width:700px){.xpbar{width:118px}}
+.perks{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:10px}
+.pk{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:16px 12px;border-radius:16px;border:2px solid #2c3a55;background:linear-gradient(#22304a,#121a2a);color:#fff;transition:transform .12s,border-color .12s}
+.pk:hover{transform:translateY(-4px) scale(1.03);border-color:var(--frame);box-shadow:0 0 24px #e8b84a55}.pk .pi{font-size:40px}.pk b{font-size:18px;font-weight:400}.pk small{color:#cfd8ea;font-size:13px;line-height:1.4}.pk .pl{font-size:11px;color:var(--frame);background:#e8b84a22;border-radius:8px;padding:1px 8px}
+.xpb{position:relative;height:16px;background:#0a0d14;border:2px solid #000;border-radius:9px;overflow:hidden}.xpb i{display:block;height:100%;background:linear-gradient(90deg,#7ae0ff,#b07aff)}.xpb span{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;color:#fff;text-shadow:0 1px 2px #000}
+.pts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.pt{background:#141c2ecc;border:1px solid #2c3a55;border-radius:10px;padding:3px 9px;font-size:13px}.pt b{color:var(--frame);font-weight:400}
+.achs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;margin-top:6px}.ac{display:grid;grid-template-columns:28px 1fr;gap:0 6px;align-items:center;padding:6px 8px;border-radius:10px;background:#0e1420;border:1px solid #222c40;opacity:.55}.ac.on{opacity:1;border-color:var(--frame);background:#1c2436}
+.ac span{grid-row:span 2;font-size:20px}.ac b{font-size:12.5px;font-weight:400;color:#fff}.ac small{font-size:10.5px;color:#9ab;line-height:1.25}
 @media (prefers-reduced-motion:reduce){#stamp.on{animation-duration:.01s}.toast,.pin{animation:none}}
 </style>
 
@@ -364,10 +374,11 @@ body.shift #hot,body.shift #quest,body.shift #mini,body.shift #hint{display:none
 
 <header id="hud" hidden>
   <div id="st">
-    <div class="ava"><svg viewBox="0 0 44 44"><circle cx="22" cy="19" r="10" fill="#f1c9a5"/><path d="M11.5 18c0-8 5-12 10.5-12s10.5 4 10.5 12c-3-1-5-4-6-6-3 3-9 5-15 6z" fill="#1d1a17"/><circle cx="18" cy="20" r="1.4" fill="#1a1410"/><circle cx="26" cy="20" r="1.4" fill="#1a1410"/><path d="M19 24.500q3 2 6 0" stroke="#a8524a" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M8 44c0-9 6-13 14-13s14 4 14 13z" fill="#ffc531"/></svg><b id="hDay">1일차</b></div>
+    <div class="ava" data-act="profile" title="내 정보 (C)"><svg viewBox="0 0 44 44"><circle cx="22" cy="19" r="10" fill="#f1c9a5"/><path d="M11.5 18c0-8 5-12 10.5-12s10.5 4 10.5 12c-3-1-5-4-6-6-3 3-9 5-15 6z" fill="#1d1a17"/><circle cx="18" cy="20" r="1.4" fill="#1a1410"/><circle cx="26" cy="20" r="1.4" fill="#1a1410"/><path d="M19 24.500q3 2 6 0" stroke="#a8524a" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M8 44c0-9 6-13 14-13s14 4 14 13z" fill="#ffc531"/></svg><b id="hDay">1일차</b></div>
     <div class="bars">
       <div class="gbar"><i id="hHp"></i><em><svg viewBox="0 0 12 12"><path d="M6 11C1 7 0 5 0 3.300A3 3 0 0 1 6 2a3 3 0 0 1 6 1.300C12 5 11 7 6 11z"/></svg>체력</em></div>
       <div class="gbar food"><i id="hFood"></i><em><svg viewBox="0 0 12 12"><path d="M1 5h10a5 5 0 0 1-10 0zM3 1v2M6 0v3M9 1v2" stroke="#fff" stroke-width="1.2" fill="#fff"/></svg>포만감</em></div>
+      <div class="xpbar"><i id="hXp"></i></div>
       <div class="money ol"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#f0b020" stroke="#000" stroke-width="1.5"/><path d="M5.5 7l2 6.500L10 8l2.5 5.5 2-6.500M5 10h10" stroke="#5a3a00" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg><b id="hCash" style="font-weight:4">0</b></div>
       <div id="hDebtChip" class="ol" hidden>빚 <b id="hDebt" style="font-weight:4">0</b></div>
     </div>
@@ -972,18 +983,18 @@ function saveRun(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(P,(k,v)=>k[0
 function loadRun(){try{return JSON.parse(localStorage.getItem(SAVE_KEY));}catch(e){return null;}}
 function clearRun(){try{localStorage.removeItem(SAVE_KEY);}catch(e){}}
 const itemById=id=>P.inv.find(x=>x.id===id);
-function luck(){let l=(mod.luck||0)+(P&&P.furn?furnLuck():0);for(const id of P.room){const it=itemById(id);if(it&&!it.fake)l+=RAR[it.rar].pt;}return l;}
+function luck(){let l=(mod.luck||0)+(P&&P.furn?furnLuck():0)+perk('eye');for(const id of P.room){const it=itemById(id);if(it&&!it.fake)l+=RAR[it.rar].pt;}return l;}
 function rentIn(){return ((1-P.day)%7+7)%7;}
 function holdVal(id){const h=P.hold[id];return h?h.qty*P.mkt[id].price/10000:0;}
 function debt(){return (P.loans||[]).reduce((t,l)=>t+l.owed,0);}
-function myWorth(){let v=P.cash+depNow()-debt()+(P.car?carValue():0);for(const id in P.hold)v+=holdVal(id);for(const it of P.inv)v+=(it.appraised?it.trueV:it.estV)*.7;return v;}
+function myWorth(){let v=P.cash+depNow()-debt()+(P.car?carValue():0);for(const id in P.hold)v+=holdVal(id);for(const it of P.inv)v+=(it.appraised?it.trueV:it.estV)*.7;for(const b of (P.biz||[]))v+=bizVal(b);return v;}
 function ranking(){const rows=[{name:'나',me:true,worth:myWorth(),prev:P.prevWorth,color:0xffc531}];for(const a of P.ais)rows.push({name:a.name,style:STYLES[a.style].label,worth:a.out?0:aiLive(a),prev:a.prev,out:a.out,done:a.done,color:a.color});return rows.sort((a,b)=>b.worth-a.worth);}
 function myRank(){return ranking().findIndex(r=>r.me)+1;}
 const hex=c=>'#'+c.toString(16).padStart(6,'0');
 function hhmm(t){const tot=Math.round(t*60);const h=Math.floor(tot/60)%24,m=tot%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
 function setMeter(id,v){const el=$('#'+id);el.style.width=clamp(v,0,100)+'%';el.parentElement.classList.toggle('low',v<25);}
 function aiLive(a){let v=a.cash+a.pending+TIERS[a.tier].dep;for(const id in a.pos)v+=a.pos[id]*(1+(P.mkt[id].ret||0));return v;}
-function renderHUD(){if(!P||!P.broken)return;$('#hud').hidden=false;$('#hDay').textContent=P.day+'일차';$('#hDate').textContent=gameDate();$('#hTime').textContent=hhmm(P.time);$('#hCash').textContent=won(P.cash);$('#hCash').style.color=P.cash<0?'var(--bid)':'';
+function renderHUD(){if(!P||!P.broken)return;$('#hud').hidden=false;$('#hDay').textContent='Lv.'+(P.lvl||1);{const x=$('#hXp');if(x)x.style.width=Math.min(100,(P.xp||0)/xpNeed(P.lvl||1)*100)+'%';}$('#hDate').textContent=gameDate();$('#hTime').textContent=hhmm(P.time);$('#hCash').textContent=won(P.cash);$('#hCash').style.color=P.cash<0?'var(--bid)':'';
   const d=debt();$('#hDebtChip').hidden=d<=0;$('#hDebt').textContent=won(d);setMeter('hFood',P.food);setMeter('hHp',P.hp);
   const ri=rentIn();$('#hRent').textContent=(ri===0?'오늘 자정 ':ri+'일 뒤 ')+won(rentNow());
   const nl=(P.lots||[]).find(l=>!l.done);$('#hLot').textContent=nl?hhmm(nl.at):'내일';
@@ -1061,6 +1072,7 @@ function planDay(){P.paths={};
   P.pick=good.length&&Math.random()<.62?pick(good).id:pick(STOCKS).id;}
 function startDay(first){mod={};eraPrices();if(first){P.rent=TIERS[0].rent;P.dep=0;}const lines=[];if(!first){const l=rollLife();if(l)lines.push(l);}
   P.life=first?`${eraYear()}년 봄, 반지하 자취방 첫날. 통장에는 100만 원. 오늘 자정에 첫 월세 ${won(TIERS[0].rent)}이 빠져나간다. 휴대폰은 폴더폰이고 코인은 아직 세상에 없다. 최저시급은 ${minWage().toLocaleString('ko-KR')}원. 달력은 게임 시간대로 흘러간다.`:(lines.join(' ')||'평범한 하루가 시작됐다.');
+  if(!first){rollFortune();P.life=`🔮 오늘의 운세 「${P.fortune.g}」 ${P.fortune.t} `+P.life;}
   P.auctionTip=null;let force=null;if(Math.random()<.55){const th=pick(THEMES.filter(t=>t.w));P.auctionTip=th.name;if(Math.random()<.75)force=th.name;}
   aiMorning(P);for(const a of ASSETS){const s=P.mkt[a.id];s.close=s.price;s.ret=0;s.limit=null;s.intra=[s.price];}
   P.todayRets=computeRets(P);planDay();P.sampleT=P.time;
@@ -1072,7 +1084,7 @@ function updatePrices(){const k=clamp((P.time-MKT_OPEN)/(MKT_CLOSE-MKT_OPEN),0,1
   for(const a of ASSETS){const s=P.mkt[a.id],p=P.paths[a.id],r=P.todayRets[a.id];let f=k;if(p.at!=null){const x=clamp((P.time-p.at)/1.2,0,1);f=x*x*(3-2*x);}
     const nz=a.vol*1.1*(Math.sin(k*18.8+p.ph[0])*.5+Math.sin(k*44+p.ph[1])*.3+Math.sin(k*82+p.ph[2])*.2)*Math.sin(Math.PI*k);
     s.price=Math.max(a.kind==='stock'?100:.001,s.close*(1+r*f)*(1+nz));if(a.kind==='stock')s.price=clamp(s.price,s.close*.7,s.close*1.3);s.ret=s.price/s.close-1;
-    const lim=a.kind==='stock'?(s.ret>=.2995?'up':s.ret<=-.2995?'dn':null):null;if(lim&&s.limit!==lim&&!OFF)notify(`${a.name} ${lim==='up'?'상한가 직행! (+30%)':'하한가 추락… (-30%)'}`,lim==='up');s.limit=lim;}
+    const lim=a.kind==='stock'?(s.ret>=.2995?'up':s.ret<=-.2995?'dn':null):null;if(lim&&s.limit!==lim&&!OFF)notify(`${a.name} ${lim==='up'?'상한가 직행! (+30%)':'하한가 추락… (-30%)'}`,lim==='up');if(lim==='up'&&P.hold[a.id])P.limitHit=true;s.limit=lim;}
   if(P.time-P.sampleT>=.25){P.sampleT=P.time;for(const a of ASSETS)P.mkt[a.id].intra.push(P.mkt[a.id].price);}}
 function fireNews(){
   for(const e of P.events){if(e.fired||P.time<e.at)continue;e.fired=true;
@@ -1085,7 +1097,7 @@ const comfort=()=>P.furn.reduce((t,f)=>t+(f.place&&f.place.tier===P.tier?FURN[f.
 const furnLuck=()=>P.furn.reduce((t,f)=>t+(f.place&&f.place.tier===P.tier?(FURN[f.fid].luck||0):0),0);
 function body(dh){const asleep=phase==='sleep'||(OFF&&P.loc==='seoul'&&['home','sleep'].includes(phase));const atHome=phase==='home'||phase==='decor'||asleep;
   P.food=Math.max(0,P.food-(asleep?1.5:4)*dh);
-  if(P.food<=0)P.hp-=7*dh;else if(P.food>45)P.hp+=(asleep?6+comfort()*.08:atHome?2.5+comfort()*.05:1.2)*dh;
+  if(P.food<=0)P.hp-=7*dh;else if(P.food>45)P.hp+=(asleep?6+comfort()*.08:atHome?2.5+comfort()*.05:1.2)*dh*(1+.25*perk('iron'));
   P.hp=clamp(P.hp,OFF?5:0,100);}
 function breakdowns(dh){for(const k in APPL)if(!P.broken[k]&&Math.random()<Math.max(.01,APPL[k].p-luck()*.004)/17*dh){P.broken[k]=true;refreshAppliances();say(`${APPL[k].subj} 고장 났다! ${APPL[k].eff}.`,'bad');if(!OFF){sfx.bad();if(k==='phone'&&phase==='phone')closePhone();else if(['home','world'].includes(phase))renderCurrent();}}}
 function timers(){
@@ -1096,6 +1108,8 @@ function timers(){
 let hudT=0;
 function tick(rdt){const dh=rdt*TSCALE/3600;P.time+=dh;body(dh);breakdowns(dh);updatePrices();fireNews();auctionClock();timers();
   hudT+=rdt;if(hudT>.25){hudT=0;{const need=(rentIn()===0?rentNow()+(P.car?CARS[P.car.id].price*.003:0):0)+P.loans.filter(l=>l.due<=P.day).reduce((t,l)=>t+l.owed*(1+l.rate),0);const k=P.time>=23?2:P.time>=20?1:0;if(need>0&&P.cash<need&&Object.keys(P.hold).length&&k>(P.warnK||0)&&P.warnDay!==P.day+'-'+k){P.warnDay=P.day+'-'+k;P.warnK=k;toast(`⚠ 자정에 ${won(need)}이 빠져나가는데 현금은 ${won(P.cash)}. 모자라면 주식·코인이 자동으로 팔려요!`,'bad');sfx.bad();}if(P.time<20)P.warnK=0;}if(P.missions&&myWorth()-(P.prevWorth||0)>=10)mis('profit');renderHUD();liveRefresh();}
+  P._achT=(P._achT||0)+rdt;if(P._achT>2){P._achT=0;checkAch();}
+  if(!OFF&&P.perkPending>0&&$('#modal').hidden&&$('#dlg').hidden&&!SH2.on&&(phase==='world'||phase==='home'||inWalking()))showPerkPick();
   if(P.hp<=0){collapse();return;}
   if(P.time>=24)midnight();}
 function autoEat(){if(P.food>=35)return;const s=STORE.filter(s=>(P.pantry[s.id]||0)>0&&s.sat>0).sort((a,b)=>b.sat-a.sat)[0];if(!s)return;P.pantry[s.id]--;P.food=Math.min(100,P.food+s.sat);P.hp=clamp(P.hp+(s.hp||0),0,100);OFFLOG.push(`배가 고파서 ${J(s.name,'을','를')} 꺼내 먹었다.`);}
@@ -1412,7 +1426,7 @@ function updateWorld(dt){const me=WD.me;
   if(phase==='world'){let ix=(K.KeyD||K.ArrowRight?1:0)-(K.KeyA||K.ArrowLeft?1:0)+JOY.x,iz=(K.KeyS||K.ArrowDown?1:0)-(K.KeyW||K.ArrowUp?1:0)+JOY.y;let mx=0,mz=0;
     if(Math.abs(ix)+Math.abs(iz)>.08){WD.target=null;WD.auto=null;const B=camBasis();mx=B.rx*ix-B.fx*iz;mz=B.rz*ix-B.fz*iz;}
     else if(WD.target){const dx=WD.target.x-WD.pos.x,dz=WD.target.z-WD.pos.z,d=Math.hypot(dx,dz);if(d<.3){WD.target=null;const a=WD.auto;WD.auto=null;if(a){enterBuilding(a);return;}}else{mx=dx/d;mz=dz/d;}}
-    const l=Math.hypot(mx,mz);if(l>.08){const run=(K.ShiftLeft||K.ShiftRight)&&P&&P.hp>=25;const sp=(P&&P.hp<25?3.4:run?8.6:6.2)*Math.min(1,l);mx/=l;mz/=l;const moved=tryMove(WD.pos,mx*sp*dt,mz*sp*dt,.35);if(moved)mis('walk',sp*dt);if(!moved&&WD.target){WD.target=null;WD.auto=null;}
+    const l=Math.hypot(mx,mz);if(l>.08){const run=(K.ShiftLeft||K.ShiftRight)&&P&&P.hp>=25;const sp=(P&&P.hp<25?3.4:run?8.6:6.2)*Math.min(1,l)*(1+.15*perk('speed'));mx/=l;mz/=l;const moved=tryMove(WD.pos,mx*sp*dt,mz*sp*dt,.35);if(moved)mis('walk',sp*dt);if(!moved&&WD.target){WD.target=null;WD.auto=null;}
       const want=Math.atan2(mx,mz);let df=want-me.g.rotation.y;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;me.g.rotation.y+=df*Math.min(1,dt*12);WD.ph+=dt*11;animWalk(me,WD.ph,1);}
     else animWalk(me,WD.ph,0);
     const n=nearestThing();const key=n?(n.kind+(n.b?n.b.id+isOpen(n.b):'')):'';if(key!==WD.near){WD.near=key;WD.nearObj=n;
@@ -1460,7 +1474,7 @@ addEventListener('keydown',e=>{K[e.code]=true;if(MG.on&&e.code==='Space'){e.prev
   if(SH2.on&&$('#modal').hidden){if(e.code==='Space'&&SH2.stage==='scan'){e.preventDefault();shHit();return;}const m=/^(Digit|Numpad)([1-4])$/.exec(e.code);if(m){const b=$('#dlg').querySelectorAll('.dch button')[+m[2]-1];if(b&&!$('#dlg').hidden){e.preventDefault();b.click();}return;}if(e.code==='Escape'){shQuit();return;}}
   if(!e.repeat&&!/INPUT|TEXTAREA/.test(e.target?.tagName||'')){const mo=!$('#modal').hidden;
     if(e.code==='Escape'){e.preventDefault();if(mo){const b=$('#modal [data-act="closePaper"],#modal [data-act="closeModal"],#modal [data-act="scClose"]:not(:disabled)');if(b)b.click();}else if(phase==='phone')openPhone();else{const b=$('#panel [data-act="inBack"],#panel [data-act="back"],#panel [data-act="decorDone"],#panel [data-act="wake"]');if(b&&!$('#panel').hidden)b.click();}return;}
-    if(P&&P.paths&&!mo&&phase!=='title'){if(e.code==='Tab'||e.code==='KeyP'){e.preventDefault();if(!$('#btnPhone').disabled)openPhone();return;}if(e.code==='KeyN'){showPaper();return;}if(e.code==='KeyJ'){showJobs();return;}if(e.code==='KeyM'){showMissions();return;}}
+    if(P&&P.paths&&!mo&&phase!=='title'){if(e.code==='Tab'||e.code==='KeyP'){e.preventDefault();if(!$('#btnPhone').disabled)openPhone();return;}if(e.code==='KeyN'){showPaper();return;}if(e.code==='KeyJ'){showJobs();return;}if(e.code==='KeyC'){showProfile();return;}if(e.code==='KeyM'){showMissions();return;}}
     else if(e.code==='Tab')e.preventDefault();
     if(e.code==='KeyF'&&!$('#prompt').hidden&&!$('#prompt').disabled&&!mo){ACT.enter();return;}}if((e.code==='KeyE'||e.code==='Space'||e.code==='Enter')&&!$('#prompt').hidden&&!$('#prompt').disabled&&$('#modal').hidden&&!(e.target&&/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName))){e.preventDefault();ACT.enter();}});addEventListener('keyup',e=>{K[e.code]=false;});addEventListener('blur',()=>{for(const k in K)K[k]=false;});
 {const joy=$('#joy'),nub=joy.firstElementChild;const set=e=>{const r=joy.getBoundingClientRect();let x=(e.clientX-r.left-r.width/2)/(r.width/2),y=(e.clientY-r.top-r.height/2)/(r.height/2);const l=Math.hypot(x,y);if(l>1){x/=l;y/=l;}JOY.x=x;JOY.y=y;nub.style.transform=`translate(${x*30}px,${y*30}px)`;};
@@ -1758,7 +1772,7 @@ function drawChart(){const cv=$('#chart'),s=P.mkt[TS.sel];if(!cv||!s)return;cons
 function openPhone(){if(!P)return;if(phase==='phone')return closePhone();if(!PHONE_OK.includes(phase))return;if(P.broken.phone){toast('휴대폰이 고장 났다. 집에서 수리하자.','bad');return;}if(phase==='drive'&&Math.abs(WD.v)>1.5){toast('운전 중엔 휴대폰 금지! 먼저 차를 세우세요.','bad');return;}
   PH.prev=phase;PH.sub=sub;sub=null;phase='phone';setPrompt(null);$('#hint').hidden=true;renderPhone();}
 function closePhone(){phase=PH.prev;sub=PH.sub||null;if(phase==='world'||phase==='drive'){hidePanel();WD.near=null;if(phase==='drive')WD.v=0;}else renderCurrent();}
-function renderPhone(){renderHUD();const tab=TS.tab;const list=tab==='mine'?ASSETS.filter(a=>P.hold[a.id]):tab==='news'?[]:ASSETS.filter(a=>a.kind===tab&&assetOn(a));
+function renderPhone(){renderHUD();const tab=TS.tab;if(tab==='biz'){setPanel(`<div class="eyebrow">휴대폰 · 창업 · ${gameDate()} · 현금 ${won(P.cash)}</div><div class="tabs"><button data-act="tab" data-arg="stock">주식</button><button data-act="tab" data-arg="coin">코인</button><button data-act="tab" data-arg="mine">내 자산</button><button data-act="tab" data-arg="news">뉴스</button><button data-act="tab" data-arg="biz" class="on">창업</button></div>${renderBiz()}<div class="row"><button class="btn go sm" data-act="phone">닫기</button></div>`);return;}const list=tab==='mine'?ASSETS.filter(a=>P.hold[a.id]):tab==='news'?[]:ASSETS.filter(a=>a.kind===tab&&assetOn(a));
   if(tab!=='news'&&(!AID[TS.sel]||(tab!=='mine'&&AID[TS.sel].kind!==tab)||(tab==='mine'&&!P.hold[TS.sel])))TS.sel=list[0]?.id||TS.sel;
   const a=AID[TS.sel],s=P.mkt[TS.sel],h=P.hold[TS.sel];const v=holdVal(TS.sel);const pl=h?v-h.cost:0;
   const rows=tab==='news'?P.news.map(n=>{const st=n.fired?(n.isTrue?'<b class="up">터졌다</b>':'<b class="muted">사실무근</b>'):`<span class="muted">${n.binary?'14:00 발표':n.when}</span>`;return `<button class="tr" data-act="${n.id?'newsGo':'noop'}" data-arg="${n.id||''}"><span class="nm" style="white-space:normal"><small style="margin:0 4px 0 0">[${n.label}]</small>${esc(n.text)}</span><span class="p"></span><span class="c">${st}</span></button>`;}).join('')
@@ -1770,17 +1784,17 @@ function renderPhone(){renderHUD();const tab=TS.tab;const list=tab==='mine'?ASSE
     <div class="row"><button class="btn buy sm" data-act="buy" data-arg=".1">10% 매수</button><button class="btn buy sm" data-act="buy" data-arg=".25">25%</button><button class="btn buy sm" data-act="buy" data-arg=".5">50%</button><button class="btn buy sm" data-act="buy" data-arg="1">현금 전부</button></div>
     <div class="row" style="margin-top:6px"><button class="btn sell sm" data-act="sell" data-arg=".25" ${h?'':'disabled'}>25% 매도</button><button class="btn sell sm" data-act="sell" data-arg=".5" ${h?'':'disabled'}>50%</button><button class="btn sell sm" data-act="sell" data-arg="1" ${h?'':'disabled'}>전량 매도</button></div></div>`:'';
   setPanel(`<div class="eyebrow">${eraYear()<2009?'폴더폰 · 무선 증권':eraYear()<2015?'스마트폰 · 떡상증권 앱':'떡상증권 MTS'} · ${gameDate()} ${hhmm(P.time)} <span style="color:var(--up)">●</span> 실시간</div>
-    <div class="tabs"><button data-act="tab" data-arg="stock" class="${tab==='stock'?'on':''}">주식</button><button data-act="tab" data-arg="coin" class="${tab==='coin'?'on':''}">코인</button><button data-act="tab" data-arg="mine" class="${tab==='mine'?'on':''}">내 자산</button><button data-act="tab" data-arg="news" class="${tab==='news'?'on':''}">뉴스</button></div>
+    <div class="tabs"><button data-act="tab" data-arg="stock" class="${tab==='stock'?'on':''}">주식</button><button data-act="tab" data-arg="coin" class="${tab==='coin'?'on':''}">코인</button><button data-act="tab" data-arg="mine" class="${tab==='mine'?'on':''}">내 자산</button><button data-act="tab" data-arg="news" class="${tab==='news'?'on':''}">뉴스</button><button data-act="tab" data-arg="biz">창업</button></div>
     ${detail}<div class="tl">${rows}</div>
     <div class="meta"><span>투자 중 <b>${won(invested)}</b></span><span>순자산 <b>${won(myWorth())}</b></span></div>
     <div class="row"><button class="btn ghost sm" data-act="paper">신문</button><button class="btn ghost sm" data-act="deliver" ${P.cash<2.2||P.loc!=='seoul'||['travel','roadtrip','busy'].includes(PH.prev)?'disabled':''}>배달 치킨 2.2만</button><button class="btn ghost sm" data-act="capLoan" ${P.credit<450?'disabled':''}>캐피탈 50만</button><button class="btn go sm" data-act="phone">닫기</button></div>`);drawChart();}
 function buy(f){const a=AID[TS.sel],p=P.mkt[TS.sel].price;if(!assetOn(a))return;const amt=P.cash*f;if(amt<=0){toast('현금이 없어요.','bad');return;}
   let qty=a.kind==='stock'?Math.floor(amt*10000/p):amt*10000/p;if(a.kind==='stock'&&qty<1){toast('1주도 못 사요. 현금이 모자라요.','bad');return;}
-  const fee=a.kind==='stock'?.00015:.0005;if(a.kind==='stock'){while(qty>0&&qty*p/10000*(1+fee)>P.cash)qty--;if(qty<1){toast('1주도 못 사요. 현금이 모자라요.','bad');return;}}else qty/=1+fee;if(P.mkt[TS.sel].limit==='up'&&a.kind==='stock'){toast('상한가 잠김! 매도 물량이 없어 체결되지 않았어요.','bad');return;}
-  const cost=qty*p/10000*(1+fee);P.cash-=cost;const h=P.hold[TS.sel]||(P.hold[TS.sel]={qty:0,cost:0});h.qty+=qty;h.cost+=cost;P.stats.trades++;mis('trade');sfx.bid();
+  const fee=perk('fee')?0:a.kind==='stock'?.00015:.0005;if(a.kind==='stock'){while(qty>0&&qty*p/10000*(1+fee)>P.cash)qty--;if(qty<1){toast('1주도 못 사요. 현금이 모자라요.','bad');return;}}else qty/=1+fee;if(P.mkt[TS.sel].limit==='up'&&a.kind==='stock'){toast('상한가 잠김! 매도 물량이 없어 체결되지 않았어요.','bad');return;}
+  const cost=qty*p/10000*(1+fee);P.cash-=cost;const h=P.hold[TS.sel]||(P.hold[TS.sel]={qty:0,cost:0});h.qty+=qty;h.cost+=cost;P.stats.trades++;mis('trade');xp(2);sfx.bid();
   const bill=rentIn()<=1?rentNow():0;toast(`${a.name} ${won(cost)} 매수 체결 · 수수료 ${(fee*100).toFixed(3)}%`+(bill&&P.cash<bill?` · ⚠ 남은 현금 ${won(P.cash)}, ${rentIn()===0?'오늘':'내일'} 자정 월세 ${won(bill)}!`:''),bill&&P.cash<bill?'bad':'good');renderPhone();}
 function sell(f){const a=AID[TS.sel],h=P.hold[TS.sel];if(!h)return;const p=P.mkt[TS.sel].price;let qty=a.kind==='stock'?Math.max(1,Math.floor(h.qty*f)):h.qty*f;if(f>=1)qty=h.qty;qty=Math.min(qty,h.qty);
-  if(P.mkt[TS.sel].limit==='dn'&&a.kind==='stock'){toast('하한가 잠김! 사려는 사람이 없어 팔리지 않았어요.','bad');return;}const proceeds=qty*p/10000*(1-(a.kind==='stock'?.00015+.002:.0005));const costPart=h.cost*(qty/h.qty);const plv=proceeds-costPart;P.cash+=proceeds;h.qty-=qty;h.cost-=costPart;if(h.qty<=1e-9||(a.kind==='stock'&&h.qty<1))delete P.hold[TS.sel];
+  if(P.mkt[TS.sel].limit==='dn'&&a.kind==='stock'){toast('하한가 잠김! 사려는 사람이 없어 팔리지 않았어요.','bad');return;}const proceeds=qty*p/10000*(1-(perk('fee')?0:a.kind==='stock'?.00015+.002:.0005));const costPart=h.cost*(qty/h.qty);const plv=proceeds-costPart;P.cash+=proceeds;h.qty-=qty;h.cost-=costPart;if(h.qty<=1e-9||(a.kind==='stock'&&h.qty<1))delete P.hold[TS.sel];
   if(!P.stats.bestTrade||plv>P.stats.bestTrade.v)P.stats.bestTrade={name:a.name,v:plv};sfx.cash();toast(`${a.name} ${won(proceeds)} 매도 (${plv>=0?'+':''}${won(plv)})`,plv>=0?'good':'bad');renderPhone();}
 
 /* ============ Korea: map, travel, cities ============ */
@@ -1862,7 +1876,7 @@ function buildRealty(){const s=new THREE.Scene();s.background=new THREE.Color(0x
   const ag=makePerson({shirt:0x2a5a3a,pants:0x2a2a2a,hair:0x3a3a3a,glasses:true});ag.g.position.set(0,0,-1.6);s.add(ag.g);const tag=labelSprite('공 사장',{scale:.28});tag.position.set(0,2.5,0);ag.g.add(tag);
   for(const x of[-4.6,4.6])s.add(mesh(G.cyl(.25,.2,.5,10),M(0xb8653a),x,.25,-2.2),mesh(new THREE.IcosahedronGeometry(.5,0),M(0x3a8a4a),x,.95,-2.2));return s;}
 const scRealty=buildRealty();
-const rentNow=()=>P.rent??TIERS[P.tier].rent,depNow=()=>P.dep??TIERS[P.tier].dep;
+const rentNow=()=>r1((P.rent??TIERS[P.tier].rent)*(1-.08*perk('rent'))),depNow=()=>P.dep??TIERS[P.tier].dep;
 function genDeals(){P.listings=TIERS.map((t,i)=>{const hot=Math.random()<.2;return{tier:i,dep:Math.round(t.dep*(hot?rand(.66,.85):rand(.93,1.18))/10)*10,rent:Math.max(5,Math.round(t.rent*(hot?rand(.75,.92):rand(.92,1.2)))),hot};});
   P.pentPrice=Math.round(GOAL*(Math.random()<.12?rand(.84,.93):1)/100)*100;P.fares={};P.goodsPrice={};P.cityBuy={};
   for(const id in CITIES){const deal=Math.random()<.15;P.fares[id]={price:r1(CITIES[id].fare*(deal?.5:rand(.9,1.15))),deal};P.goodsPrice[id]=r1(CITIES[id].goods[1]*rand(.65,1.35));}}
@@ -1909,7 +1923,7 @@ function updateInterior(dt){const d=IW.def,me=d.me;if(!me)return;const walking=i
   let mx=0,mz=0;if(walking){let ix=(K.KeyD||K.ArrowRight?1:0)-(K.KeyA||K.ArrowLeft?1:0)+JOY.x,iz=(K.KeyS||K.ArrowDown?1:0)-(K.KeyW||K.ArrowUp?1:0)+JOY.y;
     if(Math.abs(ix)+Math.abs(iz)>.08){IW.target=null;IW.path=[];IW.auto=null;const B=camBasis();mx=B.rx*ix-B.fx*iz;mz=B.rz*ix-B.fz*iz;}
     else if(IW.target){const dx=IW.target.x-IW.pos.x,dz=IW.target.z-IW.pos.z,l=Math.hypot(dx,dz);if(l<.2&&IW.path.length>1){IW.path.shift();IW.target=IW.path[0];}else if(l<.25){IW.target=null;IW.path=[];const a=IW.auto;IW.auto=null;if(a){if(a.face!=null)me.g.rotation.y=a.face;if(!a.dis||!a.dis())a.act();return;}}else{mx=dx/l;mz=dz/l;}}}
-  const l=Math.hypot(mx,mz);if(l>.08){mx/=l;mz/=l;const sp=(P.hp<25?2:3.3)*Math.min(1,l);if(!tryMoveIn(d,IW.pos,mx*sp*dt,mz*sp*dt,.28)&&IW.target){IW.stuck=(IW.stuck||0)+dt;if(IW.stuck>.6){IW.stuck=0;IW.target=null;IW.path=[];IW.auto=null;}}else IW.stuck=0;
+  const l=Math.hypot(mx,mz);if(l>.08){mx/=l;mz/=l;const sp=(P.hp<25?2:3.3)*(1+.15*perk('speed'))*Math.min(1,l);if(!tryMoveIn(d,IW.pos,mx*sp*dt,mz*sp*dt,.28)&&IW.target){IW.stuck=(IW.stuck||0)+dt;if(IW.stuck>.6){IW.stuck=0;IW.target=null;IW.path=[];IW.auto=null;}}else IW.stuck=0;
     const want=Math.atan2(mx,mz);let df=want-me.g.rotation.y;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;me.g.rotation.y+=df*Math.min(1,dt*12);IW.ph+=dt*9;animWalk(me,IW.ph,1);}else animWalk(me,IW.ph,0);
   if(d.pose&&d.pose()){if(IW.nearKey){IW.nearKey='';IW.near=null;setPrompt(null);}return;}
   {const ib=$('#inbar');if(ib.innerHTML&&ib.hidden===walking)ib.hidden=!walking;}
@@ -1997,7 +2011,7 @@ function buildStoreIn(){const s=new THREE.Scene();s.userData.noEnv=true;s.backgr
 const cartN=()=>Object.values(IW.cart).reduce((a,b)=>a+b,0);
 const cartTotal=()=>Object.entries(IW.cart).reduce((t,[id,n])=>t+STORE.find(q=>q.id===id).price*n,0);
 function payCart(){const tot=cartTotal();if(!cartN())return;if(P.cash<tot){toast('현금이 모자라요.','bad');return;}P.cash-=tot;const lines=Object.entries(IW.cart).map(([id,n])=>{const it=STORE.find(q=>q.id===id);P.pantry[id]=(P.pantry[id]||0)+n*(it.servings||1);return `<li><span>${it.name} ×${n}</span><b>${won(it.price*n)}</b></li>`;}).join('');
-  IW.cart={};sfx.cash();mis('shop');renderHUD();refreshBar();IW.nearKey='';
+  IW.cart={};sfx.cash();mis('shop');xp(2);renderHUD();refreshBar();IW.nearKey='';
   modal(`<div class="eyebrow">떡상마트 24 · 영수증</div><h3>${pick(['봉투 필요하세요?','포인트 적립하시겠어요?','데워 드릴까요?','감사합니다~'])}</h3><ul class="prank">${lines}<li><span><b>합계</b></span><b>${won(tot)}</b></li></ul><p class="muted" style="font-size:13px">산 음식은 집 냉장고나 창가 자리에서 먹을 수 있어요. 남은 현금 ${won(P.cash)}.</p><div class="row"><button class="btn go" data-act="closeModal">받기</button></div>`);}
 
 /* ---------- counters in the other buildings ---------- */
@@ -2099,8 +2113,8 @@ function pkModel(k){const g=new THREE.Group();const spin=new THREE.Group();g.add
 function spawnPickup(){if(!PK.root){PK.root=new THREE.Group();scWorld.add(PK.root);}const r=Math.random()*100;const k=r<44?'coin':r<66?'bottle':r<88?'bill':r<96?'lotto':'clover';
   for(let i=0;i<30;i++){const x=rand(-64,64),z=rand(-34,34);const road=onRoad(x,z);if(blocked(x,z,.5)||(road&&(k!=='bill'||Math.random()>.5))||Math.hypot(x-WD.pos.x,z-WD.pos.z)<7)continue;if(PK.list.some(p=>Math.hypot(p.x-x,p.z-z)<4))continue;
     const m=pkModel(k);m.position.set(x,0,z);PK.root.add(m);PK.list.push({k,x,z,m,ph:rand(0,6)});return;}}
-function takePickup(p){PK.root.remove(p.m);PK.list.splice(PK.list.indexOf(p),1);const pos={x:p.x,z:p.z};mis('pick');P.stats.picked=(P.stats.picked||0)+1;
-  if(p.k==='coin'){const v=pick([.05,.05,.1,.1,.2,.5]);P.cash+=v;sfx.cash();burst(scWorld,new THREE.Vector3(p.x,.8,p.z),0xffd24a,26,2);pop3('+'+won(v),pos);}
+function takePickup(p){PK.root.remove(p.m);PK.list.splice(PK.list.indexOf(p),1);const pos={x:p.x,z:p.z};mis('pick');xp(1);P.stats.picked=(P.stats.picked||0)+1;
+  if(p.k==='coin'){const v=r1(pick([.05,.05,.1,.1,.2,.5])*(1+.5*perk('magnet'))*10)/10||.05;P.cash+=v;sfx.cash();burst(scWorld,new THREE.Vector3(p.x,.8,p.z),0xffd24a,26,2);pop3('+'+won(v),pos);}
   if(p.k==='bill'){const big=Math.random()<.14+luck()*.012;const v=big?5:1;P.cash+=v;sfx.cash();if(big){sfx.reveal(2);stamp('5만원!',true);}burst(scWorld,new THREE.Vector3(p.x,.8,p.z),0xffe08a,big?70:36,2.6);pop3((big?'5만원권! ':'')+'+'+won(v),pos);}
   if(p.k==='bottle'){P.bottles=(P.bottles||0)+1;sfx.bid();pop3(`빈 병 ${P.bottles}개`,pos);if(P.bottles===1)toast('빈 병은 편의점 계산대 옆 수거함에 반납하면 개당 1,000원이에요.');}
   if(p.k==='lotto'){sfx.good();pop3('즉석복권!',pos);burst(scWorld,new THREE.Vector3(p.x,.8,p.z),0xff7aa8,40,2.4);openScratch(true);}
@@ -2108,10 +2122,10 @@ function takePickup(p){PK.root.remove(p.m);PK.list.splice(PK.list.indexOf(p),1);
   renderHUD();}
 function updatePickups(dt){if(!P||!P.paths)return;PK.t-=dt;if(PK.t<=0){PK.t=rand(5,11);if(PK.list.length<9)spawnPickup();}
   for(const p of PK.list){p.ph+=dt;const s=p.m.userData.spin;s.rotation.y=p.ph*2.4;s.position.y=.75+Math.sin(p.ph*2.2)*.1;}
-  if(phase==='world')for(const p of [...PK.list])if(Math.hypot(p.x-WD.pos.x,p.z-WD.pos.z)<1.05)takePickup(p);}
+  if(phase==='world')for(const p of [...PK.list])if(Math.hypot(p.x-WD.pos.x,p.z-WD.pos.z)<1.05*(1+perk('magnet')))takePickup(p);}
 /* ---- scratch lottery ---- */
 const SC={};
-function scratchPrize(){const x=Math.max(0,Math.random()-luck()*.004);return x<.0006?500:x<.004?50:x<.022?5:x<.085?1:x<.3?.3:0;}
+function scratchPrize(){const x=Math.max(0,Math.random()*(1-.35*perk('lucky'))-luck()*.004);return x<.0006?500:x<.004?50:x<.022?5:x<.085?1:x<.3?.3:0;}
 function openScratch(free){if(!free){if((P.scDay||0)!==P.day){P.scDay=P.day;P.scN=0;}if(P.scN>=8){toast('오늘 복권은 다 팔렸어요. 내일 다시 들어와요.','bad');return;}if(P.cash<.3){toast('복권 살 돈도 없다…','bad');return;}P.cash-=.3;P.scN++;renderHUD();}
   const prize=scratchPrize();const amt=[.3,1,5,50,500];let cells;if(prize){cells=[prize,prize,prize];}else{do{cells=[pick(amt),pick(amt),pick(amt)];}while(cells[0]===cells[1]&&cells[1]===cells[2]);}
   Object.assign(SC,{prize,cells,done:false,free});
@@ -2119,7 +2133,7 @@ function openScratch(free){if(!free){if((P.scDay||0)!==P.day){P.scDay=P.day;P.sc
   const cv=$('#scCv'),g=cv.getContext('2d');const gr=g.createLinearGradient(0,0,300,110);gr.addColorStop(0,'#b8bcc4');gr.addColorStop(.5,'#e4e7ec');gr.addColorStop(1,'#a8acb4');g.fillStyle=gr;g.fillRect(0,0,300,110);g.fillStyle='rgba(60,64,72,.5)';g.font='bold 18px sans-serif';g.textAlign='center';for(let i=0;i<3;i++)g.fillText('여기를 긁으세요',150,30+i*30);
   let down=false,n=0;const scr=e=>{const r=cv.getBoundingClientRect();const x=(e.clientX-r.left)*300/r.width,y=(e.clientY-r.top)*110/r.height;g.globalCompositeOperation='destination-out';g.beginPath();g.arc(x,y,17,0,7);g.fill();if(++n%4===0)sfx.tick();if(n%10===0){const d=g.getImageData(0,0,300,110).data;let c=0;for(let i=3;i<d.length;i+=64)if(d[i]<40)c++;if(c/(d.length/64)>.55)scratchEnd();}};
   cv.addEventListener('pointerdown',e=>{down=true;cv.setPointerCapture(e.pointerId);scr(e);});cv.addEventListener('pointermove',e=>{if(down)scr(e);});cv.addEventListener('pointerup',()=>down=false);}
-function scratchEnd(){if(SC.done)return;SC.done=true;const cv=$('#scCv');if(cv)cv.style.opacity='0';const b=$('#scDone');if(b)b.disabled=false;mis('scratch');P.stats.scratch=(P.stats.scratch||0)+1;
+function scratchEnd(){if(SC.done)return;SC.done=true;xp(2);const cv=$('#scCv');if(cv)cv.style.opacity='0';const b=$('#scDone');if(b)b.disabled=false;mis('scratch');P.stats.scratch=(P.stats.scratch||0)+1;
   if(SC.prize){P.cash+=SC.prize;renderHUD();if(SC.prize>=50){stamp(SC.prize>=500?'1등!!':'대박!',true);sfx.reveal(4);}else if(SC.prize>=5){stamp('당첨!',true);sfx.reveal(3);}else sfx.good();toast(`당첨! +${won(SC.prize)}`,'good');}else{sfx.bad();toast('꽝… 다음 기회에.','bad');}}
 /* ---- cashier minigame ---- */
 const MG={on:false};
@@ -2141,7 +2155,7 @@ const MISSION_POOL=[
   {id:'pick',t:'길에 떨어진 물건 6개 줍기',n:6,r:2},{id:'shop',t:'편의점에서 장 보고 계산하기',n:1,r:1},{id:'trade',t:'주식이나 코인 2번 거래하기',n:2,r:2},{id:'work',t:'편의점 알바 한 타임 뛰기',n:1,r:2},
   {id:'won',t:'경매에서 창고 하나 낙찰받기',n:1,r:5},{id:'walk',t:'동네 500m 걷기',n:500,r:2},{id:'scratch',t:'즉석복권 1장 긁기',n:1,r:1},{id:'profit',t:'오늘 순자산 10만원 불리기',n:1,r:4},{id:'bottle',t:'빈 병 3개 반납하기',n:3,r:2},{id:'cross',t:'초록불에 횡단보도 3번 건너기',n:3,r:2}];
 function genMissions(){const pool=[...MISSION_POOL];P.missions=[];for(let i=0;i<3;i++){const m=pool.splice(randi(0,pool.length-1),1)[0];P.missions.push({id:m.id,c:0,done:false});}P.misAll=false;}
-function mis(id,amt=1){if(!P||!P.missions)return;const m=P.missions.find(q=>q.id===id&&!q.done);if(!m)return;const D=MISSION_POOL.find(q=>q.id===id);m.c=Math.min(D.n,m.c+amt);if(m.c<D.n)return;m.done=true;P.cash+=D.r;P.stats.mis=(P.stats.mis||0)+1;
+function mis(id,amt=1){if(!P||!P.missions)return;const m=P.missions.find(q=>q.id===id&&!q.done);if(!m)return;const D=MISSION_POOL.find(q=>q.id===id);m.c=Math.min(D.n,m.c+amt);if(m.c<D.n)return;m.done=true;P.cash+=D.r;P.stats.mis=(P.stats.mis||0)+1;xp(8);
   if(OFF){OFFLOG.push(`미션 완료: ${D.t} +${won(D.r)}`);return;}sfx.reveal(2);toast(`미션 완료! ${D.t} · +${won(D.r)}`,'good');
   if(P.missions.every(q=>q.done)&&!P.misAll){P.misAll=true;P.cash+=3;mod.luck=(mod.luck||0)+1;P.mod=mod;setTimeout(()=>{stamp('올클리어!',true);sfx.reveal(4);toast('오늘 미션 올클리어! 보너스 +3만원 · 오늘 운 +1','good');},900);}renderHUD();}
 function showMissions(){const rows=(P.missions||[]).map(m=>{const D=MISSION_POOL.find(q=>q.id===m.id);return `<li class="${m.done?'ok':''}"><span>${m.done?'✔ ':''}${D.t}${D.n>1&&!m.done?` <small class="muted">(${Math.floor(m.c)}/${D.n})</small>`:''}</span><b>${m.done?'완료':'+'+won(D.r)}</b></li>`;}).join('');
@@ -2245,7 +2259,7 @@ function shHit(){const S=SH2;if(S.stage!=='scan'||S.wait>0)return;const c=(S.zon
   if(d<w/2){const perfect=d<w*.18;if(perfect)S.perf++;S.combo++;sfx[perfect?'cash':'bid']();const m=S.items[S.items.length-S.left];if(m){S.d.scene.remove(m);burst(S.d.scene,m.position.clone(),perfect?0x4ade80:0xffe08a,14,1.2);}S.left--;
     if(S.left<=0){S.wait=.5;S.stage='pay';shBubble(pick(CUST_LINES));const tip=S.combo>=3&&R()<.12+luck()*.01?.3:0;S.tips+=tip;if(tip)toast('손님: "손이 빠르시네요~" 팁 +3,000원','good');setTimeout(()=>shLeave(),700);}else{S.wait=.25;setTimeout(shNextBar,250);}}
   else{S.combo=0;sfx.bad();S.wait=.35;shBubble(pick(['안 찍혔는데요?','빨리 좀요…','다시 찍어 주세요']));setTimeout(()=>{if(SH2.stage==='scan')shNextBar();},350);}}
-function shChoose(i){const S=SH2,c=S.c;if(S.stage!=='talk'||!c)return;const o=c.ev.ch[i][1]();S.pay+=o.pay||0;S.tips+=o.tip||0;S.rep+=o.rep||0;if(o.hp)P.hp=clamp(P.hp+o.hp,1,100);
+function shChoose(i){const S=SH2,c=S.c;if(S.stage!=='talk'||!c)return;const o=c.ev.ch[i][1]();S.pay+=o.pay||0;S.tips+=(o.tip||0)*(1+.5*perk('tip'));S.rep+=o.rep||0;if(o.hp)P.hp=clamp(P.hp+o.hp,1,100);
   S.log.push((c.ev.jin?'진상 · ':'')+c.ev.who+': '+o.m);renderHUD();(o.rep>0||o.tip||o.hp>0?sfx.good:o.rep<0||(o.pay||0)<0||(o.hp||0)<-5?sfx.bad:sfx.bid)();
   S.stage='result';dlg(`<b class="nm">${c.ev.who}</b>${o.m}${o.tip?` <b class="gain">팁 +${won(o.tip)}</b>`:''}${o.pay?` <b class="${o.pay>0?'gain':'loss'}">${o.pay>0?'+':''}${won(o.pay)}</b>`:''}${o.hp?` <small class="muted">체력 ${o.hp>0?'+':''}${o.hp}</small>`:''}`,[['다음 손님','shNext']]);}
 function shNext(){const S=SH2,c=S.c;if(S.stage==='result'&&c&&c.ev&&!c.left){if(c.ev.jin||R()<.5){dlgHide();shLeave();}else shScan(randi(1,3));}}
@@ -2261,9 +2275,9 @@ function shiftTick(dt){const S=SH2;if(!S.on)return;if(phase!=='store'||cur!==S.d
 function shQuit(){if(!SH2.on)return;if(SH2.stage==='intro'){shiftEnd(true,true);return;}shiftEnd(true);}
 function shiftEnd(early,none){const S=SH2;if(!S.on)return;S.on=false;dlgHide();document.body.classList.remove('shift');if(S.c){S.d.scene.remove(S.c.f.g);S.c=null;}for(const m of S.items)S.d.scene.remove(m);S.items=[];if(S.d.clerk)S.d.clerk.g.visible=true;
   if(none){inBack();return;}
-  const L0=jobLv('store');const wage=r1(S.hours*wageNow()*L0.mult),nightB=S.night&&!early&&S.n>=S.total?1:0;let boss=0,fired=false;if(!early&&S.rep>=5){boss=2;}if(S.rep<=-6){fired=true;P.fired=P.day+2;}
+  const L0=jobLv('store');const wage=r1(S.hours*wageNow()*L0.mult*(1+.12*perk('wage'))),nightB=S.night&&!early&&S.n>=S.total?1:0;let boss=0,fired=false;if(!early&&S.rep>=5){boss=2;}if(S.rep<=-6){fired=true;P.fired=P.day+2;}
   let cg=0;if(!early||S.n>=5){cg=1+(S.rep>=2?1:0);P.career=P.career||{};P.career.store=(P.career.store||0)+cg;}const L1=jobLv('store');
-  const total=Math.max(0,r1(wage+S.pay+S.tips+nightB+boss));P.cash+=total;P.stats.work=(P.stats.work||0)+1;P.stats.jin=(P.stats.jin||0)+S.jin;if(!early)mis('work');renderHUD();
+  const total=Math.max(0,r1(wage+S.pay+S.tips+nightB+boss));P.cash+=total;P.stats.work=(P.stats.work||0)+1;P.stats.jin=(P.stats.jin||0)+S.jin;if(!early)mis('work');xp(10+S.n*2);renderHUD();
   if(total>=6){stamp('알바왕',true);sfx.reveal(3);}else sfx.cash();
   const grade=fired?'F · 잘렸다':S.rep>=5?'S · 에이스':S.rep>=2?'A · 믿음직':S.rep>=-1?'B · 무난':S.rep>=-5?'C · 불안':'D';
   modal(`<div class="eyebrow">근무 끝 · ${dur(S.hours)}</div><h3>${fired?'"내일부터 안 나와도 돼요."':S.rep>=5?'"자네 정직원 생각 없나?"':early?'"벌써 가요…?"':'"수고했어요~"'}</h3>
@@ -2354,7 +2368,7 @@ const jobName=j=>j.id==='delivery'?(eraYear()<2012?'중국집 배달':'배달앱
 function jobWhy(j){const d=eraDate();if(P.loc!=='seoul')return '서울에서만 구할 수 있어요';if(j.from&&eraYear()<j.from)return `${j.from}년부터 생기는 일이에요`;if(careerTotal()<j.req)return `총 경력 ${j.req}회 필요 (지금 ${careerTotal()}회)`;
   if(j.reqHp&&P.hp<j.reqHp)return `체력 ${j.reqHp} 이상 필요`;if(P.hp<15)return '체력이 너무 낮아요';if(j.weekend&&![0,6].includes(d.getDay()))return '주말에만 모집해요';
   if(j.id==='store'&&P.fired&&P.fired>=P.day)return '점장이 당분간 오지 말래요';const t=P.time;if(!(t>=j.win[0]&&t<j.win[1]))return `출근 시간 ${j.win[0]}~${j.win[1]}시`;return '';}
-const jobRate=j=>wageNow()*j.mult*jobLv(j.id).mult;
+const jobRate=j=>wageNow()*j.mult*jobLv(j.id).mult*(1+.12*perk('wage'));
 function showJobs(){if(!P)return;const y=eraYear(),w=minWage();const can=['world','home'].includes(phase)||(IW.on&&phase===IW.def?.phase);
   const cards=JOBS.map(j=>{const L=jobLv(j.id),why=can?jobWhy(j):'밖에 있을 때 지원할 수 있어요';const rate=jobRate(j);
     return `<div class="job ${why?'off':''}"><div class="ji">${j.icon}</div><div class="jb"><b>${jobName(j)}</b> <small>${esc(jobPlace(j))}</small><div class="jm">시급 <b>${Math.round(rate*10000).toLocaleString('ko-KR')}원</b>${j.mult!==1?` <small>(최저시급 ×${j.mult})</small>`:''} · ${dur(j.hours)} · 체력 -${j.hp}${j.food?' · 식사 제공':''}</div><div class="jm"><span class="lvb">${L.name} ${L.n}회</span>${L.next!=null?` <small>${L.next-L.n}회 더 하면 승급</small>`:' <small>최고 등급</small>'} · <small>${esc(j.desc)}</small></div>${why?`<div class="jw">${esc(why)}</div>`:''}</div><button class="btn ${why?'':'go'} sm" data-act="jobApply" data-arg="${j.id}" ${why?'disabled':''}>지원</button></div>`;}).join('');
@@ -2365,16 +2379,85 @@ function jobApply(id){const j=JOBS.find(x=>x.id===id);if(!j||jobWhy(j))return;cl
 function jobEvent(){const t=P.trip,d=t.d,j=JOBS.find(x=>x.id===d.jid);d.ev=true;if(!j.ev||R()<.15)return;const e=pick(j.ev);
   if(OFF){const o=e.ch[0][1]();jobApplyOutcome(d,o);return;}JE.e=e;JE.d=d;dlg(`<b class="nm bad">${jobName(j)} · 사건 발생</b>${e.t}`,e.ch.map((c,i)=>[c[0],'jobc',i]));sfx.bad();}
 const JE={};
-function jobApplyOutcome(d,o){d.pay+=o.pay||0;d.tip+=o.tip||0;d.rep+=o.rep||0;if(o.payMul!=null)d.payMul*=o.payMul;if(o.hp){P.hp=clamp(P.hp+o.hp,1,100);}d.log.push(o.m);}
+function jobApplyOutcome(d,o){d.pay+=o.pay||0;d.tip+=(o.tip||0)*(1+.5*perk('tip'));d.rep+=o.rep||0;if(o.payMul!=null)d.payMul*=o.payMul;if(o.hp){P.hp=clamp(P.hp+o.hp,1,100);}d.log.push(o.m);}
 function jobChoose(i){const e=JE.e,d=JE.d;if(!e)return;const o=e.ch[i][1]();jobApplyOutcome(d,o);JE.e=null;renderHUD();(o.rep>0||o.tip?sfx.good:(o.pay||0)<0||(o.hp||0)<-5?sfx.bad:sfx.bid)();
   dlg(`<b class="nm">결과</b>${o.m}${o.tip?` <b class="gain">팁 +${won(o.tip)}</b>`:''}${o.pay?` <b class="${o.pay>0?'gain':'loss'}">${o.pay>0?'+':''}${won(o.pay)}</b>`:''}${o.payMul!=null&&o.payMul<1?` <b class="loss">일당 ×${o.payMul}</b>`:''}`,[['계속 일하기','jobOk']]);}
 function jobDone(d,early){const j=JOBS.find(x=>x.id===d.jid);const h=clamp(absNow()-BZ.start,0,j.hours);const frac=h/j.hours;const L0=jobLv(j.id);
-  const base=r1(h*jobRate(j)*d.payMul);const total=Math.max(0,r1(base+d.pay+d.tip));P.cash+=total;P.hp=clamp(P.hp-j.hp*frac,1,100);if(j.food&&frac>.6)P.food=Math.min(100,P.food+j.food);
-  let gain=0;if(frac>=.6){gain=1+(d.rep>=2?1:0);P.career=P.career||{};P.career[j.id]=(P.career[j.id]||0)+gain;}P.stats.work=(P.stats.work||0)+1;if(!early)mis('work');
+  const base=r1(h*jobRate(j)*d.payMul);const total=Math.max(0,r1(base+d.pay+d.tip));P.cash+=total;P.hp=clamp(P.hp-j.hp*frac*(1-.2*perk('iron')),1,100);if(j.food&&frac>.6)P.food=Math.min(100,P.food+j.food);
+  let gain=0;if(frac>=.6){gain=1+(d.rep>=2?1:0);P.career=P.career||{};P.career[j.id]=(P.career[j.id]||0)+gain;}P.stats.work=(P.stats.work||0)+1;if(!early)mis('work');xp(8+gain*6);
   const L1=jobLv(j.id);const up=L1.name!==L0.name;dlgHide();
   if(OFF){OFFLOG.push(`${jobName(j)} ${dur(h)} · +${won(total)}${up?` · ${L1.name} 승급!`:''}`);return;}
   sfx.cash();if(up){stamp(L1.name+'!',true);sfx.reveal(3);}renderHUD();
   modal(`<div class="eyebrow">${jobName(j)} · ${esc(jobPlace(j))} · ${dur(h)}</div><h3>${early?'조퇴했다':d.rep>=2?'"다음에도 꼭 와 줘요!"':d.rep<0?'"다음엔 좀 더 잘해 봐요."':'"수고했어요~"'}</h3><ul class="prank"><li><span>시급 ${Math.round(jobRate(j)*10000).toLocaleString('ko-KR')}원 × ${dur(h)}</span><b>${won(base)}</b></li>${d.tip?`<li><span>팁</span><b class="gain">+${won(d.tip)}</b></li>`:''}${d.pay?`<li><span>사건·사고</span><b class="${d.pay>0?'gain':'loss'}">${d.pay>0?'+':''}${won(d.pay)}</b></li>`:''}<li><span><b>받은 돈</b></span><b class="gain">+${won(total)}</b></li><li><span>경력</span><b>${gain?`+${gain}회 → ${L1.name} ${L1.n}회`:'60% 이상 일해야 쌓여요'}</b></li></ul>${up?`<p class="gain">🎉 ${jobName(j)} <b>${L1.name}</b> 승급! 이제 시급 ×${L1.mult}</p>`:''}${d.log.length?`<p class="muted" style="font-size:12.5px">${d.log.map(esc).join('<br>')}</p>`:''}<div class="row"><button class="btn go" data-act="closeModal">확인</button></div>`);}
+
+/* ============ life level & perks, achievements, businesses, fortune, profile ============ */
+const perk=id=>(P&&P.perks&&P.perks[id])||0;
+const PERKS=[
+  {id:'wage',ic:'💪',nm:'알바 근성',d:'모든 알바 시급 +12%',max:3},{id:'rent',ic:'🤝',nm:'협상왕',d:'월세 -8%',max:3},
+  {id:'eye',ic:'🍀',nm:'행운아',d:'운 +1 (경매·복권·사고 전부)',max:3},{id:'fee',ic:'📈',nm:'큰손 계좌',d:'주식·코인 수수료와 세금 면제',max:1},
+  {id:'iron',ic:'🛡️',nm:'강철 체력',d:'알바 체력 소모 -20%, 회복 +25%',max:2},{id:'speed',ic:'👟',nm:'날쌘 다리',d:'걷는 속도 +15%',max:2},
+  {id:'magnet',ic:'🧲',nm:'줍줍 레이더',d:'줍는 범위 2배, 주운 돈 ×1.5',max:2},{id:'lucky',ic:'🎟️',nm:'복권 체질',d:'즉석복권 당첨 확률 대폭 증가',max:2},
+  {id:'tip',ic:'😊',nm:'넉살',d:'팁과 사건 보상 +50%',max:2},{id:'biz',ic:'🏢',nm:'장사 수완',d:'가게 수익 +15%',max:3},
+];
+const xpNeed=L=>Math.round(40*Math.pow(L,1.45));
+function xp(n){if(!P||!n)return;P.lvl=P.lvl||1;P.xp=(P.xp||0)+n;while(P.xp>=xpNeed(P.lvl)){P.xp-=xpNeed(P.lvl);P.lvl++;P.perkPending=(P.perkPending||0)+1;if(!OFF){sfx.reveal(4);stamp(`Lv.${P.lvl}!`,true);}else OFFLOG.push(`인생 레벨 ${P.lvl} 달성! 특성을 고를 수 있어요.`);}renderHUD();}
+function perkChoices(){const pool=PERKS.filter(p=>perk(p.id)<p.max);return shuffle(pool).slice(0,3);}
+function showPerkPick(){const ch=perkChoices();if(!ch.length){P.perkPending=0;return;}PP.ch=ch;sfx.good();
+  modal(`<div class="eyebrow">인생 레벨 ${P.lvl} 달성</div><h3>특성을 하나 고르세요</h3><div class="perks">${ch.map((p,i)=>`<button class="pk" data-act="perkPick" data-arg="${i}"><span class="pi">${p.ic}</span><b>${p.nm}</b><small>${p.d}</small><span class="pl">${perk(p.id)?`Lv.${perk(p.id)} → ${perk(p.id)+1}`:'NEW'} / ${p.max}</span></button>`).join('')}</div>`,'wide');}
+const PP={};
+function perkPick(i){const p=PP.ch&&PP.ch[i];if(!p)return;P.perks=P.perks||{};P.perks[p.id]=(P.perks[p.id]||0)+1;P.perkPending=Math.max(0,(P.perkPending||1)-1);closeModal();sfx.reveal(3);toast(`${p.ic} ${p.nm} 획득! ${p.d}`,'good');renderHUD();}
+/* ---- achievements ---- */
+const ACH=[
+  {id:'job1',ic:'👔',nm:'첫 출근',d:'알바 1번 하기',c:()=>(P.stats.work||0)>=1,r:1},{id:'job20',ic:'🏅',nm:'알바 장인',d:'알바 20번',c:()=>(P.stats.work||0)>=20,r:10},
+  {id:'ace',ic:'⭐',nm:'에이스',d:'알바 하나를 에이스로',c:()=>JOBS.some(j=>jobLv(j.id).name==='에이스'),r:15},{id:'jin10',ic:'😤',nm:'진상 면역',d:'진상 손님 10명 응대',c:()=>(P.stats.jin||0)>=10,r:5},
+  {id:'pick50',ic:'🪙',nm:'줍줍의 달인',d:'길에서 50번 줍기',c:()=>(P.stats.picked||0)>=50,r:3},{id:'scr20',ic:'🎫',nm:'긁는 손',d:'즉석복권 20장',c:()=>(P.stats.scratch||0)>=20,r:3},
+  {id:'won1',ic:'🔨',nm:'첫 낙찰',d:'경매 낙찰 1번',c:()=>(P.stats.won||0)>=1,r:2},{id:'won10',ic:'🏆',nm:'경매왕',d:'경매 낙찰 10번',c:()=>(P.stats.won||0)>=10,r:15},
+  {id:'trade20',ic:'🐜',nm:'개미 투자자',d:'주식·코인 20번 거래',c:()=>(P.stats.trades||0)>=20,r:3},{id:'limit',ic:'🚀',nm:'상한가 탑승',d:'들고 있는 종목이 상한가',c:()=>!!P.limitHit,r:5},
+  {id:'w500',ic:'💵',nm:'500만원',d:'순자산 500만원',c:()=>myWorth()>=500,r:5},{id:'w3000',ic:'💰',nm:'3천만원',d:'순자산 3천만원',c:()=>myWorth()>=3000,r:20},
+  {id:'w1e4',ic:'💎',nm:'억대 자산가',d:'순자산 1억',c:()=>myWorth()>=10000,r:50},{id:'tier1',ic:'🏠',nm:'반지하 탈출',d:'옥탑방 이상으로 이사',c:()=>P.tier>=1,r:5},
+  {id:'tier3',ic:'🏙️',nm:'아파트 입성',d:'아파트로 이사',c:()=>P.tier>=3,r:30},{id:'car',ic:'🚙',nm:'오너 드라이버',d:'첫 차 구입',c:()=>!!P.car,r:5},
+  {id:'biz1',ic:'🏪',nm:'사장님',d:'가게 하나 차리기',c:()=>(P.biz||[]).length>=1,r:5},{id:'biz3',ic:'🏢',nm:'문어발',d:'가게 3개',c:()=>(P.biz||[]).length>=3,r:30},
+  {id:'lv10',ic:'🎖️',nm:'인생 레벨 10',d:'레벨 10 달성',c:()=>(P.lvl||1)>=10,r:20},{id:'mis30',ic:'📋',nm:'성실함',d:'미션 30개 완료',c:()=>(P.stats.mis||0)>=30,r:10},
+  {id:'day30',ic:'📅',nm:'한 달 생존',d:'30일 버티기',c:()=>P.day>=30,r:10},{id:'hit',ic:'🚑',nm:'불사신',d:'교통사고에서 살아남기',c:()=>(P.stats.hit||0)>=1,r:2},
+  {id:'top',ic:'👑',nm:'랭킹 1위',d:'부자 랭킹 1위 (300만원 이상)',c:()=>myWorth()>=300&&ranking()[0]?.me,r:10},
+];
+function checkAch(){if(!P||!P.stats)return;P.ach=P.ach||{};for(const a of ACH){if(P.ach[a.id])continue;let ok=false;try{ok=a.c();}catch(e){}if(!ok)continue;P.ach[a.id]=P.day;P.cash+=a.r;xp(20);
+  if(OFF)OFFLOG.push(`업적 달성: ${a.nm} (+${won(a.r)})`);else{sfx.reveal(2);toast(`${a.ic} 업적 달성! ${a.nm} · 보상 +${won(a.r)}`,'good');}}}
+/* ---- businesses ---- */
+const BIZ={
+  tteok:{nm:'떡볶이 노점',ic:'🍢',cost:300,base:[4,12],from:0,trend:()=>1,good:'맛집 블로그에 소개됐다',bad:'구청 노점 단속에 걸렸다'},
+  noraebang:{nm:'노래방',ic:'🎤',cost:1800,base:[18,42],from:1992,trend:y=>y<2008?1.3:.85,good:'회식 손님이 몰려왔다',bad:'마이크와 기계가 고장 났다'},
+  pcbang:{nm:'PC방',ic:'🖥️',cost:2500,base:[28,70],from:1998,trend:y=>y<2005?1.6:y<2012?1:.6,good:'신작 온라인 게임 대박으로 만석',bad:'그래픽카드 교체 비용이 나갔다'},
+  cafe:{nm:'카페',ic:'☕',cost:4500,base:[30,65],from:2007,trend:y=>y<2016?1.3:1,good:'SNS에서 인생샷 명소로 떴다',bad:'옆에 대형 프랜차이즈가 생겼다'},
+  cvs:{nm:'편의점 가맹점',ic:'🏪',cost:6000,base:[40,80],from:1990,trend:y=>y<2010?1:y<2018?1.15:.9,good:'근처에 대학교 기숙사가 생겼다',bad:'야간 알바가 무단결근했다'},
+  mining:{nm:'코인 채굴장',ic:'⛏️',cost:9000,base:[-30,140],from:2014,trend:()=>P.mkt.BLC.price/85000,good:'코인 가격 급등! 채굴 수익 폭발',bad:'전기요금 폭탄 고지서'},
+};
+const bizCost=t=>Math.round(BIZ[t].cost*priceIdx());
+const bizVal=b=>Math.round(bizCost(b.t)*(.6+.3*(b.lvl-1)));
+function bizNight(msgs){let tot=0;for(const b of (P.biz||[])){const B=BIZ[b.t];const y=eraYear();let p=rand(B.base[0],B.base[1])*priceIdx()*B.trend(y)*(1+.5*(b.lvl-1))*(1+.15*perk('biz'))*(1+luck()*.02);const r=Math.random();
+  if(r<.1){p=Math.abs(p)*2.5+5;msgs.push(`${B.ic} ${B.nm}: ${B.good}! +${won(p)}`);}else if(r<.2){p=-Math.abs(rand(B.base[0],B.base[1]))*priceIdx()*.6;msgs.push(`${B.ic} ${B.nm}: ${B.bad}. ${won(p)}`);}
+  p=r1(p);b.total=(b.total||0)+p;b.last=p;tot+=p;}
+  if(P.biz&&P.biz.length){P.cash+=tot;if(tot)msgs.push(`가게 ${P.biz.length}곳 오늘 정산 ${tot>=0?'+':''}${won(tot)}`);if(tot>0)xp(Math.min(30,Math.round(tot/3)+2));}}
+function renderBiz(){const own=P.biz||[];const y=eraYear();
+  const mine=own.map((b,i)=>{const B=BIZ[b.t];return `<div class="job"><div class="ji">${B.ic}</div><div class="jb"><b>${B.nm}</b> <small>Lv.${b.lvl}</small><div class="jm">어제 ${b.last!=null?(b.last>=0?'+':'')+won(b.last):'-'} · 누적 <b>${won(b.total||0)}</b> · 가치 ${won(bizVal(b))}</div></div><div style="display:grid;gap:4px">${b.lvl<3?`<button class="btn go sm" data-act="bizUp" data-arg="${i}" ${P.cash<bizCost(b.t)*.5?'disabled':''}>확장 ${won(bizCost(b.t)*.5)}</button>`:''}<button class="btn ghost sm" data-act="bizSell" data-arg="${i}">매각</button></div></div>`;}).join('');
+  const shop=Object.keys(BIZ).map(t=>{const B=BIZ[t];const ok=y>=B.from;const c=bizCost(t);return `<div class="job ${ok?'':'off'}"><div class="ji">${B.ic}</div><div class="jb"><b>${B.nm}</b><div class="jm">창업비 <b>${won(c)}</b> · 하루 예상 ${won(B.base[0]*priceIdx()*B.trend(y))}~${won(B.base[1]*priceIdx()*B.trend(y))}</div>${ok?'':`<div class="jw">${B.from}년부터 생기는 업종이에요</div>`}</div><button class="btn ${ok?'go':''} sm" data-act="bizBuy" data-arg="${t}" ${!ok||P.cash<c?'disabled':''}>창업</button></div>`;}).join('');
+  return `<div class="sect">내 가게 ${own.length}곳 · 수익은 매일 자정에 들어와요</div><div class="jobs">${mine||'<p class="muted" style="font-size:13px">아직 가게가 없어요. 노점부터 시작해 보세요.</p>'}</div><div class="sect">창업하기 · ${y}년 시세</div><div class="jobs">${shop}</div><p class="muted" style="font-size:12px">업종마다 시대를 탄다. PC방은 2000년대 초반이 전성기, 카페는 2000년대 후반부터, 채굴장은 코인 시세를 따라간다.</p>`;}
+function bizBuy(t){const c=bizCost(t);if(P.cash<c||eraYear()<BIZ[t].from)return;P.cash-=c;(P.biz=P.biz||[]).push({t,lvl:1,since:P.day,total:0,last:null});sfx.reveal(3);stamp('개업!',true);xp(25);toast(`${BIZ[t].ic} ${BIZ[t].nm} 개업! 내일 자정부터 수익이 들어와요.`,'good');renderPhone();}
+function bizUp(i){const b=P.biz[i];const c=bizCost(b.t)*.5;if(!b||b.lvl>=3||P.cash<c)return;P.cash-=c;b.lvl++;sfx.cash();xp(10);toast(`${BIZ[b.t].nm} Lv.${b.lvl}로 확장! 수익 +50%`,'good');renderPhone();}
+function bizSell(i){const b=P.biz[i];if(!b)return;const v=bizVal(b);P.cash+=v;P.biz.splice(i,1);sfx.cash();toast(`${BIZ[b.t].nm} 매각 +${won(v)}`,'good');renderPhone();}
+/* ---- daily fortune ---- */
+const FORTUNE=[['대길',2,'뭘 해도 되는 날!'],['길',1,'좋은 기운이 감돈다.'],['길',1,'뜻밖의 돈이 들어올 운.'],['평',0,'무난한 하루.'],['평',0,'욕심내지 말 것.'],['흉',-1,'오늘은 몸조심, 차조심.'],['소길',1,'경매장에 귀인이 있다.']];
+function rollFortune(){const f=pick(FORTUNE);mod.luck=(mod.luck||0)+f[1];P.fortune={g:f[0],l:f[1],t:f[2]};}
+/* ---- profile ---- */
+function showProfile(){if(!P)return;const L=P.lvl||1;const need=xpNeed(L);P.ach=P.ach||{};
+  const perks=PERKS.filter(p=>perk(p.id)).map(p=>`<span class="pt">${p.ic} ${p.nm} <b>Lv.${perk(p.id)}</b></span>`).join('')||'<span class="muted">아직 없음 · 레벨이 오르면 골라요</span>';
+  const jobs=JOBS.filter(j=>(P.career||{})[j.id]).map(j=>{const v=jobLv(j.id);return `<span class="pt">${j.icon} ${jobName(j)} <b>${v.name} ${v.n}</b></span>`;}).join('')||'<span class="muted">무경력</span>';
+  const got=ACH.filter(a=>P.ach[a.id]).length;
+  modal(`<div class="eyebrow">${eraYear()}년 · ${P.day}일째 인생 · ${eraStamp()}</div><h3>나 · 인생 레벨 ${L}</h3><div class="xpb"><i style="width:${Math.round((P.xp||0)/need*100)}%"></i><span>XP ${P.xp||0} / ${need}</span></div>
+    ${P.fortune?`<p style="margin:8px 0">🔮 오늘의 운세 <b>${P.fortune.g}</b> · ${esc(P.fortune.t)} <small class="muted">(운 ${P.fortune.l>=0?'+':''}${P.fortune.l})</small></p>`:''}
+    <div class="sect">특성</div><div class="pts">${perks}</div><div class="sect">경력 · ${careerTitle()} (${careerTotal()}회)</div><div class="pts">${jobs}</div>
+    <div class="sect">업적 ${got}/${ACH.length}</div><div class="achs">${ACH.map(a=>`<div class="ac ${P.ach[a.id]?'on':''}" title="${esc(a.d)}"><span>${P.ach[a.id]?a.ic:'🔒'}</span><b>${a.nm}</b><small>${esc(a.d)}</small></div>`).join('')}</div>
+    <div class="row"><button class="btn go" data-act="closeModal">닫기</button></div>`,'wide');}
 
 const ENC=[
   {t:'떨어진 지갑',d:'보도 한가운데 두툼한 지갑이 떨어져 있다. 주변엔 아무도 없다.',o:[
@@ -2457,7 +2540,7 @@ function endLot(){if(A.state!=='bid')return;const lot=A.lot;let winner=null,pric
   if(A.out){const floor=A.leader?A.price+inc(A.price):A.price;const r=quickResolve(A.npcs,floor);if(r&&r.n!==A.leader){winner=r.n;price=r.price;}else if(A.leader&&A.leader!=='me'){winner=A.leader;price=A.price;}}
   else{winner=A.leader;price=A.price;}
   A.state='done';sfx.gavel();AU.auctioneer.raise=1;let html=`<div class="eyebrow">${lot.label} · ${lot.theme}</div>`;let nextAct='auctionLobby',nextLabel='로비로';
-  if(winner==='me'){P.cash-=price;P.stats.won++;mis('won');lot.paid=price;lot.done=true;lot.result={name:'나',price};stamp('낙찰!');renderHUD();html+=`<h2>내가 낙찰받았다!</h2><p>낙찰가 <span class="val">${won(price)}</span>. 바로 열어보자.</p>`;nextAct='unboxLot';nextLabel='창고 열기';}
+  if(winner==='me'){P.cash-=price;P.stats.won++;mis('won');xp(15);lot.paid=price;lot.done=true;lot.result={name:'나',price};stamp('낙찰!');renderHUD();html+=`<h2>내가 낙찰받았다!</h2><p>낙찰가 <span class="val">${won(price)}</span>. 바로 열어보자.</p>`;nextAct='unboxLot';nextLabel='창고 열기';}
   else if(winner){const best=lot.items.reduce((a,b)=>b.trueV>a.trueV?b:a);stamp('낙찰');npcBubble(winner,'낙찰!','#2a8a5a');aiTakes(lot,winner,price);
     const verdict=lot.T>price*1.3?'<span class="loss">아깝다…</span>':lot.T<price*.8?'<span class="gain">휴, 안 사길 잘했다.</span>':'';
     html+=`<h2>${esc(winner.name)} 낙찰 · ${won(price)}</h2><p>열어보니 제일 좋은 건 ${rb(best.fake?0:best.rar)} <b>${esc(best.fake?'가짜 '+CATS[best.cat].n:best.name)}</b>. 창고 전체 가치는 약 <span class="val">${won(lot.T)}</span>. ${verdict}</p>`;}
@@ -2527,11 +2610,11 @@ function midnight(){P.time-=24;const t=TIERS[P.tier];P.prevWorth=myWorth();const
   if(P.cash<0){liquidate(0);if(P.cash<0&&P.car&&P.carLoc==='seoul'){P.cash+=carValue()*.7;msgs.push(`빚 독촉에 ${CARS[P.car.id].name}을 헐값에 넘겼다.`);P.car=null;placeCar();}if(P.cash<0){gameOver(`현금이 ${won(P.cash)}인데 팔 것이 없다.`);return;}}
   if(P.hp<=0){const cost=25+P.tier*15;P.hp=40;if(P.cash>=cost)P.cash-=cost;else P.loans.push({type:'hosp',name:'병원비 분할 납부',owed:cost,rate:.003,due:P.day+15});msgs.push(`밤새 앓다가 응급실에 갔다. 병원비 ${won(cost)}`);}
   for(const lot of P.lots)if(!lot.done){lot.done=true;lot.result={name:null,price:0};}
-  const rets=resolveDay(P);aiNight(P,rets);
+  bizNight(msgs);const rets=resolveDay(P);aiNight(P,rets);
   for(const ai of P.ais){if(ai.out&&!ai.reportedOut){ai.reportedOut=true;P.feed.push(`${gameDate()} ${ai.name}, 끝내 파산`);}
     const d=ai.prev?ai.worth/ai.prev-1:0;if(!ai.out&&Math.abs(d)>.35)P.feed.push(`${gameDate()} ${ai.name}(${STYLES[ai.style].label}) 하루 만에 ${d>0?'+':''}${(d*100).toFixed(0)}%`);}
   if(P.feed.length>12)P.feed=P.feed.slice(-12);
-  P.day++;P.stats.maxWorth=Math.max(P.stats.maxWorth||0,myWorth());
+  P.day++;P.stats.maxWorth=Math.max(P.stats.maxWorth||0,myWorth());xp(5+clamp(Math.round((myWorth()-P.prevWorth)/4),0,40));
   msgs.forEach(m=>say(m,/완료|^월세 -/.test(m)?'':'bad'));
   const winner=P.ais.find(a=>!a.done&&!a.out&&a.worth>=GOAL);genDay(P);
   if(evicted&&phase==='home'){if(OFF){phase='world';cur=scWorld;WD.pos.set(HOME_DOOR.x,0,HOME_DOOR.z);}else leave();}
@@ -2562,7 +2645,7 @@ const ACT={
   mute:()=>{muted=!muted;const b=$('#btnMute');b.querySelector('.lb').textContent=muted?'음소거':'소리';b.querySelector('.snd').style.display=muted?'none':'';b.style.opacity=muted?.6:1;},
   howto:()=>modal(`<div class="eyebrow">게임 방법</div><h3>살아남아서, 떡상하라</h3><p>자정마다 월세가 나가요. 알바·경매·주식·코인·길에 떨어진 돈까지, 뭐든 해서 10억 펜트하우스를 사면 승리. 파산하면 그 인생은 끝이에요.</p><div class="howk"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>이동 (폰: 조이스틱 · 바닥 탭)</span><span><kbd>Shift</kbd></span><span>달리기</span><span><kbd>E</kbd></span><span>들어가기 · 집기 · 말 걸기</span><span><kbd>Tab</kbd></span><span>휴대폰 (주식·코인·뉴스·배달)</span><span><kbd>N</kbd> <kbd>M</kbd></span><span>신문 · 오늘의 미션</span><span><kbd>Esc</kbd></span><span>닫기 · 뒤로</span><span>마우스</span><span>끌어서 시점 회전, 휠로 확대</span></div><div class="row"><button class="btn go" data-act="closeModal">알겠어</button></div>`),
   giveup:()=>{if(phase==='title')return;modal(`<h3>새 인생을 시작할까요?</h3><p>지금 인생은 기록 없이 끝나요.</p><div class="row"><button class="btn" data-act="closeModal">계속하기</button><button class="btn red" data-act="newgame">새 인생</button></div>`);},
-  closeModal:()=>closeModal(),missions:()=>{if(P)showMissions();},scReveal:()=>scratchEnd(),scClose:()=>closeModal(),mgStart:()=>mgStart(),jobs:()=>showJobs(),jobApply:a=>jobApply(a),jobc:a=>jobChoose(+a),jobOk:()=>dlgHide(),shiftStart:()=>shiftStart(),shGo:()=>shGo(),shHit:()=>shHit(),shc:a=>shChoose(+a),shNext:()=>shNext(),shQuit:()=>shQuit(),mgHit:()=>mgHit(),workFull:()=>{closeModal();startWork();},closePaper:()=>{closeModal();renderCurrent();},paper:()=>{if(P)showPaper();},
+  closeModal:()=>closeModal(),missions:()=>{if(P)showMissions();},scReveal:()=>scratchEnd(),scClose:()=>closeModal(),mgStart:()=>mgStart(),profile:()=>showProfile(),perkPick:a=>perkPick(+a),bizBuy:a=>bizBuy(a),bizUp:a=>bizUp(+a),bizSell:a=>bizSell(+a),jobs:()=>showJobs(),jobApply:a=>jobApply(a),jobc:a=>jobChoose(+a),jobOk:()=>dlgHide(),shiftStart:()=>shiftStart(),shGo:()=>shGo(),shHit:()=>shHit(),shc:a=>shChoose(+a),shNext:()=>shNext(),shQuit:()=>shQuit(),mgHit:()=>mgHit(),workFull:()=>{closeModal();startWork();},closePaper:()=>{closeModal();renderCurrent();},paper:()=>{if(P)showPaper();},
   showRival:()=>{closeModal();const ai=P.ais[P._rival];P._rival=null;if(ai)rivalWin(ai);},
   enter:()=>{if(inWalking()&&IW.near){if(!(IW.near.dis&&IW.near.dis()))IW.near.act();return;}const n=WD.nearObj;if(!n)return;if(phase==='drive'){if(n.kind==='door'){driveOut();enterBuilding(n.b.id);}return;}if(phase!=='world')return;if(n.kind==='enc')openEnc();else if(n.kind==='car')driveIn();else enterBuilding(n.b.id);},
   leave:()=>{if(phase==='auction'&&A.state==='bid'){A.out=true;endLot();return;}A.lot=null;leave();},
