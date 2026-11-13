@@ -437,7 +437,7 @@ body.shift #hot,body.shift #quest,body.shift #mini,body.shift #hint{display:none
   </div>
   <div id="rcol">
     <canvas id="mini" width="150" height="114" hidden></canvas>
-    <div id="clk"><span class="tm ol" id="hTime">07:00</span><span><small id="hDate">-</small><small class="x3">시간 ×3</small></span></div>
+    <div id="clk"><span class="tm ol" id="hTime">07:00</span><span><small id="hDate">-</small><small class="x3" id="hAge">20세</small></span></div>
     <div class="tag2" id="hRentChip"><span id="hRentL">월세</span><b id="hRent">오늘 자정</b></div>
     <div class="tag2"><span>다음 경매</span><b id="hLot">11:00</b></div>
     <div id="quest" data-act="missions" hidden></div>
@@ -1121,7 +1121,7 @@ const hex=c=>'#'+c.toString(16).padStart(6,'0');
 function hhmm(t){const tot=Math.round(t*60);const h=Math.floor(tot/60)%24,m=tot%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
 function setMeter(id,v){const el=$('#'+id);el.style.width=clamp(v,0,100)+'%';el.parentElement.classList.toggle('low',v<25);}
 function aiLive(a){let v=a.cash+a.pending+TIERS[a.tier].dep;for(const id in a.pos)v+=a.pos[id]*(1+(P.mkt[id].ret||0));return v;}
-function renderHUD(){if(!P||!P.broken)return;$('#hud').hidden=false;$('#hDay').textContent='Lv.'+(P.lvl||1);{const x=$('#hXp');if(x)x.style.width=Math.min(100,(P.xp||0)/xpNeed(P.lvl||1)*100)+'%';}$('#hDate').textContent=gameDate();$('#hTime').textContent=hhmm(P.time);$('#hCash').textContent=won(P.cash);$('#hCash').style.color=P.cash<0?'var(--bid)':'';
+function renderHUD(){if(!P||!P.broken)return;$('#hud').hidden=false;$('#hDay').textContent='Lv.'+(P.lvl||1);{const x=$('#hXp');if(x)x.style.width=Math.min(100,(P.xp||0)/xpNeed(P.lvl||1)*100)+'%';}$('#hDate').textContent=gameDate();{const a=$('#hAge');if(a)a.textContent=`${ageNow()}세`+(TSCALE===0?' · 일시정지':'');}$('#hTime').textContent=hhmm(P.time);$('#hCash').textContent=won(P.cash);$('#hCash').style.color=P.cash<0?'var(--bid)':'';
   const d=debt();$('#hDebtChip').hidden=d<=0;$('#hDebt').textContent=won(d);setMeter('hFood',P.food);setMeter('hHp',P.hp);
   const up=upcoming(),nx=up[0],tot=up.filter(x=>x.days===nx.days).reduce((t,x)=>t+x.amt,0),more=up.filter(x=>x.days===nx.days).length-1;$('#hRentL').textContent=nx.name+(more>0?` 외 ${more}`:'');$('#hRent').textContent=(nx.days===0?'오늘 ':'D-'+nx.days+' ')+won(tot);
   const nl=(P.lots||[]).find(l=>!l.done);$('#hLot').textContent=nl?hhmm(nl.at):'내일';
@@ -1129,7 +1129,7 @@ function renderHUD(){if(!P||!P.broken)return;$('#hud').hidden=false;$('#hDay').t
   $('#btnPaper').classList.toggle('new',!!P.paperUnread);{const due=(rentIn()===0?rentNow():0)+dueToday();$('#hRentChip').classList.toggle('warn',due>0&&P.cash<due);}
   P.stats.maxWorth=Math.max(P.stats.maxWorth||0,myWorth());cashFly();
   {const b=$('#btnMis'),ms=P.missions||[],dn=ms.filter(m=>m.done).length;b.hidden=!ms.length;b.querySelector('.lb').textContent=`미션 ${dn}/${ms.length}`;b.classList.toggle('done',ms.length>0&&dn===ms.length);
-    const q=$('#quest');q.hidden=!ms.length||!(phase==='world'||phase==='drive'||IW.on);const h='<h6>오늘의 미션</h6>'+ms.map(m=>{const D=MISSION_POOL.find(x=>x.id===m.id);return `<div class="${m.done?'ok':''}">${D.t}${D.n>1&&!m.done?` <small>${Math.floor(m.c)}/${D.n}</small>`:''}</div>`;}).join('');if(q.dataset.h!==h){q.dataset.h=h;q.innerHTML=h;}}}
+    const q=$('#quest');q.hidden=!ms.length||!(phase==='world'||phase==='drive'||IW.on);const h='<h6>이번 주 미션</h6>'+ms.map(m=>{const D=MISSION_POOL.find(x=>x.id===m.id);return `<div class="${m.done?'ok':''}">${D.t}${D.n>1&&!m.done?` <small>${Math.floor(m.c)}/${D.n}</small>`:''}</div>`;}).join('');if(q.dataset.h!==h){q.dataset.h=h;q.innerHTML=h;}}}
 function lotLevel(){return P.tier*.8+Math.max(0,Math.log2(Math.max(1,myWorth())/300))*.6;}
 
 /* ============ auction lots ============ */
@@ -1166,14 +1166,18 @@ const LIFE=[
 function rollLife(){const pool=LIFE.filter(e=>!e.cond||e.cond());const o={};pool.forEach((e,i)=>o[i]=e.w);const e=pool[+wpick(o)];if(!e.t)return null;const r=e.f?e.f():'';return e.t+(r||'');}
 
 /* ============ clock: 3x real time ============ */
-const TSCALE=3,MKT_OPEN=6,MKT_CLOSE=24,LOT_TIMES=[11,15,19],PREVIEW=1.5,OFF_CAP=72;
+/* life clock: game time only moves while the game is open; ~30 days of play take you from 20 to 100 (2000 → 2080) */
+const START_AGE=20,END_AGE=100,LIFE_REAL_S=30*86400;
+const TS_BASE=(END_AGE-START_AGE)*365.2425*24*3600/LIFE_REAL_S;   // ≈974× real time → one game day ≈ 1.5 real minutes
+const NEED_RATE=30;   // hunger/health/breakdowns tick at a 'real-life' pace so you eat every ~30 real minutes, not every few seconds
+let TSCALE=TS_BASE;const MKT_OPEN=6,MKT_CLOSE=24,LOT_TIMES=[11,15,19],PREVIEW=1.5,OFF_CAP=72;
 let sub=null,OFF=false,OFFLOG=[];
 const absNow=()=>P.day*24+P.time;
 const running=()=>P&&P.paths&&!['title','over','win','rival'].includes(phase);
 const DOW='일월화수목금토';
 function gameDate(day=P.day){const d=new Date(P.startDate+(day-1)*864e5+432e5);return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일(${DOW[d.getDay()]})`;}
 function dur(h){const t=Math.round(Math.max(0,h)*60);const H=Math.floor(t/60),m=t%60;return H?`${H}시간 ${m}분`:`${m}분`;}
-function realDur(h){const s=Math.round(h*3600/TSCALE);return s>=3600?`${Math.floor(s/3600)}시간 ${Math.round(s%3600/60)}분`:s>=60?`${Math.round(s/60)}분`:`${s}초`;}
+function realDur(h){const s=Math.round(h*3600/TS_BASE);return s>=3600?`${Math.floor(s/3600)}시간 ${Math.round(s%3600/60)}분`:s>=60?`${Math.round(s/60)}분`:`${s}초`;}
 function say(msg,c=''){if(!msg)return;if(OFF){OFFLOG.push(msg);return;}toast(msg,c);}
 function notify(msg,up){if(P.broken.phone&&!OFF)return;say(msg,up===true?'good':up===false?'bad':'');if(!OFF)sfx.tick();}
 function newGame(){ensureAudio();const meta=loadMeta();meta.runs=(meta.runs||0)+1;saveMeta(meta);room=null;sub=null;BZ.active=false;
@@ -1184,7 +1188,7 @@ function newGame(){ensureAudio();const meta=loadMeta();meta.runs=(meta.runs||0)+
   $('#title').hidden=true;clearEnc();placeCar();WD.pos.set(HOME_DOOR.x,0,HOME_DOOR.z+1);WD.target=null;WD.auto=null;buildWalkers();toWorld(true);genDay(P);startDay(true);}
 function continueGame(){ensureAudio();const s=loadRun();if(!s||!s.startDate)return newGame();const away=(Date.now()-(s.wall||Date.now()))/1000*TSCALE/3600;P=s;P.career=P.career||{};eraPrices(P);room=null;sub=null;BZ.active=false;$('#title').hidden=true;mod=P.mod||{};clearEnc();placeCar();
   WD.pos.set(HOME_DOOR.x,0,HOME_DOOR.z+1);buildWalkers();if(P.loc&&P.loc!=='seoul')enterCity(P.loc);else toWorld(true);if(!resumeTrip()&&P.loc==='seoul'&&['home','sleep','decor'].includes(P.lastPhase)){enterHome();phase='sleep';renderSleep();}renderHUD();
-  if(away>.05)catchUp(away);else toast('이어서 시작합니다.');}
+  toast(`이어서 시작합니다 · ${gameDate()} · ${ageNow()}세. 접속하지 않은 동안 시간은 멈춰 있었어요.`);}
 function pickAttendees(){const live=P.ais.map((a,i)=>i).filter(i=>!P.ais[i].out&&!P.ais[i].done);let att=live.filter(i=>Math.random()<STYLES[P.ais[i].style].attend);
   if(att.length<2)att=shuffle(live.slice()).slice(0,Math.min(2,live.length));if(att.length>3)att=shuffle(att).slice(0,3);return att;}
 const whenTxt=t=>t<11?'오전 중':t<14?'점심 무렵':t<18?'오후':'저녁';
@@ -1205,8 +1209,8 @@ function startDay(first){mod={};eraPrices();if(first){P.rent=TIERS[0].rent;P.dep
   P.todayRets=computeRets(P);planDay();P.sampleT=P.time;
   const n=mod.lots??3;P.lots=[];const fi=randi(0,Math.max(0,n-1));for(let i=0;i<n;i++){const lot=genLot(i===fi?force:null);lot.at=LOT_TIMES[i];lot.done=false;lot.result=null;lot.att=pickAttendees();P.lots.push(lot);}
   if(phase==='auction'&&!OFF)auctionLobby();
-  genDeals();genMissions();P.rain=!first&&Math.random()<.2;if(P.rain)P.life+=' 하루 종일 비가 온다. 길이 미끄러워 운전자들이 사람을 잘 못 본다.';P.paperUnread=true;P.mod=mod;saveRun();
-  if(OFF)return;renderHUD();renderCurrent();if(first)showPaper();else{toast(`${gameDate()} · 새 신문이 왔어요. 위쪽 신문 버튼을 눌러 보세요.`,'good');sfx.paper();}}
+  genDeals();if(first||!P.missions||eraDate().getDay()===1)genMissions();P.rain=!first&&Math.random()<.2;if(P.rain)P.life+=' 하루 종일 비가 온다. 길이 미끄러워 운전자들이 사람을 잘 못 본다.';P.paperUnread=true;P.mod=mod;saveRun();
+  if(OFF)return;renderHUD();renderCurrent();if(first)showPaper();else{const bd=birthDate(),d=eraDate();if(d.getMonth()===bd.getMonth()&&d.getDate()===bd.getDate()){const a=ageNow();stamp(`${a}세!`,true);toast(`🎂 ${a}번째 생일. ${a>=90?'이제 인생의 마지막 장이다.':a>=70?'몸이 예전 같지 않다. 체력이 빨리 닳는다.':a>=60?'환갑을 넘겼다.':a>=40?'불혹. 인생 절반을 왔다.':'한 살 더 먹었다.'}`,'good');sfx.reveal(2);}else if(d.getDay()===1){toast(`${gameDate()} · 이번 주 신문과 새 미션이 왔어요.`,'good');sfx.paper();}}}
 function updatePrices(){const k=clamp((P.time-MKT_OPEN)/(MKT_CLOSE-MKT_OPEN),0,1);
   for(const a of ASSETS){const s=P.mkt[a.id],p=P.paths[a.id],r=P.todayRets[a.id];let f=k;if(p.at!=null){const x=clamp((P.time-p.at)/1.2,0,1);f=x*x*(3-2*x);}
     const nz=a.vol*1.1*(Math.sin(k*18.8+p.ph[0])*.5+Math.sin(k*44+p.ph[1])*.3+Math.sin(k*82+p.ph[2])*.2)*Math.sin(Math.PI*k);
@@ -1233,7 +1237,10 @@ function timers(){
   if(phase==='travel'||(phase==='phone'&&PH.prev==='travel')){if(!TV.ev&&absNow()>=(TV.start+TV.end)/2){TV.ev=true;travelEvent();}if(absNow()>=TV.end){if(phase==='phone')closePhone();arrive();}}
   if(phase==='roadtrip'||(phase==='phone'&&PH.prev==='roadtrip')){if(!RT.ev&&absNow()>=(RT.start+RT.end)/2){RT.ev=true;roadEvent();}if(absNow()>=RT.end){if(phase==='phone')closePhone();arriveRoad();}}}
 let hudT=0;
-function tick(rdt){const dh=rdt*TSCALE/3600;P.time+=dh;body(dh);breakdowns(dh);updatePrices();fireNews();auctionClock();timers();
+function scaleNow(){if(!$('#modal').hidden||!$('#dlg').hidden)return 0;if(phase==='auction'||phase==='unbox'||SH2.on)return 60;if(IW.on)return 240;return TS_BASE;}
+function birthDate(W=P){const d=new Date((W.startDate||ERA0)+432e5);return new Date(d.getFullYear()-START_AGE,d.getMonth(),d.getDate(),12);}
+function ageNow(W=P){const b=birthDate(W),d=eraDate(W);let a=d.getFullYear()-b.getFullYear();if(d.getMonth()<b.getMonth()||(d.getMonth()===b.getMonth()&&d.getDate()<b.getDate()))a--;return a;}
+function tick(rdt){if(ageNow()>=END_AGE){lifeEnd();return;}TSCALE=scaleNow();const dh=rdt*TSCALE/3600;P.time+=dh;if(TSCALE>0){const nh=rdt*NEED_RATE/3600*(ageNow()>=70?1.25:1);body(nh);breakdowns(nh);}updatePrices();fireNews();auctionClock();timers();
   hudT+=rdt;if(hudT>.25){hudT=0;{const need=(rentIn()===0?rentNow()+(P.car?CARS[P.car.id].price*.012:0):0)+dueToday()+P.loans.filter(l=>l.due<=P.day).reduce((t,l)=>t+l.owed*(1+l.rate),0);const k=P.time>=23?2:P.time>=20?1:0;if(need>0&&P.cash<need&&Object.keys(P.hold).length&&k>(P.warnK||0)&&P.warnDay!==P.day+'-'+k){P.warnDay=P.day+'-'+k;P.warnK=k;toast(`⚠ 자정에 ${won(need)}이 빠져나가는데 현금은 ${won(P.cash)}. 모자라면 주식·코인이 자동으로 팔려요!`,'bad');sfx.bad();}if(P.time<20)P.warnK=0;}if(P.missions&&myWorth()-(P.prevWorth||0)>=10)mis('profit');renderHUD();liveRefresh();}
   P._achT=(P._achT||0)+rdt;if(P._achT>2){P._achT=0;checkAch();}
   if(!OFF&&P.perkPending>0&&$('#modal').hidden&&$('#dlg').hidden&&!SH2.on&&(phase==='world'||phase==='home'||inWalking()))showPerkPick();
@@ -2864,12 +2871,16 @@ function rivalWin(ai){RVprev=phase==='rival'?RVprev:phase;phase='rival';sfx.bad(
     <div class="row"><button class="btn" data-act="giveupNow">여기서 끝내고 점수 보기</button><button class="btn go" data-act="keepGoing">계속 살아남기</button></div><p class="muted" style="font-size:12px">계속하면 ${esc(J(ai.name,'은','는'))} 레이스에서 빠지고, 나는 파산할 때까지 계속 점수를 쌓아요.</p>`);
   ai._pending=true;}
 function scoreParts(winFlag){const s=P.stats;const bt=s.bestTrade&&s.bestTrade.v>0?s.bestTrade.v:0;const mw=Math.max(0,s.maxWorth||0);
-  const p=[['생존',`${P.day}일`,P.day*100],['최고 순자산',won(mw),Math.round(mw/10)],['경매 낙찰',`${s.won}회`,s.won*30],['전설 아이템',`${s.legend}개`,s.legend*300],['최고의 한 방',bt?`${s.bestTrade.name} +${won(bt)}`:'없음',Math.round(bt/20)],['꾸민 방',`편안함 ${comfort()}`,comfort()*10]];
+  const yrs=Math.floor(P.day/365.25);const p=[['살아온 세월',`${START_AGE+yrs}세 (${yrs}년)`,yrs*500+(ageNow()>=END_AGE?10000:0)],['최고 순자산',won(mw),Math.round(mw/10)],['경매 낙찰',`${s.won}회`,s.won*30],['전설 아이템',`${s.legend}개`,s.legend*300],['최고의 한 방',bt?`${s.bestTrade.name} +${won(bt)}`:'없음',Math.round(bt/20)],['꾸민 방',`편안함 ${comfort()}`,comfort()*10]];
   if(winFlag)p.push(['펜트하우스 입주','10억',30000]);return p;}
 function scoreBlock(parts){const tot=parts.reduce((t,x)=>t+x[2],0);return{tot,html:`<div class="grid2">${parts.map(x=>`<div class="stat"><small>${x[0]} · ${esc(x[1])}</small><b>+${x[2].toLocaleString('ko-KR')}</b></div>`).join('')}</div>
   <div class="stat" style="margin-top:8px;border-color:var(--hazard)"><small>총점</small><b style="font-size:30px;color:var(--hazard)">${tot.toLocaleString('ko-KR')}점</b></div>`};}
-function endScreen(title,reason,winFlag){clearRun();hidePanel();setPrompt(null);$('#hint').hidden=true;$('#drivebar').hidden=true;const meta=loadMeta();const {tot,html}=scoreBlock(scoreParts(winFlag));const nb=tot>(meta.best||0);if(nb)meta.best=tot;saveMeta(meta);
-  modal(`<div class="eyebrow">인생 #${P.run} · ${gameDate()} · ${winFlag?'클리어':'게임 오버'}</div><h3>${title}</h3><p>${esc(reason)}</p>${html}<p class="muted">${nb?'최고 점수 경신!':`최고 점수 ${(meta.best||0).toLocaleString('ko-KR')}점`}</p><div class="row"><button class="btn go" data-act="newgame">다시 태어나기</button></div>`);}
+function endScreen(title,reason,winFlag,tag){clearRun();hidePanel();setPrompt(null);$('#hint').hidden=true;$('#drivebar').hidden=true;const meta=loadMeta();const {tot,html}=scoreBlock(scoreParts(winFlag));const nb=tot>(meta.best||0);if(nb)meta.best=tot;saveMeta(meta);
+  modal(`<div class="eyebrow">인생 #${P.run} · ${gameDate()} · ${tag||(winFlag?'클리어':'게임 오버')}</div><h3>${title}</h3><p>${esc(reason)}</p>${html}<p class="muted">${nb?'최고 점수 경신!':`최고 점수 ${(meta.best||0).toLocaleString('ko-KR')}점`}</p><div class="row"><button class="btn go" data-act="newgame">다시 태어나기</button></div>`);}
+function lifeEnd(){if(phase==='over')return;const w=myWorth(),t=TIERS[P.tier],rank=typeof myRank==='function'?myRank():null;
+  const title=w>=100000?'전설의 떡상러':w>=30000?'동네 건물주':w>=5000?'든든한 중산층':w>=500?'평범한 서민':'빈손의 철학자';
+  const lines=[`${eraYear()}년, ${END_AGE}세. 반지하에서 시작한 인생이 막을 내렸다.`,`마지막 집은 ${t.name}, 남긴 재산은 ${won(w)}.`,`일한 횟수 ${careerTotal()}회 · 인생 레벨 ${P.lvl||1} · 업적 ${Object.keys(P.ach||{}).length}개`+((P.biz||[]).length?` · 가게 ${(P.biz||[]).length}곳`:'')+(rank?` · 라이벌 중 ${rank}위`:'')+'.'];
+  phase='over';OFF=false;if(!OFF){sfx.reveal(4);stamp('향년 100세',true);}renderHUD();endScreen(`엔딩 · ${title}`,lines.join(' '),w>=GOAL,`향년 ${END_AGE}세 · 엔딩`);}
 function gameOver(reason){phase='over';if(!OFF){sfx.bad();stamp('파산');}OFF=false;renderHUD();endScreen('파산',reason,false);}
 let pent=null;
 function win(){phase='win';P.cash-=(P.pentPrice||GOAL);renderHUD();pent=buildPenthouse();cur=pent.s;setView({target:new THREE.Vector3(0,1.6,0),yaw:.6,pitch:.28,dist:15,yl:[-99,99],auto:.1},true);stamp('떡상!',true);sfx.reveal(4);
@@ -2880,7 +2891,7 @@ const ACT={
   portraitOk:()=>{document.body.classList.add('portraitok');},
   newgame:()=>{closeModal();newGame();},continue:()=>continueGame(),
   mute:()=>{muted=!muted;const b=$('#btnMute');b.querySelector('.lb').textContent=muted?'음소거':'소리';b.querySelector('.snd').style.display=muted?'none':'';b.style.opacity=muted?.6:1;},
-  howto:()=>modal(`<div class="eyebrow">게임 방법</div><h3>살아남아서, 떡상하라</h3><p>매달 이사 온 날짜(2일)에 월세, 10일 건강보험, 17일 통신비, 25일 관리비·공과금처럼 날짜마다 고정지출이 자정에 나가요. 겨울엔 난방비가 두 배예요. 알바·경매·주식·코인·길에 떨어진 돈까지, 뭐든 해서 10억 펜트하우스를 사면 승리. 파산하면 그 인생은 끝이에요.</p><div class="howk"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>이동 (폰: 조이스틱 · 바닥 탭)</span><span><kbd>Shift</kbd></span><span>달리기</span><span><kbd>E</kbd></span><span>들어가기 · 집기 · 말 걸기</span><span><kbd>Tab</kbd></span><span>휴대폰 (주식·코인·뉴스·배달)</span><span><kbd>N</kbd> <kbd>M</kbd></span><span>신문 · 오늘의 미션</span><span><kbd>Esc</kbd></span><span>닫기 · 뒤로</span><span>마우스</span><span>끌어서 시점 회전, 휠로 확대</span></div><div class="row"><button class="btn go" data-act="closeModal">알겠어</button></div>`),
+  howto:()=>modal(`<div class="eyebrow">게임 방법</div><h3>살아남아서, 떡상하라</h3><p>시간은 게임을 켜 둔 동안에만 흘러요. 하루는 현실 약 1분 30초, 접속 시간 한 달이면 20세에서 100세가 되고 엔딩을 봐요. 매달 이사 온 날짜(2일)에 월세, 10일 건강보험, 17일 통신비, 25일 관리비·공과금처럼 날짜마다 고정지출이 자정에 나가요. 겨울엔 난방비가 두 배예요. 알바·경매·주식·코인·길에 떨어진 돈까지, 뭐든 해서 10억 펜트하우스를 사면 승리. 파산하면 그 인생은 끝이에요.</p><div class="howk"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>이동 (폰: 조이스틱 · 바닥 탭)</span><span><kbd>Shift</kbd></span><span>달리기</span><span><kbd>E</kbd></span><span>들어가기 · 집기 · 말 걸기</span><span><kbd>Tab</kbd></span><span>휴대폰 (주식·코인·뉴스·배달)</span><span><kbd>N</kbd> <kbd>M</kbd></span><span>신문 · 오늘의 미션</span><span><kbd>Esc</kbd></span><span>닫기 · 뒤로</span><span>마우스</span><span>끌어서 시점 회전, 휠로 확대</span></div><div class="row"><button class="btn go" data-act="closeModal">알겠어</button></div>`),
   giveup:()=>{if(phase==='title')return;modal(`<h3>새 인생을 시작할까요?</h3><p>지금 인생은 기록 없이 끝나요.</p><div class="row"><button class="btn" data-act="closeModal">계속하기</button><button class="btn red" data-act="newgame">새 인생</button></div>`);},
   closeModal:()=>closeModal(),missions:()=>{if(P)showMissions();},scReveal:()=>scratchEnd(),scClose:()=>closeModal(),mgStart:()=>mgStart(),profile:()=>showProfile(),perkPick:a=>perkPick(+a),bizBuy:a=>bizBuy(a),bizUp:a=>bizUp(+a),bizSell:a=>bizSell(+a),jobs:()=>showJobs(),jobApply:a=>jobApply(a),jobc:a=>jobChoose(+a),jobOk:()=>dlgHide(),shiftStart:()=>shiftStart(),shGo:()=>shGo(),shHit:()=>shHit(),shc:a=>shChoose(+a),shNext:()=>shNext(),shQuit:()=>shQuit(),mgHit:()=>mgHit(),workFull:()=>{closeModal();startWork();},closePaper:()=>{closeModal();renderCurrent();},paper:()=>{if(P)showPaper();},
   showRival:()=>{closeModal();const ai=P.ais[P._rival];P._rival=null;if(ai)rivalWin(ai);},
@@ -2945,7 +2956,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&running())
 let last=performance.now(),T0=0,lastCur=null,lastWall=Date.now(),saveT=0;const perf={t:0,n:0,cut:false};
 function frame(now){const rdt=Math.min(.5,(now-last)/1000);const dt=Math.min(.05,rdt);last=now;T0+=dt;
   const w=Date.now();const wd=Math.max(0,(w-lastWall)/1000);lastWall=w;
-  if(running()){if(wd>4)catchUp(wd*TSCALE/3600);else tick(wd);saveT+=wd;if(saveT>15&&running()){saveT=0;persist();}}
+  if(running()){tick(wd>2?0:Math.min(wd,1));saveT+=wd;if(saveT>15&&running()){saveT=0;persist();}}
   const c=AU.center;c.open+=(c.target-c.open)*(1-Math.exp(-dt*3));c.mesh.position.y=1.6+c.open*3.2;
   if(P&&phase==='auction'&&A.state==='bid')updateBidding(rdt);
   for(const n of A.npcs){const f=n._fig;if(!f)continue;f.raise=Math.max(0,f.raise-dt*1.6);f.armR.rotation.z=Math.min(1,f.raise*2)*2.6;if(n._bubble){n._bubbleT-=dt;if(n._bubbleT<=0){f.g.remove(n._bubble);n._bubble=null;}}}
