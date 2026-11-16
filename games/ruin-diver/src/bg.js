@@ -2,7 +2,7 @@
 // surface, and the light that falls off with depth.
 
 import { W, H, T, MW, MH } from "./data.js";
-import { AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, SOLID } from "./cave.js";
+import { AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID } from "./cave.js";
 
 const rgb = (r, g, b) => (255 << 24) | ((Math.max(0, Math.min(255, b)) & 255) << 16) | ((Math.max(0, Math.min(255, g)) & 255) << 8) | (Math.max(0, Math.min(255, r)) & 255);
 const hx = (h) => { const v = parseInt(h.slice(1), 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
@@ -14,78 +14,113 @@ function h2(x, y, s = 0) {
 const sh = (c, k) => rgb(c[0] * k, c[1] * k, c[2] * k);
 const VAR = 4; // texture variants per material
 
-function texSet(fn) {
+// Tiles are drawn the way a pixel artist would: a few flat tones per material, shapes with a lit top-left and a
+// shaded bottom-right, no per-pixel noise. A palette is [darkest, dark, base, light, lightest].
+function paint(pal, fn) {
+  const P = pal.map(hx);
   return Array.from({ length: VAR }, (_, v) => {
+    const g = new Uint8Array(T * T).fill(2);
+    fn(g, v);
     const t = new Uint32Array(T * T);
-    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) t[y * T + x] = fn(x, y, v);
+    for (let i = 0; i < T * T; i++) t[i] = sh(P[g[i]], 1);
     return t;
   });
 }
-function dirtTex(base, specks) {
-  const b = hx(base), s = specks.map(hx);
-  return (x, y, v) => {
-    const n = h2(x, y, v + 10);
-    let c = sh(b, 0.86 + h2(x >> 1, y >> 1, v) * 0.22);
-    if (n < 0.06) c = sh(s[0], 1);
-    else if (n > 0.95) c = sh(s[1], 1);
-    return c;
-  };
+const put = (g, x, y, c) => { if (x >= 0 && y >= 0 && x < T && y < T) g[y * T + x] = c; };
+// a pebble: a small rounded blob, light on top, dark underneath
+function pebble(g, x, y, w, h) {
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    if ((i === 0 || i === w - 1) && (j === 0 || j === h - 1)) continue;
+    put(g, x + i, y + j, j === 0 ? 3 : j === h - 1 || i === w - 1 ? 0 : 1);
+  }
 }
-function stoneTex(base) {
-  const b = hx(base);
-  return (x, y, v) => {
-    // a couple of chunky facets per tile with cracks between
-    const cx = (x + (v & 1) * 5) % T, cy = (y + (v >> 1) * 7) % T;
-    const crack = (cx === 9 && cy < 11) || (cy === 10 && cx > 3) || (cx === 3 && cy > 10);
-    let k = 0.82 + h2(x >> 2, y >> 2, v + 30) * 0.3;
-    if (crack) k = 0.55;
-    else if ((cx === 10 && cy < 10) || (cy === 11 && cx > 3)) k *= 1.18;
-    return sh(b, k + (h2(x, y, v + 31) - 0.5) * 0.08);
-  };
+function dirt(g, v) {
+  const spots = [[2, 2, 3, 2], [9, 5, 4, 3], [4, 10, 3, 3], [12, 12, 3, 2], [1, 7, 2, 2], [10, 1, 2, 2]];
+  for (let k = 0; k < 4; k++) {
+    const [x, y, w, h] = spots[(k + v * 2) % spots.length];
+    pebble(g, (x + v * 5) % 13, (y + v * 3) % 13, w, h);
+  }
+  for (let k = 0; k < 6; k++) put(g, (k * 7 + v * 3 + 1) % T, (k * 5 + v * 7 + 3) % T, k % 2 ? 3 : 1);
 }
-function oreTex(baseFn, ore) {
-  const o = ore.map(hx);
-  return (x, y, v) => {
-    const blobs = [[4, 5], [11, 9], [6, 12], [12, 3]];
-    for (let i = 0; i < 3; i++) {
-      const [bx, by] = blobs[(i + v) % 4], dx = x - bx, dy = y - by, d = dx * dx + dy * dy;
-      if (d <= 2) return sh(o[d === 0 ? 2 : dx < 0 || dy < 0 ? 1 : 0], 1);
+// stone: two or three chiselled blocks with seams between them
+function blocks(g, v) {
+  const splits = [[[0, 0, 16, 7], [0, 7, 9, 9], [9, 7, 7, 9]], [[0, 0, 7, 9], [7, 0, 9, 9], [0, 9, 16, 7]], [[0, 0, 10, 8], [10, 0, 6, 8], [0, 8, 16, 8]], [[0, 0, 16, 9], [0, 9, 6, 7], [6, 9, 10, 7]]][v];
+  for (const [x, y, w, h] of splits) for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const X = x + i, Y = y + j;
+    put(g, X, Y, i === w - 1 || j === h - 1 ? 0 : i === 0 || j === 0 ? 3 : (i + j * 3 + v) % 11 === 0 ? 1 : 2);
+  }
+  put(g, splits[0][0] + 2, splits[0][1] + 2, 4);
+}
+function brick(g, v) {
+  for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+    const row = y >> 2, off = row & 1 ? 4 : 0, lx = (x + off) & 7, ly = y & 3;
+    put(g, x, y, ly === 3 || lx === 7 ? 0 : ly === 0 ? 3 : lx === 6 ? 1 : 2);
+  }
+  put(g, (5 + v * 4) % T, 5, 1);
+}
+function planks(g, v) {
+  for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+    const ly = y & 3, seam = (x + (y >> 2) * 6 + v * 3) % 16 === 0;
+    put(g, x, y, ly === 3 || seam ? 0 : ly === 0 ? 3 : 2);
+  }
+  for (let r = 0; r < 4; r++) { put(g, (r * 5 + v + 2) % T, r * 4 + 1, 1); put(g, (r * 5 + v + 3) % T, r * 4 + 1, 1); }
+}
+// the back wall: the same shapes, two tones, quiet
+function backDirt(g, v) {
+  g.fill(2);
+  dirt(g, v);
+  for (let i = 0; i < T * T; i++) g[i] = g[i] === 3 ? 2 : g[i] === 0 ? 1 : g[i];
+}
+function backStone(g, v) {
+  blocks(g, v);
+  for (let i = 0; i < T * T; i++) g[i] = g[i] >= 3 ? 2 : g[i] === 0 ? 1 : g[i];
+}
+// ore: nuggets set into the base texture
+function withOre(base, cols) {
+  const O = cols.map(hx);
+  return base.map((t, v) => {
+    const o = t.slice();
+    const spots = [[4, 4], [11, 9], [6, 12], [12, 3], [2, 9]];
+    for (let k = 0; k < 3; k++) {
+      const [x, y] = spots[(k + v) % spots.length];
+      const px = [[0, -1, 2], [-1, 0, 1], [0, 0, 1], [1, 0, 0], [0, 1, 0]];
+      for (const [dx, dy, c] of px) o[(y + dy) * T + x + dx] = sh(O[c], 1);
     }
-    return baseFn(x, y, v);
-  };
+    return o;
+  });
 }
-const brickTex = (x, y, v) => {
-  const row = y >> 2, off = row & 1 ? 4 : 0, mortar = (y & 3) === 3 || ((x + off) & 7) === 7;
-  const b = hx("#7a4a3a");
-  return mortar ? sh(b, 0.5) : sh(b, 0.82 + h2((x + off) >> 3, row, v + 50) * 0.3 + ((y & 3) === 0 ? 0.12 : 0));
-};
-const woodTex = (x, y, v) => {
-  const b = hx("#7a5230"), plank = y >> 2;
-  if ((y & 3) === 3) return sh(b, 0.5);
-  if ((x + plank * 5 + v * 3) % 16 === 0) return sh(b, 0.6);
-  return sh(b, 0.85 + h2(x >> 2, plank, v + 60) * 0.25 + (h2(x, y, v + 61) - 0.5) * 0.1);
-};
 
-const dirtV = dirtTex("#6a4630", ["#4a2e1e", "#8a6a4a"]);
-const dirtM = dirtTex("#54443c", ["#3a2e28", "#76665c"]);
-const stoneV = stoneTex("#6a6a78");
-const stoneM = stoneTex("#585c6c");
+const V_DIRT = ["#2a160e", "#4a2a1a", "#6e4228", "#8e5e38", "#b0844e"];
+const M_DIRT = ["#1e1614", "#3a2c26", "#54443a", "#6e5c4e", "#8e7a66"];
+const V_STONE = ["#22222c", "#3e3e4c", "#5a5a6c", "#7a7a8e", "#a4a4b8"];
+const M_STONE = ["#1a1c26", "#32364a", "#4a4e64", "#666c84", "#8e94ac"];
+const dirtV = paint(V_DIRT, dirt), dirtM = paint(M_DIRT, dirt);
+const stoneV = paint(V_STONE, blocks), stoneM = paint(M_STONE, blocks);
+const GOLD_C = ["#a0620a", "#f0b424", "#fff4b0"], GEM_C = ["#1a6a9a", "#4ad0ff", "#e8ffff"];
 // [village, mine] textures per material
 const TEX = {
-  [DIRT]: [texSet(dirtV), texSet(dirtM)],
-  [STONE]: [texSet(stoneV), texSet(stoneM)],
-  [BEDROCK]: [texSet(stoneTex("#26222e")), texSet(stoneTex("#26222e"))],
-  [GOLD]: [texSet(oreTex(dirtV, ["#a06a0a", "#f0b424", "#fff0a0"])), texSet(oreTex(dirtM, ["#a06a0a", "#f0b424", "#fff0a0"]))],
-  [GEM]: [texSet(oreTex(stoneM, ["#1a6a8a", "#4ad0ff", "#e0ffff"])), texSet(oreTex(stoneM, ["#1a6a8a", "#4ad0ff", "#e0ffff"]))],
-  [BRICK]: [texSet(brickTex), texSet(brickTex)],
-  [WOOD]: [texSet(woodTex), texSet(woodTex)],
+  [DIRT]: [dirtV, dirtM],
+  [STONE]: [stoneV, stoneM],
+  [BEDROCK]: [paint(["#08060c", "#121018", "#1c1a24", "#2a2834", "#3a3846"], blocks), paint(["#08060c", "#121018", "#1c1a24", "#2a2834", "#3a3846"], blocks)],
+  [GOLD]: [withOre(dirtV, GOLD_C), withOre(dirtM, GOLD_C)],
+  [GEM]: [withOre(stoneM, GEM_C), withOre(stoneM, GEM_C)],
+  [BRICK]: [paint(["#2a120c", "#4e2418", "#7a3e2a", "#9a5a3a", "#c08060"], brick), paint(["#2a120c", "#4e2418", "#7a3e2a", "#9a5a3a", "#c08060"], brick)],
+  [WOOD]: [paint(["#2a1608", "#4a2c14", "#7a5030", "#a07040", "#c89a60"], planks), paint(["#2a1608", "#4a2c14", "#7a5030", "#a07040", "#c89a60"], planks)],
 };
-// the back wall: the same rock, dark and soft, behind open space
+// the boss gate: iron bars over darkness, rivets top and bottom
+function bars(g) {
+  for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+    const bar = x % 4 === 1 || x % 4 === 2, band = y === 2 || y === 13;
+    put(g, x, y, band ? (x % 4 === 0 ? 4 : 3) : bar ? (x % 4 === 1 ? 3 : 1) : 0);
+  }
+}
+TEX[GATE] = [paint(["#06040a", "#3a3448", "#5a5468", "#8a84a0", "#c0b8d8"], bars), paint(["#06040a", "#3a3448", "#5a5468", "#8a84a0", "#c0b8d8"], bars)];
 const BACK = [
-  texSet((x, y, v) => sh(hx("#2a1c16"), 0.8 + h2(x >> 2, y >> 2, v + 70) * 0.35)),
-  texSet((x, y, v) => sh(hx("#1e1c22"), 0.8 + h2(x >> 2, y >> 2, v + 71) * 0.35)),
+  paint(["#140a06", "#22140c", "#2e1c12", "#2e1c12", "#2e1c12"], backDirt),
+  paint(["#0c0c12", "#16161e", "#20202a", "#20202a", "#20202a"], backStone),
 ];
-const GRASS = hx("#4a8a3a"), GRASS_HI = hx("#8ac04a");
+const OUTLINE = [hx("#120a06"), hx("#0c0c12")];
+const GRASS = hx("#4a8a3a"), GRASS_HI = hx("#8ac04a"), GRASS_DK = hx("#2a5a2a");
 const SKY = ["#141030", "#2e2450", "#6a4066", "#d07a5a"].map(hx);
 
 /** Zone for texture choice: a soft dithered seam at 100m. */
@@ -124,23 +159,22 @@ export function drawCave(frame, cave, camX, camY, dig) {
       continue;
     }
     const top = !solidAt(tx, ty - 1), bot = !solidAt(tx, ty + 1), lf = !solidAt(tx - 1, ty), rt = !solidAt(tx + 1, ty);
-    blit(C, TEX[m][z][v], ox, oy, top, bot, lf, rt, ty <= 1 && top && (m === DIRT || m === GOLD), dig?.get(ty * MW + tx) ?? 0);
+    blit(C, TEX[m][z][v], ox, oy, top, bot, lf, rt, ty <= 1 && top && (m === DIRT || m === GOLD), dig?.get(ty * MW + tx) ?? 0, z);
   }
 }
 
-function blit(C, tex, ox, oy, top, bot, lf, rt, grass, crack) {
+function blit(C, tex, ox, oy, top, bot, lf, rt, grass, crack, z = 0) {
   const x0 = Math.max(0, -ox), x1 = Math.min(T, W - ox), y0 = Math.max(0, -oy), y1 = Math.min(T, H - oy);
+  const ol = OUTLINE[z], olc = sh(ol, 1);
   for (let y = y0; y < y1; y++) {
     const row = (oy + y) * W + ox;
     for (let x = x0; x < x1; x++) {
       let c = tex[y * T + x];
-      if (grass && y < 3) c = y === 0 || (y === 2 && (x * 7) % 5 === 0) ? sh(GRASS_HI, 1) : y < 2 || (x * 3) % 4 ? sh(GRASS, 1) : c;
-      else if (top && y === 0) c = lighten(c, 1.35);
-      else if (top && y === 1) c = lighten(c, 1.15);
-      if (bot && y >= T - 2) c = lighten(c, y === T - 1 ? 0.45 : 0.7);
-      if (lf && x === 0) c = lighten(c, 0.6);
-      if (rt && x === T - 1) c = lighten(c, 0.6);
-      if (crack > 0 && CRACK[Math.min(3, (crack * 4) | 0)][y * T + x]) c = lighten(c, 0.35);
+      if (grass && y < 4) c = y === 0 ? ((x * 5) % 7 < 4 ? sh(GRASS_HI, 1) : sh(GRASS, 1)) : y === 1 ? sh(GRASS, 1) : y === 2 ? ((x * 3) % 5 < 2 ? sh(GRASS_DK, 1) : c) : c;
+      else if (top && y === 0) c = olc;
+      else if (top && y === 1) c = lighten(c, 1.3);
+      if ((bot && y === T - 1) || (lf && x === 0) || (rt && x === T - 1)) c = olc;
+      if (crack > 0 && CRACK[Math.min(3, (crack * 4) | 0)][y * T + x]) c = olc;
       C[row + x] = c;
     }
   }
@@ -196,12 +230,14 @@ export function addLight(lm, cx, cy, r, k) {
   }
 }
 /** Color times light, plus the frame's additive glow, into RGBA bytes. Light steps a little: pixel-art banding. */
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
 export function compositeLit(frame, lm, out) {
   const C = frame.color, L = frame.light, n = W * H;
   for (let i = 0; i < n; i++) {
     const c = C[i], l = L[i];
+    // light in eight steps, ordered-dithered between them: the classic pixel-art falloff
     let k = lm[i];
-    k = k > 1.25 ? 1.25 : Math.round(k * 10) / 10;
+    k = k > 1.25 ? 1.25 : Math.floor(k * 6 + BAYER[(((i / W) | 0) & 3) * 4 + (i % W & 3)]) / 6;
     let r = (c & 255) * k, g = ((c >>> 8) & 255) * k, b = ((c >>> 16) & 255) * k;
     if (l) { r += l & 255; g += (l >>> 8) & 255; b += (l >>> 16) & 255; }
     const j = i << 2;

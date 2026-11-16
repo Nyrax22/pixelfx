@@ -2,11 +2,11 @@
 
 import { createFrame, clearFrame, createFx, painterFor } from "../../../src/core/index.js";
 import * as confettiFx from "../../../src/fx/ui/confetti.js";
-import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP } from "./data.js";
+import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS } from "./data.js";
 import { loadSave, writeSave, wipeSave, storageOk, stats, applyRun, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
 import { Run } from "./world.js";
 import { compositeLit } from "./bg.js";
-import { itemIcon } from "./sprites.js";
+import { itemIcon, icon } from "./sprites.js";
 import { audio } from "./audio.js";
 import { poki } from "./poki.js";
 
@@ -36,14 +36,18 @@ const itemDesc = (id) => STR[lang].items[id][1];
 function applyStrings() {
   document.documentElement.lang = lang;
   for (const el of document.querySelectorAll("[data-s]")) el.textContent = S(el.dataset.s);
-  $("soundBtn").textContent = audio.muted ? "🔇" : "🔊";
+  $("soundBtn").textContent = audio.muted ? "SOUND OFF" : "SOUND ON";
+  for (const el of document.querySelectorAll("i[data-icon]")) el.outerHTML = icon(el.dataset.icon);
   $("langBtn").textContent = lang === "ko" ? "English" : "한국어";
 }
 
 // ------------------------------------------------------------ layout: a 16:9 stage, 1em = 10 game pixels
 function layout() {
   const vw = window.innerWidth, vh = window.innerHeight;
-  const w = Math.min(vw, (vh * 16) / 9), h = (w * 9) / 16;
+  // whole-number pixel scale when it doesn't waste much of the screen: every game pixel the same size
+  let k = Math.min(vw / W, vh / H);
+  if (Math.floor(k) >= 1 && Math.floor(k) / k >= 0.85) k = Math.floor(k);
+  const w = W * k, h = H * k;
   stage.style.width = w + "px";
   stage.style.height = h + "px";
   stage.style.fontSize = w / 48 + "px";
@@ -177,9 +181,9 @@ function buildHud() {
   };
   mark(0, "", "0m");
   for (const z of ZONES) if (z.from > 0 && z.from < gaugeMax) mark(z.from, "zone", `${z.from}m`);
-  for (const w of run.cave.winches) if (w.y < gaugeMax) mark(w.y, "exit", `⬆${w.y}m`);
+  for (const w of run.cave.winches) if (w.y < gaugeMax) mark(w.y, "exit", `${icon("exit")}${w.y}m`);
   if (save.best > 4 && save.best < gaugeMax - 4) mark(save.best, "best", `★${save.best}m`);
-  if (gaugeMax >= SEAL_DEPTH) mark(SEAL_DEPTH, "seal", `🔒${SEAL_DEPTH}m`);
+  if (gaugeMax >= SEAL_DEPTH) mark(SEAL_DEPTH, "seal", `${icon("lock")}${SEAL_DEPTH}m`);
   else mark(gaugeMax, "", `${gaugeMax}m`);
   show("touchPad", isTouch);
   updateHud(true);
@@ -199,11 +203,11 @@ function updateHud(force = false) {
   const coins = save.coins + run.coins;
   if (force || lastHud.coins !== coins) { $("hCoins").textContent = coins; lastHud.coins = coins; }
   if (force || lastHud.hp !== run.hp) {
-    $("hearts").innerHTML = Array.from({ length: st.hearts }, (_, i) => `<span class="${i < run.hp ? "on" : "off"}">♥</span>`).join("");
+    $("hearts").innerHTML = Array.from({ length: st.hearts }, (_, i) => icon(i < run.hp ? "heart" : "heartOff")).join("");
     if (lastHud.hp != null && run.hp < lastHud.hp) { $("hearts").classList.remove("hit"); void $("hearts").offsetWidth; $("hearts").classList.add("hit"); }
     lastHud.hp = run.hp;
   }
-  if (force || lastHud.ropes !== run.ropes) { $("ropeTx").textContent = `🪢 ×${run.ropes}`; $("ropeBtnN").textContent = run.ropes; lastHud.ropes = run.ropes; }
+  if (force || lastHud.ropes !== run.ropes) { $("ropeTx").innerHTML = `${icon("ropes")} ×${run.ropes}`; $("ropeBtnN").textContent = run.ropes; lastHud.ropes = run.ropes; }
   const lr = run.first ? 1 : Math.max(0, run.lantern / st.lantern);
   $("lanternFill").style.width = lr * 100 + "%";
   $("lanternTx").textContent = run.first ? "∞" : Math.ceil(run.lantern) + S("sec");
@@ -225,7 +229,7 @@ $("pauseBtn").addEventListener("click", () => pause());
 function startDive() {
   audio.unlock();
   const first = save.runs === 0;
-  run = new Run(save, stats(save), first);
+  run = new Run(save, stats(save), first, first ? null : chosenStart());
   result = null;
   hideScreens();
   show("hud");
@@ -233,7 +237,7 @@ function startDive() {
   mode = "run";
   poki.gameplayStart();
   $("hint").querySelector("div:last-child").textContent = isTouch ? S("ctrlTouch") : S("ctrlKeys");
-  $("hint").querySelector(".hand").textContent = isTouch ? "👆" : "⌨️";
+  $("hint").querySelector(".hand").textContent = "";
   show("hint", save.runs < 2);
   clearTimeout(startDive.hintT);
   startDive.hintT = setTimeout(() => show("hint", false), 9000);
@@ -246,7 +250,7 @@ async function dive() {
   startDive();
 }
 function hideScreens() {
-  for (const id of ["ready", "results", "book", "lanternPrompt", "pause", "setPop"]) show(id, false);
+  for (const id of ["ready", "results", "book", "lanternPrompt", "pause", "setPop", "bossBar"]) show(id, false);
 }
 
 let promptAction = null;
@@ -255,7 +259,7 @@ function promptBox(title, stdLabel, adLabel, onStd, onAd) {
   poki.gameplayStop();
   stick = null; touch.dir = 0; touch.up = touch.down = touch.jump = false; keys.clear();
   show("stick", false);
-  $("lpTitle").textContent = title;
+  $("lpTitle").innerHTML = title;
   $("lpUp").textContent = stdLabel;
   $("lpAdTx").textContent = adLabel;
   promptAction = { onStd, onAd };
@@ -291,7 +295,7 @@ function handleEvents() {
         $("hCoinsBox").classList.add("bump");
         break;
       case "lanternOut":
-        if (!e.relit) promptBox("🔦 " + S("lanternOut"), S("keepDark"), S("relight", { s: LANTERN_AD_SECONDS }),
+        if (!e.relit) promptBox(icon("lantern") + " " + S("lanternOut"), S("keepDark"), S("relight", { s: LANTERN_AD_SECONDS }),
           () => { backToRun(); toast(S("darkness"), "#ff8a6a"); },
           (ok) => { backToRun(); if (ok) run.relight(LANTERN_AD_SECONDS); else toast(S("darkness"), "#ff8a6a"); });
         else toast(S("darkness"), "#ff8a6a");
@@ -299,10 +303,21 @@ function handleEvents() {
       case "dead":
         setTimeout(() => {
           if (run.revived) return finishDive(true);
-          promptBox("💀 " + S("died"), S("giveUp"), S("revive"),
+          promptBox(icon("skull") + " " + S("died"), S("giveUp"), S("revive"),
             () => finishDive(true),
             (ok) => { if (ok) { run.revive(); backToRun(); } else finishDive(true); });
         }, 900);
+        break;
+      case "bossWake":
+        banner(STR[lang].bosses[e.id], S("bossHint"));
+        bossBar(e.id, e.hp, e.hp);
+        break;
+      case "bossHp":
+        bossBar(e.id, e.hp);
+        break;
+      case "bossDown":
+        show("bossBar", false);
+        banner(STR[lang].bosses[e.id], S("bossDown"));
         break;
       case "escaped":
         finishDive(false);
@@ -311,7 +326,17 @@ function handleEvents() {
   }
 }
 
+let bossMax = 0;
+function bossBar(id, hp, max) {
+  if (max) bossMax = max;
+  $("bossName").textContent = STR[lang].bosses[id];
+  $("bossPips").innerHTML = Array.from({ length: bossMax }, (_, i) => `<i class="${i < hp ? "on" : ""}"></i>`).join("");
+  show("bossBar", true);
+}
+
 function finishDive(died) {
+  show("bossBar", false);
+  for (const id of run.bossesBeaten ?? []) save.bossKills[id] = (save.bossKills[id] ?? 0) + 1;
   mode = "escaping";
   poki.gameplayStop();
   show("hint", false);
@@ -373,6 +398,7 @@ function showResults() {
   }
   renderUpgrades();
   renderBookBtn();
+  renderStarts();
 }
 /** Duplicates on one card with a count. */
 function stack(items) {
@@ -411,7 +437,7 @@ function renderCoins(r) {
   if (r.itemCoins) parts.push(`${S("loot")} <b>+${r.itemCoins}</b>`);
   if (r.newCoins) parts.push(`${S("newBonus")} <b>+${r.newCoins}</b>`);
   if (r.looseCoins) parts.push(`${S("looseCoins")} <b>+${r.looseCoins}</b>`);
-  $("resCoins").innerHTML = `<span id="resTotal">🪙 +${r.total * (r.doubled ? 2 : 1)}</span>${parts.map((p) => `<span>${p}</span>`).join("")}${r.doubled ? `<span><b>×2</b></span>` : ""}`;
+  $("resCoins").innerHTML = `<span id="resTotal">${icon("coin")} +${r.total * (r.doubled ? 2 : 1)}</span>${parts.map((p) => `<span>${p}</span>`).join("")}${r.doubled ? `<span><b>×2</b></span>` : ""}`;
 }
 function renderUpgrades() {
   const list = $("upList");
@@ -422,8 +448,8 @@ function renderUpgrades() {
     el.className = "up" + (st.affordable ? " can" : "") + (st.locked ? " locked" : "");
     const name = STR[lang].upgradeNames[u.id];
     const line = st.locked ? S("locked", { d: u.unlockDepth }) : st.max ? `${unit(u, st.now)}` : `${unit(u, st.now)} → <em>${unit(u, st.next)}</em>`;
-    el.innerHTML = `<div class="ic">${u.icon}</div><div class="tx"><b>${name}</b> <span>${st.max ? S("max") : S("lvl", { n: st.level + 1 })}</span><br><span>${STR[lang].upgradeDesc[u.id]}</span> ${line}</div>
-      <button ${st.affordable ? "" : "disabled"}>${st.max ? S("max") : st.locked ? "🔒" : "🪙" + st.cost}</button>`;
+    el.innerHTML = `<div class="ic">${icon(u.id)}</div><div class="tx"><b>${name}</b> <span>${st.max ? S("max") : S("lvl", { n: st.level + 1 })}</span><br><span>${STR[lang].upgradeDesc[u.id]}</span> ${line}</div>
+      <button ${st.affordable ? "" : "disabled"}>${st.max ? S("max") : st.locked ? icon("lock") : icon("coin") + st.cost}</button>`;
     el.querySelector("button").addEventListener("click", () => {
       if (!buyUpgrade(save, u.id)) return audio.play("deny");
       audio.play("upgrade");
@@ -437,7 +463,20 @@ function renderUpgrades() {
   const g = nextGoal(save), any = UPGRADES.some((u) => upgradeState(save, u).affordable);
   $("goal").textContent = any ? S("canBuy") : g ? `${UPGRADE_ICON[g.id]} ${S("needMore", { n: g.need, name: STR[lang].upgradeNames[g.id] })}` : "";
 }
-const UPGRADE_ICON = Object.fromEntries(UPGRADES.map((u) => [u.id, u.icon]));
+const UPGRADE_ICON = Object.fromEntries(UPGRADES.map((u) => [u.id, icon(u.id)]));
+const startOpen = (st) => !st.boss || (save.bossKills[st.boss] ?? 0) > 0;
+const chosenStart = () => STARTS.find((st) => st.id === save.start && startOpen(st)) ?? STARTS[0];
+function renderStarts() {
+  const open = STARTS.filter(startOpen), box = $("starts");
+  show("starts", open.length > 1);
+  box.innerHTML = `<span>${S("start")}</span>` + open.map((st) => `<button data-id="${st.id}" class="${chosenStart().id === st.id ? "on" : ""}">${STR[lang].starts[st.id]}</button>`).join("");
+  for (const b of box.querySelectorAll("button")) b.addEventListener("click", () => {
+    save.start = b.dataset.id;
+    writeSave(save);
+    audio.play("click");
+    renderStarts();
+  });
+}
 function renderBookBtn() {
   $("bookBtnPct").textContent = Math.round(bookPercent(save) * 100) + "%";
   show("bookDot", freshInBook.size > 0);
@@ -505,7 +544,7 @@ function renderBook() {
     b.className = "tab" + (z.id === bookZone ? " on" : "");
     const list = ITEMS.filter((it) => it.zone === z.id);
     const owned = list.filter((it) => (save.book[it.id]?.count ?? 0) > 0).length;
-    b.textContent = z.coming ? `🔒 ${STR[lang].zones[z.id]}` : `${STR[lang].zones[z.id]} ${owned}/${list.length}`;
+    b.textContent = z.coming ? `${STR[lang].zones[z.id]} ?` : `${STR[lang].zones[z.id]} ${owned}/${list.length}`;
     b.disabled = !!z.coming;
     if (z.coming) b.title = S("sealNeed", { p: 30 });
     b.addEventListener("click", () => { bookZone = z.id; bookSel = null; audio.play("click"); renderBook(); });
@@ -517,7 +556,7 @@ function renderBook() {
     const e = save.book[it.id], owned = (e?.count ?? 0) > 0, seen = !!e && !owned;
     const el = document.createElement("div");
     el.className = `bc r-${it.rarity} ${owned ? "owned" : seen ? "seen" : "unknown"}${bookSel === it.id ? " sel" : ""}`;
-    el.innerHTML = `${owned && e.variant ? '<span class="vb">🌈</span>' : ""}${freshInBook.has(it.id) ? '<span class="badge" style="position:absolute;top:-0.5em;right:-0.4em;font-size:0.6em;background:#ff3a5a;padding:0.05em 0.35em;border-radius:99em;font-weight:900">NEW</span>' : ""}
+    el.innerHTML = `${owned && e.variant ? '<span class="vb">★</span>' : ""}${freshInBook.has(it.id) ? '<span class="badge" style="position:absolute;top:-0.5em;right:-0.4em;font-size:0.6em;background:#ff3a5a;padding:0.05em 0.35em;border-radius:99em;font-weight:900">NEW</span>' : ""}
       <img src="${itemIcon(it, owned ? "color" : seen ? "dim" : "silhouette", owned && e.variant)}" alt="">
       <div class="nm">${owned || seen ? itemName(it.id) : "???"}</div><div class="st">${owned ? "★".repeat(starsOf(e.count)) + "☆".repeat(3 - starsOf(e.count)) : ""}</div>`;
     el.addEventListener("click", () => { bookSel = it.id; audio.play("click"); renderBook(); });
@@ -544,7 +583,7 @@ function renderDetail() {
     <div class="rr" style="color:${rc}">${STR[lang].rarity[it.rarity]}</div>
     <p>${owned ? itemDesc(bookSel) : seen ? S("seenAt", { d: e.seen ?? "?" }) : S("seeDeeper")}</p>
     ${owned ? `<div class="meta"><span>${S("owned", { n: e.count })}</span><span>${"★".repeat(starsOf(e.count))}${"☆".repeat(3 - starsOf(e.count))}</span></div>
-    <div class="meta"><span>${e.variant ? "🌈 " + S("variant") : ""}</span><span>${e.seen != null ? e.seen + "m" : ""}</span></div>` : ""}`;
+    <div class="meta"><span>${e.variant ? "★ " + S("variant") : ""}</span><span>${e.seen != null ? e.seen + "m" : ""}</span></div>` : ""}`;
 }
 
 // ------------------------------------------------------------ pause and settings

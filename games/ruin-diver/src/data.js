@@ -5,31 +5,46 @@ export const T = 16;                    // tile size in pixels; one tile of dept
 export const MW = 48, MH = 306;         // the cave in tiles: 48 wide, down to the seal at 300m
 
 export const RARITY = {
-  common:    { order: 0, color: "#a8a39a", glow: "#8a8478", value: 2,  newBonus: 5 },
-  uncommon:  { order: 1, color: "#6fd36a", glow: "#3fb24a", value: 5,  newBonus: 10 },
-  rare:      { order: 2, color: "#5aa8ff", glow: "#2f7cff", value: 12, newBonus: 25 },
-  epic:      { order: 3, color: "#c27bff", glow: "#9a3cff", value: 35, newBonus: 60 },
-  legendary: { order: 4, color: "#ffc63a", glow: "#ff9a1a", value: 120, newBonus: 200 },
+  common:    { order: 0, color: "#a8a39a", glow: "#8a8478", value: 3,  newBonus: 6 },
+  uncommon:  { order: 1, color: "#6fd36a", glow: "#3fb24a", value: 8,  newBonus: 12 },
+  rare:      { order: 2, color: "#5aa8ff", glow: "#2f7cff", value: 20, newBonus: 30 },
+  epic:      { order: 3, color: "#c27bff", glow: "#9a3cff", value: 55, newBonus: 80 },
+  legendary: { order: 4, color: "#ffc63a", glow: "#ff9a1a", value: 160, newBonus: 240 },
 };
 
 // Zones from the top down. Densities are per 100 tiles of depth.
 export const ZONES = [
   {
-    id: "village", from: 0, to: 100, coinValue: 1, valueK: 1,
+    id: "village", from: 0, to: 100, coinValue: 2, valueK: 1, hearts: 3,
     weights: { common: 60, uncommon: 30, rare: 10 },
     stone: 0.22, gold: 0.05, gem: 0, rooms: 5, roomTile: "brick",
-    items: 26, bats: 7, slimes: 6, spikes: 0.02, enemyFrom: 14,
+    items: 26, bats: 7, slimes: 6, spikes: 0.02, enemyFrom: 14, stalactites: 0.008, skulls: 0, redSlimes: 0,
   },
   {
-    id: "mine", from: 100, to: 300, coinValue: 2, valueK: 1.5,
+    id: "mine", from: 100, to: 300, coinValue: 3, valueK: 1.6, hearts: 7,
     weights: { common: 45, uncommon: 32, rare: 17, epic: 6 },
     stone: 0.5, gold: 0.06, gem: 0.03, rooms: 4, roomTile: "wood",
-    items: 22, bats: 13, slimes: 11, spikes: 0.05, enemyFrom: 100,
+    items: 22, bats: 13, slimes: 11, spikes: 0.05, enemyFrom: 100, stalactites: 0.03, skulls: 5, redSlimes: 0.45,
   },
   { id: "library", from: 300, to: 600, sealed: 0.3, coming: true },
 ];
 export const SEAL_DEPTH = 300;
-export const WINCH_DEPTHS = [38, 72, 118, 165, 215, 262]; // escape winches: pull yourself out from here
+export const WINCH_DEPTHS = [38, 72, 118, 165, 220, 262]; // escape winches: pull yourself out from here
+
+// Bosses guard the way down. Their arena spans the cave; the gate in its floor opens when they fall.
+// Each time you beat one it comes back a little tougher (up to +3 health).
+export const BOSSES = [
+  { id: "slime_king", top: 88, floor: 98, hp: 4, trophy: "slime_crown", coins: 25 },
+  { id: "golem", top: 189, floor: 199, hp: 5, trophy: "golem_core", coins: 60 },
+];
+// How much harder things get with depth: enemy speed and numbers scale by 1 + depth / DEPTH_SCALE.
+export const DEPTH_SCALE = 220;
+// Shortcuts: once a boss is beaten you may start in its hall, by an exit winch, with the gate already open.
+export const STARTS = [
+  { id: "top", depth: 0 },
+  { id: "mine", depth: 98, boss: "slime_king" },
+  { id: "deep", depth: 199, boss: "golem" },
+];
 
 // The collection. sprite names a shape in sprites.js, pal colors it. min/max limit where it shows up (meters).
 export const ITEMS = [
@@ -64,6 +79,9 @@ export const ITEMS = [
   { id: "ruby", zone: "mine", rarity: "epic", sprite: "crystal", pal: "ruby", min: 180 },
   { id: "ancient_pick", zone: "mine", rarity: "epic", sprite: "pick", pal: "goldPick", min: 200 },
   { id: "fossil_skull", zone: "mine", rarity: "epic", sprite: "skull", pal: "bone", min: 240 },
+  // boss trophies: only from beating the boss
+  { id: "slime_crown", zone: "village", rarity: "epic", sprite: "crown", pal: "gold", boss: true },
+  { id: "golem_core", zone: "mine", rarity: "legendary", sprite: "core", pal: "ember", boss: true },
 ];
 export const ITEM = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
 
@@ -82,11 +100,11 @@ export const VARIANT_CHANCE = 0.015;
 
 // Upgrades: `levels` is the stat at each level (index 0 = start), cost = base * growth^level.
 export const UPGRADES = [
-  { id: "lantern", icon: "🔦", levels: [45, 60, 75, 95, 115, 140, 170, 200, 240], unit: "s", base: 20, growth: 1.55 },
-  { id: "bag", icon: "🎒", levels: [3, 4, 5, 6, 7, 8, 10, 12], unit: "", base: 30, growth: 1.65 },
-  { id: "hearts", icon: "❤️", levels: [3, 4, 5, 6, 7], unit: "", base: 45, growth: 2.1 },
-  { id: "pick", icon: "⛏️", levels: [1, 1.4, 1.8, 2.3, 3], unit: "x", base: 35, growth: 1.9 },
-  { id: "ropes", icon: "🪢", levels: [2, 3, 4, 5, 6, 8], unit: "", base: 25, growth: 1.7 },
+  { id: "lantern", levels: [50, 70, 90, 115, 140, 170, 200, 240, 280, 320, 360], unit: "s", base: 15, growth: 1.5 },
+  { id: "bag", levels: [3, 4, 5, 6, 7, 8, 9, 10, 12, 14], unit: "", base: 20, growth: 1.55 },
+  { id: "hearts", levels: [3, 4, 5, 6, 7, 8, 9], unit: "", base: 35, growth: 1.9 },
+  { id: "pick", levels: [1, 1.4, 1.8, 2.3, 3, 4], unit: "x", base: 40, growth: 2.0 },
+  { id: "ropes", levels: [2, 3, 4, 5, 6, 7, 8, 10], unit: "", base: 15, growth: 1.6 },
 ];
 export const UPGRADE = Object.fromEntries(UPGRADES.map((u) => [u.id, u]));
 export const upgradeCost = (u, level) => Math.round(u.base * Math.pow(u.growth, level));
@@ -113,6 +131,13 @@ export const FIRST_DIVE = [
 // ---------------------------------------------------------------- text
 export const STR = {
   ko: {
+    bosses: { slime_king: "슬라임 킹", golem: "고대 골렘" },
+    bossWake: "보스 등장!",
+    bossDown: "보스 처치! 아래로 가는 문이 열렸어요",
+    gateShut: "보스를 쓰러뜨려야 문이 열려요",
+    bossHint: "위에서 밟아서 공격!",
+    start: "출발",
+    starts: { top: "입구", mine: "광산 입구 100m", deep: "깊은 광산 200m" },
     died: "쓰러졌어요…",
     lostBag: "잃어버린 유물",
     revive: "다시 일어나기",
@@ -229,9 +254,18 @@ export const STR = {
       ruby: ["루비 원석", "타오르는 불꽃 같은 붉은빛."],
       ancient_pick: ["고대의 곡괭이", "누가 만든 걸까? 녹이 하나도 없어요."],
       fossil_skull: ["고대 생물 두개골", "이빨이 아주 날카로워요."],
+      slime_crown: ["슬라임 왕관", "슬라임 킹을 쓰러뜨린 증표. 아직 끈적해요."],
+      golem_core: ["골렘의 심장", "아직도 따뜻하게 맥동하는 돌."],
     },
   },
   en: {
+    bosses: { slime_king: "Slime King", golem: "Ancient Golem" },
+    bossWake: "Boss!",
+    bossDown: "Boss defeated! The gate below is open",
+    gateShut: "Beat the boss to open the gate",
+    bossHint: "Jump on its head!",
+    start: "Start",
+    starts: { top: "Entrance", mine: "Mine 100m", deep: "Deep mine 200m" },
     died: "You collapsed…",
     lostBag: "Lost relics",
     revive: "Get back up",
@@ -348,6 +382,8 @@ export const STR = {
       ruby: ["Raw Ruby", "Red as a living flame."],
       ancient_pick: ["Ancient Pickaxe", "Who made it? Not a speck of rust."],
       fossil_skull: ["Ancient Skull", "Those teeth are very sharp."],
+      slime_crown: ["Slime Crown", "Proof you beat the Slime King. Still sticky."],
+      golem_core: ["Golem Heart", "A stone that still pulses warm."],
     },
   },
 };

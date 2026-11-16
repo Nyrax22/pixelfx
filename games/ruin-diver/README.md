@@ -3,7 +3,9 @@
 A web game for Poki built on pixelfx: explore a new cave every expedition, dig, climb and fight your way to
 relics, then get out alive (back up the entrance ladder or at an escape winch) or collapse and lose your bag.
 Fill the collection book between expeditions. This is the early game: the Fallen Village (0-100m) and the
-Deep Mine (100-300m), 29 relics, 4 sets, 5 upgrades.
+Deep Mine (100-300m), 31 relics (two are boss trophies), 4 sets, 5 upgrades, and two bosses: the Slime King
+at 88-98m and the Ancient Golem at 189-199m. Each guards a gate down; beat one once and you can start the next
+expedition in its hall. Enemies get faster and more numerous with depth.
 
 ```bash
 npm install
@@ -16,6 +18,12 @@ Controls: ←→/AD move, Space/Z jump (↑ jumps too away from ladders), ↑↓
 rope, push into a wall or hold ↓ to dig, Esc pauses. On touch: drag on the left half to move (down digs, up
 climbs), buttons on the right jump and throw a rope.
 
+## Pacing
+
+`node games/ruin-diver/tools/pacing.mjs 0.6 60 v` plays an hour on real generated caves with a modeled explorer
+and prints when each upgrade is bought, deaths, and when each boss falls. It's an estimate for tuning numbers in
+`src/data.js`, not a substitute for playtesting.
+
 ## Files
 
 | file | what's in it |
@@ -27,10 +35,13 @@ climbs), buttons on the right jump and throw a rope.
 | `src/bg.js` | tile textures, sky, light falling off with depth |
 | `src/sprites.js` | item, explorer, coin and rock pixel sprites |
 | `src/main.js` | the loop, input, HUD, results, collection, pause |
+| `tools/pacing.mjs` | the pacing model above |
+| `fonts/` | Galmuri11 Bold by Lee Minseo (SIL OFL 1.1, see `fonts/OFL.md`); the build embeds only the characters used |
 | `src/poki.js` | Poki SDK wrapper (no-op off Poki, with a stand-in for rewarded ads) |
 | `src/audio.js` | synthesized sounds |
 
-Effects from pixelfx: bat, slime, collect burst, hit spark, poof, torch, loot beam, confetti.
+Effects from pixelfx: collect burst, hit spark, poof, torch, loot beam, confetti. Creatures and bosses are
+sprites in `src/sprites.js`, drawn at the explorer's pixel scale.
 
 ## Poki checklist
 

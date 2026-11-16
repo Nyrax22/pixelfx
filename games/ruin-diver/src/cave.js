@@ -1,15 +1,15 @@
 // The cave: a new one every expedition. Tiles, ladders, escape winches, treasure and things that bite.
 
 import { Rng } from "../../../src/core/index.js";
-import { MW, MH, ZONES, ITEMS, WINCH_DEPTHS, FIRST_DIVE, SEAL_DEPTH, VARIANT_CHANCE, RARITY } from "./data.js";
+import { MW, MH, ZONES, ITEMS, WINCH_DEPTHS, FIRST_DIVE, SEAL_DEPTH, VARIANT_CHANCE, RARITY, BOSSES } from "./data.js";
 import { zoneAt } from "./logic.js";
 
 // tile materials
-export const AIR = 0, DIRT = 1, STONE = 2, BEDROCK = 3, GOLD = 4, GEM = 5, BRICK = 6, WOOD = 7;
-export const SOLID = [false, true, true, true, true, true, true, true];
-export const MAT_NAME = ["air", "dirt", "stone", "bedrock", "gold", "gem", "brick", "wood"];
+export const AIR = 0, DIRT = 1, STONE = 2, BEDROCK = 3, GOLD = 4, GEM = 5, BRICK = 6, WOOD = 7, GATE = 8;
+export const SOLID = [false, true, true, true, true, true, true, true, true];
+export const MAT_NAME = ["air", "dirt", "stone", "bedrock", "gold", "gem", "brick", "wood", "gate"];
 // overlays on air tiles
-export const NONE = 0, LADDER = 1, SPIKES = 2, ROPE = 3, WINCH = 4, TORCH = 5;
+export const NONE = 0, LADDER = 1, SPIKES = 2, ROPE = 3, WINCH = 4, TORCH = 5, STALACTITE = 6;
 
 const ENTRANCE = { ladderX: 23, floorY: 9, holeX: 29 };
 export let FILL = 0.5;
@@ -140,6 +140,26 @@ export function makeCave(seed, save, first) {
     if (y > 3 && R.next() < (open ? z.gold * 1.6 : z.gold * 0.5)) tile[i] = tile[i] === STONE && z.gem && R.next() < 0.5 ? GEM : GOLD;
   }
 
+  // 6b. boss arenas: a hall across the whole cave with a bedrock floor and one gate down
+  const arenas = [];
+  for (const b of BOSSES) {
+    const gx = 23;
+    for (let y = b.top; y < b.floor; y++) for (let x = 1; x < MW - 1; x++) { tile[at(x, y)] = AIR; deco[at(x, y)] = deco[at(x, y)] === LADDER && y < b.top + 2 ? LADDER : NONE; }
+    for (let y = b.floor; y <= b.floor + 1; y++) for (let x = 1; x < MW - 1; x++) { tile[at(x, y)] = BEDROCK; deco[at(x, y)] = NONE; }
+    tile[at(gx, b.floor)] = GATE; tile[at(gx, b.floor + 1)] = GATE;
+    // ledges to jump from, and a ladder down from wherever the way in arrives
+    for (const [lx, ly] of [[8, b.floor - 4], [MW - 14, b.floor - 4]]) for (let i = 0; i < 6; i++) tile[at(lx + i, ly)] = WOOD;
+    for (let x = 1; x < MW - 1; x++) if (deco[at(x, b.top)] === LADDER || deco[at(x, b.top - 1)] === LADDER) for (let y = b.top; y < b.floor; y++) deco[at(x, y)] = LADDER;
+    // below the gate: a shaft down to the main way
+    let target = null;
+    for (const [px, py] of pathCells) if (py > b.floor + 2 && py < b.floor + 20 && (!target || Math.abs(px - gx) + (py - b.floor) < Math.abs(target[0] - gx) + (target[1] - b.floor))) target = [px, py];
+    const ty = target ? target[1] : b.floor + 6;
+    for (let y = b.floor + 2; y <= ty; y++) { carve(gx, y, true); deco[at(gx, y)] = LADDER; }
+    if (target) for (let x = Math.min(gx, target[0]); x <= Math.max(gx, target[0]); x++) { carve(x, ty, true); carve(x, ty - 1, true); }
+    arenas.push({ ...b, gx, x0: 1, x1: MW - 2 });
+  }
+  const inArena = (y) => arenas.some((a) => y >= a.top - 1 && y <= a.floor + 1);
+
   // 7. what's where: reachability from the main way, floors, ceilings
   const dist = new Int16Array(MW * MH).fill(-1), q = [];
   for (let i = 0; i < path.length; i++) if (path[i] && tile[i] === AIR) { dist[i] = 0; q.push(i); }
@@ -158,6 +178,7 @@ export function makeCave(seed, save, first) {
   const ceilAt = (x, y) => inb(x, y - 1) && tile[at(x, y)] === AIR && SOLID[tile[at(x, y - 1)]] && deco[at(x, y)] === NONE;
   const floors = [], ceilings = [];
   for (let y = 12; y < SEAL_DEPTH - 1; y++) for (let x = 1; x < MW - 1; x++) {
+    if (inArena(y)) continue;
     if (floorAt(x, y)) floors.push([x, y]);
     if (ceilAt(x, y) && inb(x, y + 2) && tile[at(x, y + 1)] === AIR && tile[at(x, y + 2)] === AIR) ceilings.push([x, y]);
   }
@@ -187,6 +208,7 @@ export function makeCave(seed, save, first) {
   } else {
     for (const r of rooms) {
       const cx = r.x + R.int(1, r.w - 2), cy = r.y + r.h - 1;
+      if (inArena(cy) || inArena(r.y)) continue;
       const id = rollItem(R, zoneAt(cy), cy, bookCount, 1);
       if (id) { items.push({ id, tx: cx, ty: cy, variant: R.next() < VARIANT_CHANCE * 2 }); claim(cx, cy, 1); }
     }
@@ -214,6 +236,19 @@ export function makeCave(seed, save, first) {
   const coins = [];
   for (const [fx, fy] of floors) if (dist[at(fx, fy)] >= 0 && dist[at(fx, fy)] < 3 && free(fx, fy) && R.next() < 0.07) coins.push({ tx: fx, ty: fy, v: zoneAt(fy).coinValue });
 
+  // hearts to pick up: a little mercy on the way down
+  const hearts = [];
+  if (!first) for (const z of ZONES) {
+    if (z.coming || !z.hearts) continue;
+    const pool = floors.filter(([fx, fy]) => fy >= Math.max(z.from, 15) && fy < z.to && free(fx, fy) && dist[at(fx, fy)] >= 0 && dist[at(fx, fy)] < 10);
+    const n = Math.round(z.hearts * (z.to - Math.max(z.from, 15)) / 100);
+    for (let k = 0; k < n && pool.length; k++) {
+      const [hx, hy] = pool.splice(R.int(0, pool.length - 1), 1)[0];
+      hearts.push({ tx: hx, ty: hy });
+      claim(hx, hy, 1);
+    }
+  }
+
   // spikes in the floors of side caves, never on the main way
   if (!first) for (const [fx, fy] of floors) {
     const z = zoneAt(fy);
@@ -230,31 +265,50 @@ export function makeCave(seed, save, first) {
     }
   }
 
-  // enemies: bats hang from ceilings, slimes patrol floors
+  // enemies: bats hang from ceilings, slimes patrol floors, skulls haunt the mine; more of all of them deeper down
   const enemies = [];
+  const pick = (list, z) => {
+    // weighted toward the bottom of the zone
+    const w = list.map(([, y]) => 1 + 2 * (y - z.from) / (z.to - z.from));
+    let t = R.next() * w.reduce((a, b) => a + b, 0), k = 0;
+    while (k < list.length - 1 && (t -= w[k]) > 0) k++;
+    return list.splice(k, 1)[0];
+  };
   if (!first) for (const z of ZONES) {
     if (z.coming) continue;
     const span = (z.to - Math.max(z.from, z.enemyFrom)) / 100;
     const cs = ceilings.filter(([cx, cy]) => cy >= z.enemyFrom && cy >= z.from && cy < z.to && free(cx, cy));
     for (let n = Math.round(z.bats * span); n > 0 && cs.length; n--) {
-      const [cx, cy] = cs.splice(R.int(0, cs.length - 1), 1)[0];
+      const [cx, cy] = pick(cs, z);
       enemies.push({ kind: "bat", tx: cx, ty: cy, seed: R.int(1, 999) });
+      claim(cx, cy, 2);
+    }
+    for (let n = Math.round(z.skulls * span); n > 0 && cs.length; n--) {
+      const [cx, cy] = pick(cs, z);
+      enemies.push({ kind: "skull", tx: cx, ty: cy + 1, seed: R.int(1, 999) });
       claim(cx, cy, 2);
     }
     const fs = floors.filter(([fx, fy]) => fy >= z.enemyFrom && fy >= z.from && fy < z.to && free(fx, fy) && floorAt(fx - 1, fy) && floorAt(fx + 1, fy) && !path[at(fx, fy)]);
     for (let n = Math.round(z.slimes * span); n > 0 && fs.length; n--) {
-      const [fx, fy] = fs.splice(R.int(0, fs.length - 1), 1)[0];
-      enemies.push({ kind: "slime", tx: fx, ty: fy, seed: R.int(1, 999) });
+      const [fx, fy] = pick(fs, z);
+      enemies.push({ kind: "slime", tx: fx, ty: fy, seed: R.int(1, 999), red: R.next() < z.redSlimes });
       claim(fx, fy, 2);
     }
   }
 
-  return { tile, deco, items, coins, enemies, winches, rooms, entrance: ENTRANCE };
+  // stalactites: they let go when you walk underneath
+  if (!first) for (const [cx, cy] of ceilings) {
+    const z = zoneAt(cy);
+    if (cy < 30 || !free(cx, cy) || deco[at(cx, cy)] !== NONE) continue;
+    if (R.next() < z.stalactites * (1 + (cy - z.from) / 100)) { deco[at(cx, cy)] = STALACTITE; claim(cx, cy, 0); }
+  }
+
+  return { tile, deco, items, coins, hearts, enemies, winches, rooms, arenas, entrance: ENTRANCE, path, dist };
 }
 
 function rollItem(R, zone, m, bookCount, bump = 0) {
   if (!zone.weights) return null;
-  const pool = ITEMS.filter((it) => it.zone === zone.id && (it.min ?? 0) <= m);
+  const pool = ITEMS.filter((it) => it.zone === zone.id && !it.boss && (it.min ?? 0) <= m);
   const rarities = Object.entries(zone.weights).filter(([r]) => pool.some((it) => it.rarity === r));
   // a bump shifts the odds toward the rarer end
   const ws = rarities.map(([r, w]) => w * (bump ? 1 + RARITY[r].order * 1.2 : 1));

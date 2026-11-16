@@ -1,16 +1,14 @@
 // One expedition: walk, jump, climb and dig through the cave, grab what you can, and get out alive.
 
 import { createFx, painterFor, Rng } from "../../../src/core/index.js";
-import * as batFx from "../../../src/fx/critters/bat.js";
-import * as slimeFx from "../../../src/fx/critters/slime.js";
 import * as burstFx from "../../../src/fx/pickups/collect-burst.js";
 import * as sparkFx from "../../../src/fx/impacts/hit-spark.js";
 import * as poofFx from "../../../src/fx/spawn/poof.js";
 import * as torchFx from "../../../src/fx/fire/torch.js";
 import * as beamFx from "../../../src/fx/pickups/loot-beam.js";
-import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN } from "./data.js";
-import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL } from "./sprites.js";
-import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH } from "./cave.js";
+import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE } from "./data.js";
+import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL } from "./sprites.js";
+import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE } from "./cave.js";
 import { drawCave, fillAmbient, addLight } from "./bg.js";
 import { zoneAt } from "./logic.js";
 import { audio } from "./audio.js";
@@ -31,7 +29,7 @@ const POOF_DARK = ["#120c18", "#2a2036", "#4a3a5a", "#6a5a7a", "#9a8aaa", "#c8ba
 const PW = 10, PH = 15; // the explorer's box
 
 export class Run {
-  constructor(save, st, first = false) {
+  constructor(save, st, first = false, start = null) {
     this.save = save;
     this.st = st;
     this.first = first;
@@ -75,9 +73,34 @@ export class Run {
     this.revived = false;
     this.items = this.cave.items.map((it) => ({ ...it, x: it.tx * T + 8, y: it.ty * T + 9 }));
     this.coinList = this.cave.coins.map((c) => ({ ...c, x: c.tx * T + 8, y: c.ty * T + 11 }));
-    this.enemies = this.cave.enemies.map((en) => en.kind === "bat"
-      ? { ...en, x: en.tx * T + 8, y: en.ty * T + 4, state: "hang", vx: 0, vy: 0, alive: true, fx: null }
-      : { ...en, x: en.tx * T + 8, y: (en.ty + 1) * T, vx: (en.seed & 1 ? 1 : -1) * 22, alive: true, fx: null });
+    this.heartList = this.cave.hearts.map((h) => ({ x: h.tx * T + 8, y: h.ty * T + 10 }));
+    this.enemies = this.cave.enemies.map((en) => en.kind === "slime"
+      ? { ...en, x: en.tx * T + 8, y: (en.ty + 1) * T, vx: (en.seed & 1 ? 1 : -1) * (en.red ? 34 : 22), alive: true, hp: en.red ? 2 : 1, t: 0 }
+      : { ...en, x: en.tx * T + 8, y: en.ty * T + 4, state: "hang", vx: 0, vy: 0, alive: true, hp: 1, t: 0, cd: 1 });
+    this.falling = [];        // stalactites on their way down
+    this.shots = [];          // boulders and loose rocks
+    this.bosses = this.cave.arenas.map((a) => {
+      const extra = Math.min(3, save.bossKills?.[a.id] ?? 0);
+      return { ...a, state: "sleep", hp: a.hp + extra, maxHp: a.hp + extra, x: (a.x1 - 6) * T, y: a.floor * T, vx: 0, vy: 0, t: 0, cd: 1.5, hurtT: 0, face: -1, ground: true, enraged: false, spawned: false };
+    });
+    // a shortcut start: in a beaten boss's hall, its gate open, an exit winch beside you
+    if (start?.boss) {
+      const bi = this.bosses.findIndex((b) => b.id === start.boss);
+      for (let i = 0; i <= bi; i++) {
+        const b = this.bosses[i];
+        b.state = "dead";
+        for (const y of [b.floor, b.floor + 1]) { this.tile[y * MW + b.gx] = AIR; this.deco[y * MW + b.gx] = LADDER; }
+      }
+      const b = this.bosses[bi], wx = b.gx + 3;
+      this.deco[(b.floor - 1) * MW + wx] = WINCH;
+      this.cave.winches.push({ x: wx, y: b.floor - 1 });
+      this.p.x = (b.gx + 1) * T + 3;
+      this.p.y = b.floor * T - PH;
+      this.p.fallTop = this.p.y;
+      this.depthStart = b.floor;
+      this.zonesSeen.add("mine");
+      this.snapCamera();
+    }
   }
 
   // ------------------------------------------------------------ the map
@@ -103,6 +126,10 @@ export class Run {
   climbable(px, py) {
     const d = this.decoAt(Math.floor(px / T), Math.floor(py / T));
     return d === LADDER || d === ROPE;
+  }
+  /** How much tougher things are at depth y (pixels). */
+  hard(y) {
+    return 1 + Math.max(0, y / T) / DEPTH_SCALE;
   }
   emit(type, data = {}) {
     this.events.push({ type, ...data });
@@ -130,7 +157,8 @@ export class Run {
       if (this.state === "play") {
         this.updateItems(dt);
         this.updateEnemies(dt);
-        this.updateHazards();
+        this.updateHazards(dt);
+        this.updateBosses(dt);
       }
       this.depthMax = Math.max(this.depthMax, this.depth);
       const z = zoneAt(this.depth);
@@ -318,6 +346,10 @@ export class Run {
     if (!SOLID[m] || ty < 1) return;
     const i = ty * MW + tx;
     if (m === BEDROCK) return;
+    if (m === GATE) {
+      if (!this.warnedHard.has(i)) { this.warnedHard.add(i); this.emit("toast", { key: "gateShut" }); audio.play("clang"); }
+      return;
+    }
     if ((m === STONE || m === GEM) && this.st.pick < STONE_PICK) {
       if (!this.warnedHard.has(i)) {
         this.warnedHard.add(i);
@@ -340,7 +372,7 @@ export class Run {
     audio.play("break");
     // ore pays out in coins that pop loose
     if (m === GOLD || m === GEM) {
-      const n = m === GEM ? 5 : 3, v = zoneAt(ty).coinValue * (m === GEM ? 2 : 1);
+      const n = m === GEM ? 6 : 4, v = zoneAt(ty).coinValue * (m === GEM ? 2 : 1);
       for (let k = 0; k < n; k++) this.popCoins.push({ x: tx * T + 8, y: ty * T + 8, vx: this.rng.range(-70, 70), vy: this.rng.range(-170, -80), v, t: 0 });
       audio.play("coin");
     }
@@ -390,6 +422,14 @@ export class Run {
       }
     };
     for (const c of this.coinList) if (!c.taken && Math.abs(c.y - cy) < 60) grab(c);
+    for (const h of this.heartList) {
+      if (h.taken || Math.abs(h.x - cx) > 10 || Math.abs(h.y - cy) > 12 || this.hp >= this.st.hearts) continue;
+      h.taken = true;
+      this.hp++;
+      this.text("+1", h.x, h.y - 10, "#ff7a8a", "big");
+      audio.play("heal");
+      this.emit("heal");
+    }
     for (const c of this.popCoins) {
       if (c.taken) continue;
       c.t += dt;
@@ -437,62 +477,236 @@ export class Run {
     for (const en of this.enemies) {
       if (!en.alive) continue;
       const dx = px - en.x, dy = py - en.y;
-      if (Math.abs(dx) > W || Math.abs(dy) > H) { en.fx = null; continue; }
+      if (Math.abs(dx) > W || Math.abs(dy) > H) continue;
+      en.t += dt;
+      const k = this.hard(en.y);
       if (en.kind === "bat") {
         if (en.state === "hang") {
-          if (Math.hypot(dx, dy) < 84) { en.state = "fly"; audio.play("squeak"); }
+          if (Math.hypot(dx, dy) < 84 + k * 10) { en.state = "fly"; audio.play("squeak"); }
           continue;
         }
-        en.fx ??= createFx(batFx, { seed: en.seed });
-        en.fx.update(dt);
-        const d = Math.hypot(dx, dy) || 1, sp = 52;
+        const d = Math.hypot(dx, dy) || 1, sp = 50 * k;
         const wob = Math.sin(this.t * 5 + en.seed) * 30;
         const vx = (dx / d) * sp - (dy / d) * wob * 0.3, vy = (dy / d) * sp + (dx / d) * wob * 0.3 + Math.sin(this.t * 7 + en.seed) * 20;
-        // bats keep out of the rock
-        if (!this.solid(Math.floor((en.x + vx * dt * 4) / T), Math.floor(en.y / T))) en.x += vx * dt;
-        if (!this.solid(Math.floor(en.x / T), Math.floor((en.y + vy * dt * 4) / T))) en.y += vy * dt;
-        this.touch(en, 7, 6);
+        this.flyMove(en, vx * dt, vy * dt);
+        this.touch(en, 6, 4);
+      } else if (en.kind === "skull") {
+        // hovers, then lines up and dashes straight at you
+        if (en.state === "hang") {
+          en.y += Math.sin(en.t * 3 + en.seed) * 0.2;
+          if (Math.hypot(dx, dy) < 120) { en.state = "aim"; en.cd = 0.7 / k; audio.play("squeak"); }
+        } else if (en.state === "aim") {
+          en.cd -= dt;
+          if (en.cd <= 0) {
+            const d = Math.hypot(dx, dy) || 1, sp = 190 * k;
+            en.vx = (dx / d) * sp; en.vy = (dy / d) * sp; en.state = "dash"; en.cd = 0.75;
+          }
+        } else if (en.state === "dash") {
+          en.cd -= dt;
+          const hit = this.flyMove(en, en.vx * dt, en.vy * dt);
+          if (hit || en.cd <= 0) { en.state = "rest"; en.cd = 1.1 / k; if (hit) this.chipsAt(en.x, en.y, DIRT, 4); }
+        } else {
+          en.cd -= dt;
+          this.flyMove(en, (dx > 0 ? 1 : -1) * 15 * dt, -10 * dt);
+          if (en.cd <= 0) { en.state = "aim"; en.cd = 0.6 / k; }
+        }
+        this.touch(en, 5, 5);
       } else {
-        en.fx ??= createFx(slimeFx, { seed: en.seed, hop: 5 });
-        en.fx.update(dt);
         if (en.falling || !this.solid(Math.floor(en.x / T), Math.floor((en.y + 1) / T))) {
           en.y += 140 * dt;
           if (this.solid(Math.floor(en.x / T), Math.floor((en.y + 1) / T))) { en.y = Math.floor((en.y + 1) / T) * T; en.falling = false; }
         } else {
-          const ahead = en.x + Math.sign(en.vx) * 10;
+          // red slimes notice you and come at you
+          if (en.red && Math.abs(dy) < 20 && Math.abs(dx) < 120) en.vx = Math.sign(dx) * Math.abs(en.vx);
+          const ahead = en.x + Math.sign(en.vx) * 7;
           const wall = this.solid(Math.floor(ahead / T), Math.floor((en.y - 6) / T));
           const ledge = !this.solid(Math.floor(ahead / T), Math.floor((en.y + 2) / T));
           if (wall || ledge) en.vx = -en.vx;
-          en.x += en.vx * dt;
+          else en.x += en.vx * k * dt;
         }
-        this.touch(en, 10, 12, -6);
+        this.touch(en, 6, 8, -4);
       }
     }
+  }
+  /** Move a flier, staying out of rock; returns true if it bumped into something. */
+  flyMove(en, dx, dy) {
+    let hit = false;
+    if (!this.solid(Math.floor((en.x + dx + Math.sign(dx) * 4) / T), Math.floor(en.y / T))) en.x += dx; else hit = true;
+    if (!this.solid(Math.floor(en.x / T), Math.floor((en.y + dy + Math.sign(dy) * 4) / T))) en.y += dy; else hit = true;
+    return hit;
   }
   /** Contact with an enemy: land on top to squash it, anything else hurts. */
   touch(en, rx, ry, oy = 0) {
     const p = this.p, ex = en.x, ey = en.y + oy;
     if (p.x + PW < ex - rx || p.x > ex + rx || p.y + PH < ey - ry || p.y > ey + ry) return;
     if (p.vy > 30 && p.y + PH < ey) {
-      en.alive = false;
       p.vy = -230;
       p.fallTop = p.y;
-      this.fxs.push({ fx: createFx(poofFx, { palette: en.kind === "bat" ? POOF_DARK : ["#061412", "#12594a", "#1f8f4f", "#47c752", "#a6f06a", "#f0ffd2"], seed: en.seed }), x: ex, y: ey + 30 });
-      for (let k = 0; k < 2; k++) this.popCoins.push({ x: ex, y: ey, vx: this.rng.range(-60, 60), vy: this.rng.range(-160, -90), v: zoneAt(Math.floor(ey / T)).coinValue, t: 0 });
+      if (--en.hp > 0) { en.hurtT = 0.3; audio.play("stomp"); return; }
+      en.alive = false;
+      const pal = en.kind === "slime" ? (en.red ? ["#2a0610", "#8a1a2a", "#e04a4a", "#ff8a7a", "#ffd0c0", "#ffffff"] : ["#061412", "#12594a", "#1f8f4f", "#47c752", "#a6f06a", "#f0ffd2"]) : POOF_DARK;
+      this.fxs.push({ fx: createFx(poofFx, { palette: pal, seed: en.seed }), x: ex, y: ey + 30 });
+      const n = en.kind === "skull" ? 3 : en.red ? 3 : 2;
+      for (let k = 0; k < n; k++) this.popCoins.push({ x: ex, y: ey, vx: this.rng.range(-60, 60), vy: this.rng.range(-160, -90), v: zoneAt(Math.floor(ey / T)).coinValue, t: 0 });
       audio.play("stomp");
       this.text("POW", ex, ey - 12, "#ffe06a", "big");
       return;
     }
-    this.hurt(1, en.kind, ex);
+    this.hurt(en.dmg ?? 1, en.kind, ex);
   }
 
-  updateHazards() {
-    const p = this.p, x0 = Math.floor((p.x + 1) / T), x1 = Math.floor((p.x + PW - 2) / T), ty = Math.floor((p.y + PH - 1) / T);
+  updateHazards(dt) {
+    const p = this.p, x0 = Math.floor((p.x + 1) / T), x1 = Math.floor((p.x + PW - 2) / T), ty = Math.floor((p.y + PH - 0.01) / T);
     for (let tx = x0; tx <= x1; tx++) if (this.decoAt(tx, ty) === SPIKES && p.y + PH > ty * T + 9) {
       this.hurt(1, "spikes");
       if (this.state === "play") p.vy = -260;
+      break;
+    }
+    // stalactites above you shake loose
+    const ptx = Math.floor((p.x + PW / 2) / T), pty = Math.floor(p.y / T);
+    for (let y = pty; y >= Math.max(0, pty - 7); y--) {
+      if (this.solid(ptx, y)) break;
+      for (const tx of [ptx - 1, ptx, ptx + 1]) {
+        if (this.decoAt(tx, y) !== STALACTITE) continue;
+        this.deco[y * MW + tx] = NONE;
+        this.falling.push({ x: tx * T + 8, y: y * T + 2, vy: 0, wait: 0.35 });
+        audio.play("crack");
+      }
+    }
+    for (const f of this.falling) {
+      if (f.wait > 0) { f.wait -= dt; continue; }
+      f.vy = Math.min(500, f.vy + 900 * dt);
+      f.y += f.vy * dt;
+      if (Math.abs(p.x + PW / 2 - f.x) < 7 && f.y > p.y && f.y < p.y + PH) { f.done = true; this.hurt(1, "rock", f.x); }
+      if (this.solid(Math.floor(f.x / T), Math.floor((f.y + 6) / T))) { f.done = true; this.chipsAt(f.x, f.y, STONE, 6); audio.play("break"); }
+    }
+    this.falling = this.falling.filter((f) => !f.done);
+    // boulders and rocks from bosses
+    for (const r of this.shots) {
+      r.vy = Math.min(480, r.vy + (r.g ?? 700) * dt);
+      r.x += r.vx * dt;
+      r.y += r.vy * dt;
+      r.t = (r.t ?? 0) + dt;
+      if (Math.abs(p.x + PW / 2 - r.x) < 8 && r.y > p.y - 3 && r.y < p.y + PH + 3) { r.done = true; this.hurt(r.dmg ?? 1, "rock", r.x); }
+      if (r.t > 0.1 && this.solid(Math.floor(r.x / T), Math.floor(r.y / T))) { r.done = true; this.chipsAt(r.x, r.y, STONE, 6); audio.play("break"); }
+      if (r.t > 6) r.done = true;
+    }
+    this.shots = this.shots.filter((r) => !r.done);
+  }
+
+  // ------------------------------------------------------------ bosses
+  updateBosses(dt) {
+    const p = this.p, px = p.x + PW / 2, d = this.depth;
+    for (const b of this.bosses) {
+      if (b.state === "dead") continue;
+      if (b.state === "sleep") {
+        if (d >= b.top && d <= b.floor) {
+          b.state = "fight";
+          b.x = px < MW * T / 2 ? (MW - 6) * T : 6 * T;
+          this.emit("bossWake", { id: b.id, hp: b.hp });
+          audio.play("boss");
+          this.shake = 0.5;
+        }
+        continue;
+      }
+      b.t += dt;
+      b.hurtT = Math.max(0, b.hurtT - dt);
+      b.enraged = b.hp <= Math.ceil(b.maxHp / 2);
+      const lo = (b.x0 + 2) * T, hi = (b.x1 - 1) * T;
+      if (b.id === "slime_king") this.slimeKing(b, dt, px, lo, hi);
+      else this.golem(b, dt, px, lo, hi);
+      b.x = Math.max(lo, Math.min(hi, b.x));
+      // contact: from above it's a hit, otherwise it hurts
+      const w = b.id === "golem" ? 12 : 13, h = b.id === "golem" ? 30 : 18;
+      if (p.x + PW > b.x - w && p.x < b.x + w && p.y + PH > b.y - h && p.y < b.y) {
+        if (p.vy > 20 && p.y + PH < b.y - h + 8 && b.hurtT <= 0) this.hitBoss(b);
+        else if (b.hurtT <= 0.4) this.hurt(1, b.id, b.x);
+      }
+    }
+  }
+  slimeKing(b, dt, px, lo, hi) {
+    if (!b.ground) {
+      b.vy += 900 * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      if (b.y >= b.floor * T) {
+        b.y = b.floor * T; b.vy = 0; b.ground = true; b.cd = b.enraged ? 0.75 : 1.25;
+        this.shake = 0.3;
+        audio.play("land");
+        this.dust(b.x, b.y, 10);
+        // the landing sends a shockwave along the floor: be in the air
+        if (this.p.ground && Math.abs(px - b.x) < 72 && Math.abs(this.p.y + PH - b.y) < 4) this.hurt(1, "shock", b.x);
+      }
       return;
     }
+    b.cd -= dt;
+    if (b.cd <= 0) {
+      b.ground = false;
+      b.vy = -(260 + Math.random() * 90);
+      b.vx = Math.max(-150, Math.min(150, (px - b.x) * 1.1));
+      b.face = b.vx < 0 ? -1 : 1;
+    }
+    if (b.enraged && !b.spawned) {
+      b.spawned = true;
+      for (const side of [-1, 1]) this.enemies.push({ kind: "slime", x: b.x + side * 30, y: b.floor * T, vx: side * 30, alive: true, hp: 1, t: 0, seed: 7 + side });
+    }
+  }
+  golem(b, dt, px, lo, hi) {
+    b.cd -= dt;
+    if (b.act === "slam") {
+      b.actT -= dt;
+      if (b.actT <= 0) {
+        b.act = null;
+        this.shake = 0.5;
+        audio.play("slam");
+        this.dust(b.x, b.y, 14);
+        if (this.p.ground && Math.abs(px - b.x) < 100 && Math.abs(this.p.y + PH - b.y) < 4) this.hurt(2, "shock", b.x);
+        // the ceiling comes down
+        const n = b.enraged ? 6 : 4;
+        for (let i = 0; i < n; i++) this.shots.push({ x: lo + Math.random() * (hi - lo), y: (b.top + 0.5) * T, vx: 0, vy: 0, g: 500 + Math.random() * 300, dmg: 1, rock: true });
+      }
+      return;
+    }
+    if (b.act === "throw") {
+      b.actT -= dt;
+      if (b.actT <= 0) {
+        b.act = null;
+        const dx = px - b.x, t = 0.9;
+        this.shots.push({ x: b.x, y: b.y - 30, vx: dx / t, vy: -320, g: 700, dmg: 1 });
+        audio.play("throw");
+      }
+      return;
+    }
+    // walk toward you, then pick an attack
+    b.face = px < b.x ? -1 : 1;
+    if (Math.abs(px - b.x) > 20) b.x += b.face * (b.enraged ? 46 : 30) * dt;
+    if (b.cd <= 0) {
+      b.cd = b.enraged ? 1.9 : 2.8;
+      if (Math.abs(px - b.x) < 120 || Math.random() < 0.4) { b.act = "slam"; b.actT = b.enraged ? 0.5 : 0.75; }
+      else { b.act = "throw"; b.actT = 0.5; }
+    }
+  }
+  hitBoss(b) {
+    const p = this.p;
+    b.hp--;
+    b.hurtT = 0.8;
+    p.vy = -330;
+    p.fallTop = p.y;
+    this.shake = 0.3;
+    this.fxs.push({ fx: createFx(sparkFx, { angle: Math.PI / 2, seed: this.rng.int(1, 99) }), x: b.x, y: b.y - 10 });
+    audio.play("stomp");
+    this.text(b.hp > 0 ? "HIT!" : "K.O.", b.x, b.y - 40, "#ffe06a", "big");
+    this.emit("bossHp", { id: b.id, hp: b.hp });
+    if (b.hp > 0) return;
+    // down it goes: coins, its trophy, and the gate opens
+    b.state = "dead";
+    for (let i = 0; i < 3; i++) this.fxs.push({ fx: createFx(poofFx, { seed: 3 + i }), x: b.x + (i - 1) * 14, y: b.y + 20 - i * 6 });
+    for (let k = 0; k < b.coins; k++) this.popCoins.push({ x: b.x, y: b.y - 16, vx: this.rng.range(-120, 120), vy: this.rng.range(-260, -120), v: 1, t: 0 });
+    this.items.push({ id: b.trophy, variant: false, tx: Math.floor(b.x / T), ty: b.floor - 1, x: b.x, y: (b.floor - 1) * T + 9 });
+    for (const y of [b.floor, b.floor + 1]) { this.tile[y * MW + b.gx] = AIR; this.deco[y * MW + b.gx] = LADDER; }
+    this.bossesBeaten = [...(this.bossesBeaten ?? []), b.id];
+    this.emit("bossDown", { id: b.id });
+    audio.play("set");
   }
 
   hurt(n, src, fromX) {
@@ -541,6 +755,9 @@ export class Run {
   }
 
   // ------------------------------------------------------------ bits
+  chipsAt(x, y, m, n) {
+    this.chips(Math.floor(x / T), Math.floor(y / T), m, n);
+  }
   chips(tx, ty, m, n) {
     const cols = DEBRIS[m] ?? DEBRIS[DIRT];
     for (let k = 0; k < n; k++)
@@ -575,6 +792,7 @@ export class Run {
       else if (d === SPIKES) P.sprite(SPIKES_TILE, SPIKES_PAL, ox, oy + 9);
       else if (d === WINCH) this.drawWinch(P, lm, ox, oy, ty);
       else if (d === TORCH) torchesNow.push([tx, ty, ox, oy]);
+      else if (d === STALACTITE) P.sprite(STALACTITE_SPR, STALACTITE_PAL, ox + 4, oy);
     }
     for (const [tx, ty, ox, oy] of torchesNow) {
       const key = ty * MW + tx, wallRight = this.solid(tx + 1, ty);
@@ -617,6 +835,13 @@ export class Run {
     for (const c of this.coinList) if (!c.taken) coin(c);
     for (const c of this.popCoins) coin(c);
 
+    // hearts, bobbing
+    for (const h of this.heartList) {
+      if (h.taken || !onScreen(h.x, h.y)) continue;
+      const hy = sy(h.y + Math.sin(t * 4 + h.x) * 1.5);
+      P.sprite(HEART_SPR, HEART_PAL, sx(h.x) - 4, hy - 4);
+      P.glow(sx(h.x), hy, 9, 0xff5a4aff, 0.45);
+    }
     // items glowing in their rarity's color
     for (const it of this.items) {
       if (it.taken || !onScreen(it.x, it.y)) continue;
@@ -640,20 +865,67 @@ export class Run {
       }
     }
 
-    // enemies
+    // enemies, stalactites, rocks
     for (const en of this.enemies) {
       if (!en.alive || !onScreen(en.x, en.y, 40)) continue;
-      if (en.kind === "bat" && en.state === "hang") {
-        P.sprite(BAT_HANG, BAT_HANG_PAL, sx(en.x) - 3, sy(en.y) - 4);
-        P.light(sx(en.x) - 1, sy(en.y) - 1, 0xff3b30ff, 0.6);
-        P.light(sx(en.x) + 1, sy(en.y) - 1, 0xff3b30ff, 0.6);
-        continue;
+      const ex = sx(en.x), ey = sy(en.y), flash = en.hurtT > 0 && Math.floor(t * 20) % 2 === 0;
+      if (en.kind === "bat") {
+        if (en.state === "hang") {
+          P.sprite(BAT_HANG, BAT_HANG_PAL, ex - 3, ey - 4);
+          P.light(ex - 1, ey - 1, 0xff3b30ff, 0.6);
+          P.light(ex + 1, ey - 1, 0xff3b30ff, 0.6);
+        } else {
+          P.sprite(BAT[Math.floor(t * 12 + en.seed) % 3], BAT_PAL, ex - 5, ey - 3);
+          P.light(ex - 1, ey + 1, 0xff3b30ff, 0.7);
+          P.light(ex + 1, ey + 1, 0xff3b30ff, 0.7);
+        }
+      } else if (en.kind === "skull") {
+        const shake = en.state === "aim" ? Math.round(Math.sin(t * 60)) : 0;
+        P.sprite(SKULL[Math.floor(t * 8) % 2], SKULL_PAL, ex - 4 + shake, ey - 4, { flip: this.p.x < en.x });
+        P.glow(ex, ey - 4, 10, 0xff2a6aff, en.state === "aim" ? 0.9 : 0.4);
+        addLight(lm, ex, ey, 22, 0.35);
+      } else {
+        const fr = SLIME[Math.floor(en.t * 3 + en.seed) % 2];
+        P.sprite(fr, en.red ? RED_SLIME_PAL : SLIME_PAL, ex - 6, ey - 9, { flip: en.vx < 0, tint: flash ? 0xffffffff : undefined });
+        P.glow(ex, ey - 4, 9, en.red ? 0xff3a3aff : 0xff52c747, 0.25);
       }
-      if (!en.fx) continue;
-      en.fx.options.x = sx(en.x);
-      en.fx.options.y = sy(en.y);
-      en.fx.draw(frame);
-      P = painterFor(frame);
+    }
+    for (const f of this.falling) P.sprite(STALACTITE_SPR, STALACTITE_PAL, sx(f.x) - 4 + (f.wait > 0 ? Math.round(Math.sin(t * 70)) : 0), sy(f.y) - 2);
+    for (const r of this.shots) P.sprite(BOULDER, BOULDER_PAL, sx(r.x) - 4, sy(r.y) - 4, { flip: Math.floor((r.t ?? 0) * 10) % 2 === 1 });
+
+    // braziers light the boss halls
+    for (const b of this.bosses) {
+      const top = b.top * T - camY, bot = b.floor * T - camY;
+      if (bot < -40 || top > H + 40) continue;
+      for (let x = 40; x < MW * T; x += 110) {
+        const lx = x - camX, ly = bot - 6;
+        if (lx < -90 || lx > W + 90) continue;
+        P.rect(lx - 3, ly - 3, 7, 4, 0xff3a3a46);
+        P.rect(lx - 2, ly - 6, 5, 3, 0xff1a8aff);
+        P.dot(lx, ly - 8 - (Math.floor(t * 8 + x) % 2), 0xff6ae0ff);
+        P.glow(lx, ly - 7, 12, 0xff2a8aff, 0.8);
+        addLight(lm, lx, ly - 20, 95, b.state === "dead" ? 0.3 : 0.5);
+      }
+    }
+    // bosses
+    for (const b of this.bosses) {
+      if (b.state === "dead" || !onScreen(b.x, b.y - 20, 60)) continue;
+      const bx = sx(b.x), by = sy(b.y), flash = b.hurtT > 0 && Math.floor(t * 20) % 2 === 0;
+      const tint = flash ? 0xffffffff : undefined;
+      if (b.id === "slime_king") {
+        const fr = SLIME_KING[!b.ground || (b.cd < 0.25 && b.state === "fight") ? 1 : 0];
+        P.sprite(fr, SLIME_KING_PAL, bx - 15, by - fr.length, { flip: b.face > 0, tint });
+        P.glow(bx, by - 12, 28, b.enraged ? 0xff3a3aff : 0xff52c747, 0.3);
+        addLight(lm, bx, by - 12, 50, 0.4);
+      } else {
+        const fr = GOLEM[b.act === "slam" || b.act === "throw" ? 1 : 0];
+        const bob = b.act ? 0 : Math.round(Math.abs(Math.sin(b.t * 4)));
+        P.sprite(fr, GOLEM_PAL, bx - 15, by - fr.length - bob, { flip: b.face > 0, tint });
+        P.glow(bx, by - 15, 16, 0xff2a7aff, b.act ? 0.9 : 0.5);
+        addLight(lm, bx, by - 15, 56, 0.45);
+        // a red warning line on the floor before a slam
+        if (b.act === "slam" && Math.floor(t * 12) % 2) P.rect(bx - 100, by - 1, 200, 1, 0xff3a3aff);
+      }
     }
 
     // the explorer

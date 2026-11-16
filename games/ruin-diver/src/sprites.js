@@ -308,6 +308,34 @@ export const SHAPES = {
     "..oddddddo..",
     "...oooooo...",
   ],
+  crown: [
+    "............",
+    "............",
+    ".o...oo...o.",
+    "owo.owwo.owo",
+    "obo.obbo.obo",
+    "obboobbooobo",
+    "obbbbbbbbbbo",
+    "obebbbebbbeo",
+    "obbbbbbbbbbo",
+    "oaaaaaaaaaao",
+    "oooooooooooo",
+    "............",
+  ],
+  core: [
+    "....oooo....",
+    "..oodddaoo..",
+    ".odddaaaado.",
+    ".oddaeeaado.",
+    "oddaeffeaado",
+    "odaeffwfeado",
+    "odaefffeaado",
+    "oddaeefeaddo",
+    ".oddaaeaado.",
+    ".odddaaaddo.",
+    "..oodddddo..",
+    "....oooo....",
+  ],
   skull: [
     "............",
     "...oooooo...",
@@ -347,6 +375,7 @@ export const PALS = {
   amethyst: { o: "#120818", d: "#4a1a6a", a: "#8a3ac0", b: "#c07aff", w: "#f4e0ff" },
   ruby: { o: "#180408", d: "#6a0a1e", a: "#c0163c", b: "#ff5a6a", w: "#ffd8dc" },
   bone: { o: "#1a1610", d: "#7a6a50", a: "#b8a888", b: "#e4d8c0", w: "#fffaf0" },
+  ember: { o: "#140808", d: "#3a2a2a", a: "#5e4a48", e: "#c84a1a", f: "#ff9a2a", w: "#fff0a0" },
   goldPick: { o: "#1a1004", a: "#c88a14", b: "#ffe070", s: "#2a1408", t: "#5a3018" },
 };
 
@@ -494,3 +523,111 @@ export function itemIcon(item, mode = "color", variant = false, scale = 4) {
   iconCache.set(key, url);
   return url;
 }
+
+// ---------------------------------------------------------------- UI icons (DOM)
+const ICONS = {
+  coin: [["..ooooo..", ".oyyyyyo.", "oyywyyyyo", "oywyyyyyo", "oyyyyyybo", "oyyyyybbo", ".oyybbbo.", "..ooooo.."], { o: "#4a2c08", y: "#f0b424", w: "#fff6c4", b: "#c48412" }],
+  heart: [[".oo...oo.", "orro.orro", "orwrorrro", "orrrrrrro", ".orrrrro.", "..orrro..", "...oro...", "....o...."], { o: "#2a0610", r: "#ff4a5a", w: "#ffd0d8" }],
+  heartOff: [[".oo...oo.", "okko.okko", "okkkokkko", "okkkkkkko", ".okkkkko.", "..okkko..", "...oko...", "....o...."], { o: "#0a0610", k: "#3a2a3a" }],
+  lantern: [["...oo....", "..o..o...", ".oooooo..", ".obwwbo..", ".obwybo..", ".obyybo..", ".oooooo..", "..obbo...", "..oooo..."], { o: "#1a1206", b: "#a87818", w: "#fff8c0", y: "#ffb030" }],
+  bag: [["..ooooo..", "..o...o..", ".ooooooo.", "obbbbbbbo", "obbyyybbo", "obbbbbbbo", "obbbbbbbo", "oddddddo.", ".oooooo.."], { o: "#1a0e06", b: "#a06a3a", y: "#e0b050", d: "#6a3e20" }],
+  hearts: [[".oo...oo.", "orro.orro", "orwrorrro", "orrrrrrro", ".orrrrro.", "..orrro..", "...oro...", "....o...."], { o: "#2a0610", r: "#ff4a5a", w: "#ffd0d8" }],
+  pick: [[".ooooo...", "oiiiiioo.", "oooowwio.", "...owoio.", "..owo.oo.", ".owo.....", "owo......", "oo......."], { o: "#14100c", i: "#b0b8c8", w: "#a0703a" }],
+  ropes: [[".oooooo..", "orrrrrro.", "oddddddo.", "orrrrrro.", "oddddddo.", "orrrrrro.", ".oooooo..", "....oro..", ".....oo.."], { o: "#3a2410", r: "#d8b070", d: "#8a6430" }],
+  book: [[".oooooo..", "obbbbbbo.", "obyyyybo.", "obbbbbbo.", "obyyybbo.", "obbbbbbo.", "owwwwwwo.", ".oooooo.."], { o: "#140a10", b: "#8a3a4a", y: "#f0c040", w: "#ece0c4" }],
+  lock: [["..ooo....", ".o...o...", ".o...o...", "ooooooo..", "oyyyyyo..", "oyyoyyo..", "oyyoyyo..", "oyyyyyo..", "ooooooo.."], { o: "#1a1206", y: "#c8a040" }],
+  skull: [[".ooooo...", "owwwwwo..", "owoowoo..", "owoowoo..", "owwwwwo..", ".owowo...", ".ooooo..."], { o: "#140c14", w: "#e8e0d0" }],
+  exit: [["...o.....", "..ogo....", ".ogggo...", "ogggggo..", "ooogooo..", "..ogo....", "..ogo....", "..ooo...."], { o: "#0a2a10", g: "#7aff8a" }],
+};
+ICONS.lantern_ = ICONS.lantern;
+const piCache = new Map();
+/** An <img> of a UI icon, scaled up crisply. */
+export function icon(name, cls = "pi") {
+  const [rows, pal] = ICONS[name] ?? ICONS.coin;
+  let url = piCache.get(name);
+  if (!url) {
+    const k = 4, w = Math.max(...rows.map((r) => r.length)), cv = document.createElement("canvas");
+    cv.width = w * k; cv.height = rows.length * k;
+    const g = cv.getContext("2d");
+    rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x * k, y * k, k, k); } }));
+    piCache.set(name, (url = cv.toDataURL()));
+  }
+  return `<img class="${cls}" src="${url}" alt="">`;
+}
+
+// ---------------------------------------------------------------- creatures, drawn at the same pixel scale as the explorer
+export const BAT = [
+  ["o.........o", "oo.......oo", "oao.o.o.oao", ".oaoaaaoao.", "..ooraroo..", "....oao....", ".....o....."],
+  ["...........", "...........", "oo..o.o..oo", "oaooaaaooao", ".oaoraroao.", "..oooaooo..", ".....o....."],
+  ["...........", "....o.o....", "...oaaao...", "..ooraroo..", ".oaoaaaoao.", "oao.oao.oao", "oo...o...oo"],
+];
+export const BAT_PAL = { o: "#0c0912", a: "#6a4a78", r: "#ff3b30" };
+export const SLIME = [
+  ["............", "....oooo....", "...ogwggo...", "..oggggggo..", ".oggoggoggo.", ".oggggggggo.", "oggggggggggo", "oddddddddddo", ".oooooooooo."],
+  ["............", "............", "............", "...oooooo...", "..ogwggggo..", ".oggoggoggo.", "oggggggggggo", "oddddddddddo", "oooooooooooo"],
+];
+export const SLIME_PAL = { o: "#06221a", g: "#47c752", w: "#d0ffb0", d: "#1f8f4f" };
+export const RED_SLIME_PAL = { o: "#2a0610", g: "#e04a4a", w: "#ffd0c0", d: "#8a1a2a" };
+export const SKULL = [
+  ["..f.f.f..", "..fyfyf..", ".ooooooo.", "owwwwwwwo", "owrrwrrwo", "owwwowwwo", ".owwwwwo.", "..owowo..", "...ooo..."],
+  [".f..f..f.", "..fyfyf..", ".ooooooo.", "owwwwwwwo", "owrrwrrwo", "owwwowwwo", ".owwwwwo.", "..owowo..", "...ooo..."],
+];
+export const SKULL_PAL = { o: "#140c14", w: "#e8e0d0", r: "#ff4a2a", f: "#ff6a1a", y: "#ffe06a" };
+export const STALACTITE = ["oaaabbao", ".oaabao.", ".oaaabo.", "..oaao..", "..oaao..", "...oo...", "...o...."];
+export const STALACTITE_PAL = { o: "#141420", a: "#6a6a7c", b: "#9a9aac" };
+export const BOULDER = ["..oooo..", ".obbaao.", "obwbaaao", "obbaaado", "oaaaaddo", ".oaddd o", "..oooo.."].map((r) => r.replace(" ", "o"));
+export const BOULDER_PAL = { o: "#141018", a: "#6a5e6e", b: "#8e8292", w: "#b8aebc", d: "#3e3444" };
+
+// bosses: built from shapes, then outlined, so they stay clean at any size
+function outline(grid) {
+  const h = grid.length, w = grid[0].length;
+  return grid.map((row, y) => [...row].map((c, x) => {
+    if (c !== ".") return c;
+    const n = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => grid[y + dy]?.[x + dx] && grid[y + dy][x + dx] !== "." && grid[y + dy][x + dx] !== "o");
+    return n ? "o" : ".";
+  }).join(""));
+}
+function slimeKing(squash) {
+  const w = 30, h = 24, cx = 14.5, rx = 13.5 + squash * 1.5, ry = 9 - squash * 2, cy = h - 1 - ry;
+  const g = Array.from({ length: h }, () => Array(w).fill("."));
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = (x - cx) / rx, dy = (y - cy) / ry;
+    if (dy > 0.85 ? Math.abs(dx) < 0.9 : dx * dx + dy * dy <= 1) g[y][x] = dy > 0.55 ? "d" : dx < -0.45 && dx > -0.85 && dy < -0.3 && dy > -0.8 ? "w" : "g";
+  }
+  // eyes and a grumpy mouth
+  const ey = Math.round(cy - 1);
+  for (const ex of [9, 18]) for (let j = 0; j < 3; j++) for (let i = 0; i < 2; i++) g[ey + j][ex + i] = "o";
+  for (let i = 11; i <= 17; i++) g[ey + 5][i] = "o";
+  // the crown
+  const top = Math.round(cy - ry) - 4;
+  const crown = ["y..y..y", "yy.yy.yy".slice(0, 7), "yyyyyyy", "yryyyry"];
+  crown.forEach((r, j) => [...r].forEach((c, i) => { if (c !== "." && top + j >= 0) g[top + j][11 + i] = c; }));
+  return outline(g.map((r) => r.join("")));
+}
+export const SLIME_KING = [slimeKing(0), slimeKing(1)];
+export const SLIME_KING_PAL = { o: "#06221a", g: "#47c752", w: "#d0ffb0", d: "#1f8f4f", y: "#ffd23a", r: "#ff3a5a" };
+
+function golem(pose) {
+  const w = 30, h = 32, g = Array.from({ length: h }, () => Array(w).fill("."));
+  const rect = (x, y, rw, rh, c = "a") => { for (let j = 0; j < rh; j++) for (let i = 0; i < rw; i++) if (g[y + j]?.[x + i] !== undefined) g[y + j][x + i] = c; };
+  const armY = pose === 1 ? 2 : 11; // pose 1: arms raised for a slam
+  rect(10, 3, 10, 8);                 // head
+  rect(7, 11, 16, 12);                // torso
+  rect(2, armY, 5, 12); rect(23, armY, 5, 12); // arms
+  rect(8, 23, 5, 8); rect(17, 23, 5, 8);       // legs
+  // light from the upper left, cracks, glowing eyes and core
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (g[y][x] !== "a") continue;
+    const lit = g[y - 1]?.[x] === "." || g[y][x - 1] === ".", dark = g[y + 1]?.[x] === "." || g[y][x + 1] === ".";
+    if (lit) g[y][x] = "b"; else if (dark) g[y][x] = "d";
+  }
+  rect(12, 6, 2, 2, "c"); rect(16, 6, 2, 2, "c");
+  rect(13, 15, 4, 4, "c"); rect(14, 16, 2, 2, "y");
+  for (const [x, y] of [[9, 13], [10, 14], [20, 19], [21, 20], [4, armY + 6], [25, armY + 3]]) if (g[y]?.[x] && g[y][x] !== ".") g[y][x] = "d";
+  return outline(g.map((r) => r.join("")));
+}
+export const GOLEM = [golem(0), golem(1)];
+export const GOLEM_PAL = { o: "#0c0a10", a: "#6e6474", b: "#9a90a0", d: "#463e50", c: "#ff7a2a", y: "#fff0a0" };
+
+export const HEART_SPR = [".oo.oo..", "orrorro.", "orwrrro.", "orrrrro.", ".orrro..", "..oro...", "...o...."];
+export const HEART_PAL = { o: "#2a0610", r: "#ff4a5a", w: "#ffd0d8" };

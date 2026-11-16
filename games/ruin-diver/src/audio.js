@@ -103,6 +103,11 @@ const SOUNDS = {
   stomp: (c, t) => { tone(c, t, { f: 300, f2: 900, dur: 0.12, type: "square", vol: 0.12 }); noise(c, t, { dur: 0.1, vol: 0.2, f: 1500 }); },
   squeak: (c, t) => tone(c, t, { f: 2200, f2: 1600, dur: 0.08, type: "square", vol: 0.05 }),
   die: (c, t) => [392, 330, 262, 196].forEach((f, i) => tone(c, t, { f, dur: 0.2, type: "triangle", vol: 0.18, delay: i * 0.14 })),
+  crack: (c, t) => noise(c, t, { dur: 0.12, vol: 0.2, f: 2500 }),
+  boss: (c, t) => [110, 104, 98, 82].forEach((f, i) => tone(c, t, { f, dur: 0.35, type: "sawtooth", vol: 0.14, delay: i * 0.22 })),
+  slam: (c, t) => { noise(c, t, { dur: 0.6, vol: 0.5, f: 250 }); tone(c, t, { f: 90, f2: 40, dur: 0.4, type: "sawtooth", vol: 0.2 }); },
+  throw: (c, t) => noise(c, t, { dur: 0.2, vol: 0.2, f: 1200 }),
+  heal: (c, t) => [660, 880, 1100].forEach((f, i) => tone(c, t, { f, dur: 0.1, type: "triangle", vol: 0.16, delay: i * 0.06 })),
   click: (c, t) => tone(c, t, { f: 900, dur: 0.04, type: "square", vol: 0.06 }),
   deny: (c, t) => tone(c, t, { f: 200, f2: 150, dur: 0.15, type: "square", vol: 0.1 }),
 };

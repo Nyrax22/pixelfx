@@ -11,6 +11,8 @@ export function defaultSave() {
     up: Object.fromEntries(UPGRADES.map((u) => [u.id, 0])),
     book: {},   // id -> { seen: meters first seen, count, variant }
     sets: {},   // id -> true once completed
+    bossKills: {}, // id -> times beaten
+    start: "top",  // where the next expedition starts
   };
 }
 export function loadSave() {
@@ -18,7 +20,7 @@ export function loadSave() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return defaultSave();
     const s = JSON.parse(raw), d = defaultSave();
-    return { ...d, ...s, up: { ...d.up, ...s.up } };
+    return { ...d, ...s, up: { ...d.up, ...s.up }, bossKills: { ...(s.bossKills ?? {}) } };
   } catch {
     storageOk = false;
     return defaultSave();
