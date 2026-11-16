@@ -550,8 +550,15 @@ $("langBtn").addEventListener("click", () => {
   writeSave(save);
   applyStrings();
 });
+// two taps to erase: the first asks, the second does it (browser confirm dialogs are blocked in some embeds)
+let resetArmed = 0;
 $("resetBtn").addEventListener("click", () => {
-  if (!confirm(S("resetConfirm"))) return;
+  if (Date.now() - resetArmed > 3000) {
+    resetArmed = Date.now();
+    $("resetBtn").textContent = S("resetConfirm");
+    setTimeout(() => ($("resetBtn").textContent = S("reset")), 3000);
+    return;
+  }
   wipeSave();
   location.reload();
 });

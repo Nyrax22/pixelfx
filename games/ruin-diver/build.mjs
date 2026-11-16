@@ -20,3 +20,8 @@ const html = readFileSync(join(here, "index.html"), "utf8").replace("<!--GAME-->
 mkdirSync(join(here, "dist"), { recursive: true });
 writeFileSync(join(here, "dist/index.html"), html);
 console.log(`dist/index.html  ${(html.length / 1024).toFixed(1)} KB`);
+
+// the same game without the document skeleton, for hosts that add their own (a claude.ai artifact)
+const head = html.match(/<head>([\s\S]*?)<\/head>/)[1].replace(/<meta[^>]*>\s*/g, "");
+const body = html.match(/<body>([\s\S]*)<\/body>/)[1];
+writeFileSync(join(here, "dist/embed.html"), head.trim() + "\n" + body.trim() + "\n");
