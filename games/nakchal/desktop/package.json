@@ -1,0 +1,62 @@
+{
+  "name": "insaeng-tteoksang",
+  "productName": "인생 떡상",
+  "version": "0.9.0",
+  "description": "반지하에서 펜트하우스까지 — 3D 인생 시뮬레이션",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "prepare-app": "node build.mjs",
+    "start": "node build.mjs && electron .",
+    "dist:win": "node build.mjs && electron-builder --win dir",
+    "dist:mac": "node build.mjs && electron-builder --mac dir",
+    "dist:linux": "node build.mjs && electron-builder --linux dir"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "26.0.12",
+    "three": "0.160.0",
+    "@fontsource/black-han-sans": "5.2.5",
+    "@fontsource/jua": "5.2.5",
+    "@fontsource/ibm-plex-sans-kr": "5.2.5",
+    "@fontsource/ibm-plex-mono": "5.2.5",
+    "@fontsource/nanum-myeongjo": "5.2.5"
+  },
+  "optionalDependencies": {
+    "steamworks.js": "0.4.0"
+  },
+  "build": {
+    "appId": "com.tteoksang.insaeng",
+    "productName": "인생 떡상",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "extraFiles": [
+      {
+        "from": "steam_appid.txt",
+        "to": "steam_appid.txt"
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/steamworks.js/**/*"
+    ],
+    "win": {
+      "target": "dir",
+      "signAndEditExecutable": false
+    },
+    "mac": {
+      "target": "dir",
+      "category": "public.app-category.simulation-games"
+    },
+    "linux": {
+      "target": "dir",
+      "category": "Game"
+    }
+  }
+}
