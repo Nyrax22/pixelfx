@@ -350,46 +350,55 @@ export const PALS = {
   goldPick: { o: "#1a1004", a: "#c88a14", b: "#ffe070", s: "#2a1408", t: "#5a3018" },
 };
 
-// The explorer, hanging from the rope by both hands. Two frames for the legs.
+// The explorer from the side, facing right: standing, two walking steps, jumping, climbing (from behind).
 export const EXPLORER_PAL = { o: "#120c10", h: "#f0b890", a: "#3a6a8a", b: "#c8a040", y: "#f0c030", l: "#fff8c0", d: "#4a3a2a", e: "#2a1a10", s: "#8a5a2a" };
-export const EXPLORER = [
-  [
-    "....oho....",
-    "...oaoao...",
-    "...oaoao...",
-    "..oyyyyyo..",
-    ".oyyyyyylo.",
-    "..ooooooo..",
-    "..ohhohho..",
-    "..ohhhhho..",
-    ".ooaaaaaoo.",
-    "osaaaaaaaso",
-    "osaabbbaaso",
-    ".oaaaaaaao.",
-    "..odddddo..",
-    "..odo.odo..",
-    "..oeo.oeo..",
-    "..ooo.ooo..",
-  ],
-  [
-    "....oho....",
-    "...oaoao...",
-    "...oaoao...",
-    "..oyyyyyo..",
-    ".oyyyyyylo.",
-    "..ooooooo..",
-    "..ohhohho..",
-    "..ohhhhho..",
-    ".ooaaaaaoo.",
-    "osaaaaaaaso",
-    "osaabbbaaso",
-    ".oaaaaaaao.",
-    "..odddddo..",
-    "..odoodo...",
-    "...oeooeo..",
-    "...ooo.ooo.",
-  ],
+const HEAD = ["...ooooo...", "..oyyyyyo..", ".oyyyyyyylo", "..ooooooo..", "...ohhoho..", "...ohhhho.."];
+const BODY = ["..oooaao...", ".osaaaaao..", ".osaabaaho.", ".osaaaaao.."];
+export const EXPLORER = {
+  stand: [...HEAD, ...BODY, "..oddddo...", "..oddddo...", "..odo.odo..", "..oeo.oeo..", "..ooo.ooo.."],
+  walk1: [...HEAD, ...BODY, "..oddddo...", "..oddddo...", ".odo..odo..", "oeo....oeo.", "oo......oo."],
+  walk2: [...HEAD, ...BODY, "..oddddo...", "..oddddo...", "...oddo....", "...oeeo....", "...oooo...."],
+  jump: [...HEAD, "..oooaaoho.", ".osaaaaaoo.", ".osaabaao..", ".osaaaaao..", "..oddddo...", "..odddddo..", ".odo...odo.", ".oeo...oeo.", ".ooo...ooo."],
+  climb: ["...ooooo...", "..oyyyyyo..", ".oyyyyyyyo.", "..ooooooo..", ".o.ohhho.o.", "oho.ooo.oho", ".oassssao..", ".oassssao..", "..assssa...", "..oaaaao...", "..oddddo...", "..odo.odo..", "..odo..o...", "..oeo......", "..ooo......"],
+};
+
+export const LADDER_TILE = [
+  "..ow......wo....",
+  "..ow......wo....",
+  "..owwwwwwwwo....",
+  "..oddddddddo....",
+  "..ow......wo....",
+  "..ow......wo....",
+  "..ow......wo....",
+  "..ow......wo....",
+  "..ow......wo....",
+  "..owwwwwwwwo....",
+  "..oddddddddo....",
+  "..ow......wo....",
+  "..ow......wo....",
+  "..ow......wo....",
+  "..ow......wo....",
+  "..ow......wo....",
+].map((r) => r.slice(0, 16));
+export const LADDER_PAL = { o: "#2a180c", w: "#b07a40", d: "#6a4220" };
+export const ROPE_TILE = [
+  ".......ob.......", ".......ob.......", ".......bo.......", ".......bo.......", "......obbo......", ".......ob.......",
+  ".......ob.......", ".......bo.......", ".......bo.......", ".......ob.......", "......obbo......", ".......ob.......",
+  ".......ob.......", ".......bo.......", ".......bo.......", ".......ob.......",
 ];
+export const ROPE_PAL = { o: "#6a4a24", b: "#d0a868" };
+export const SPIKES_TILE = [
+  "..w.....w.....w.",
+  ".wa....wa....wa.",
+  ".wa....wa....wa.",
+  "wbaa..wbaa..wbaa",
+  "wbaa..wbaa..wbaa",
+  "obbao.obbao.obba",
+  "oooooooooooooooo",
+];
+export const SPIKES_PAL = { w: "#e8e8f0", a: "#8a8a9a", b: "#b8b8c8", o: "#2a2a34" };
+export const BAT_HANG = ["o.ooo.o", "oaaaaao", ".oaaao.", ".orrro.", "..oao.."];
+export const BAT_HANG_PAL = { o: "#0c0912", a: "#5b3f66", r: "#ff3b30" };
 
 export const COIN = [
   [".oooo.", "oyywyo", "oyyyyo", "oyyyyo", "obyyyo", ".oooo."],

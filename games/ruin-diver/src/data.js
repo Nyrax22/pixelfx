@@ -1,8 +1,8 @@
 // Every number and name the game uses. Balance lives here, not in the code.
 
 export const W = 480, H = 270;          // the game's pixel resolution (16:9)
-export const SHAFT_L = 120, SHAFT_R = 360; // the shaft the explorer hangs in; the walls either side hold the HUD
-export const PX_PER_M = 10;             // world pixels per meter of depth
+export const T = 16;                    // tile size in pixels; one tile of depth is one meter
+export const MW = 48, MH = 306;         // the cave in tiles: 48 wide, down to the seal at 300m
 
 export const RARITY = {
   common:    { order: 0, color: "#a8a39a", glow: "#8a8478", value: 2,  newBonus: 5 },
@@ -12,22 +12,24 @@ export const RARITY = {
   legendary: { order: 4, color: "#ffc63a", glow: "#ff9a1a", value: 120, newBonus: 200 },
 };
 
-// Zones from the top down. `items` roll by rarity weight; `bats` is meters between bats (0 = none).
+// Zones from the top down. Densities are per 100 tiles of depth.
 export const ZONES = [
   {
     id: "village", from: 0, to: 100, coinValue: 1, valueK: 1,
     weights: { common: 60, uncommon: 30, rare: 10 },
-    batEvery: [9, 13], batFrom: 25, rocks: false,
-    sky: ["#1b1530", "#3a2a4a", "#7a4a5a", "#d07a5a"],
+    stone: 0.22, gold: 0.05, gem: 0, rooms: 5, roomTile: "brick",
+    items: 26, bats: 7, slimes: 6, spikes: 0.02, enemyFrom: 14,
   },
   {
     id: "mine", from: 100, to: 300, coinValue: 2, valueK: 1.5,
     weights: { common: 45, uncommon: 32, rare: 17, epic: 6 },
-    batEvery: [6, 9], batFrom: 100, rocks: true,
+    stone: 0.5, gold: 0.06, gem: 0.03, rooms: 4, roomTile: "wood",
+    items: 22, bats: 13, slimes: 11, spikes: 0.05, enemyFrom: 100,
   },
   { id: "library", from: 300, to: 600, sealed: 0.3, coming: true },
 ];
 export const SEAL_DEPTH = 300;
+export const WINCH_DEPTHS = [38, 72, 118, 165, 215, 262]; // escape winches: pull yourself out from here
 
 // The collection. sprite names a shape in sprites.js, pal colors it. min/max limit where it shows up (meters).
 export const ITEMS = [
@@ -67,9 +69,9 @@ export const ITEM = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
 
 // Sets: collect every item for a permanent bonus.
 export const SETS = [
-  { id: "village_memory", items: ["rag_doll", "rusty_key", "teacup"], bonus: { magnet: 4 } },
-  { id: "bell_tower", items: ["brass_bell", "candlestick", "clock_gear"], bonus: { lantern: 3 } },
-  { id: "miners_day", items: ["glove", "broken_pick", "miner_lamp", "journal"], bonus: { speed: 0.08 } },
+  { id: "village_memory", items: ["rag_doll", "rusty_key", "teacup"], bonus: { ropes: 1 } },
+  { id: "bell_tower", items: ["brass_bell", "candlestick", "clock_gear"], bonus: { lantern: 15 } },
+  { id: "miners_day", items: ["glove", "broken_pick", "miner_lamp", "journal"], bonus: { hearts: 1 } },
   { id: "miners_treasure", items: ["gold_nugget", "amethyst", "ruby"], bonus: { coins: 0.15 } },
 ];
 
@@ -80,31 +82,56 @@ export const VARIANT_CHANCE = 0.015;
 
 // Upgrades: `levels` is the stat at each level (index 0 = start), cost = base * growth^level.
 export const UPGRADES = [
-  { id: "rope", icon: "🪢", levels: [30, 45, 65, 90, 120, 160, 210, 260, 300], unit: "m", base: 20, growth: 1.6 },
-  { id: "lantern", icon: "🔦", levels: [9, 12, 15, 19, 23, 28, 34, 41, 50], unit: "s", base: 25, growth: 1.6 },
-  { id: "bag", icon: "🎒", levels: [3, 4, 5, 6, 7, 8, 10, 12], unit: "", base: 30, growth: 1.7 },
-  { id: "magnet", icon: "🧲", levels: [6, 10, 14, 18, 23, 28], unit: "px", base: 40, growth: 1.8 },
-  { id: "helmet", icon: "⛑️", levels: [0, 1, 2, 3], unit: "", base: 150, growth: 2.2, unlockDepth: 90 },
+  { id: "lantern", icon: "🔦", levels: [45, 60, 75, 95, 115, 140, 170, 200, 240], unit: "s", base: 20, growth: 1.55 },
+  { id: "bag", icon: "🎒", levels: [3, 4, 5, 6, 7, 8, 10, 12], unit: "", base: 30, growth: 1.65 },
+  { id: "hearts", icon: "❤️", levels: [3, 4, 5, 6, 7], unit: "", base: 45, growth: 2.1 },
+  { id: "pick", icon: "⛏️", levels: [1, 1.4, 1.8, 2.3, 3], unit: "x", base: 35, growth: 1.9 },
+  { id: "ropes", icon: "🪢", levels: [2, 3, 4, 5, 6, 8], unit: "", base: 25, growth: 1.7 },
 ];
 export const UPGRADE = Object.fromEntries(UPGRADES.map((u) => [u.id, u]));
 export const upgradeCost = (u, level) => Math.round(u.base * Math.pow(u.growth, level));
 
-export const DESCENT_SPEED = 60;   // px/s (6 m/s)
-export const ASCENT_K = 2.4;       // ascent speed as a multiple of descent
-export const BAT_HIT_LANTERN = 3;  // seconds of lantern a bat takes
-export const LANTERN_AD_SECONDS = 10;
+// Movement and danger.
+export const PHYS = {
+  gravity: 1100, maxFall: 420, walk: 92, accel: 900, jump: 300, climb: 72,
+  coyote: 0.1, jumpBuffer: 0.12, fallHurt: 7, fallHurt2: 12, // tiles fallen before landing hurts (1, then 2 hearts)
+};
+export const DIG = { dirt: 0.32, gold: 0.45, brick: 0.7, wood: 0.4, stone: 0.75, gem: 0.9 };
+export const STONE_PICK = 1.8;         // pick power needed for stone and gems
+export const DARK_DRAIN = 6;           // seconds per heart lost once the lantern is out
+export const ROPE_LEN = 8;             // tiles a thrown rope reaches
+export const LANTERN_AD_SECONDS = 30;
+export const DEATH_COIN_KEEP = 0.5;
 
-// The scripted first dive: three things to pick up, the last one rare, nothing to dodge.
+// The scripted first dive: three things in the entrance chamber, the last one rare, nothing to fight.
 export const FIRST_DIVE = [
-  { m: 8, item: "rusty_key", x: 0.5 },
-  { m: 15, item: "teacup", x: 0.6 },
-  { m: 23, item: "brooch", x: 0.42 },
+  { tx: 26, ty: 8, item: "rusty_key" },
+  { tx: 31, ty: 8, item: "teacup" },
+  { tx: 16, ty: 8, item: "brooch" },
 ];
 
 // ---------------------------------------------------------------- text
 export const STR = {
   ko: {
-    tapToDive: "탭해서 내려가기",
+    died: "쓰러졌어요…",
+    lostBag: "잃어버린 유물",
+    revive: "다시 일어나기",
+    giveUp: "포기하기",
+    keepDark: "어둠 속으로 계속",
+    darkness: "랜턴이 꺼졌어요! 어둠이 체력을 깎아요",
+    hurt: "아야!",
+    winchHint: "⬆ 위를 눌러 탈출",
+    exitHint: "사다리로 올라가면 탈출!",
+    noRope: "로프가 없어요",
+    tooHard: "곡괭이를 강화해야 캘 수 있어요",
+    nearestExit: "출구 ↑{d}m",
+    atExit: "출구 바로 여기!",
+    jump: "점프",
+    ropeBtn: "로프",
+    ctrlKeys: "←→ 이동 · Space 점프 · ↑↓ 사다리 · X 로프 · 벽으로 밀어서 파기",
+    ctrlTouch: "왼쪽 드래그 이동 · 아래로 끌면 파기 · 오른쪽 버튼 점프",
+    keptCoins: "코인 절반만 챙겼어요",
+    tapToDive: "탭해서 탐험 시작",
     dragHint: "드래그해서 움직이기",
     ascend: "올라가기",
     depth: "깊이",
@@ -124,8 +151,8 @@ export const STR = {
     looseCoins: "주운 코인",
     newBonus: "NEW 보너스",
     setBonus: "보너스",
-    diveAgain: "다시 내려가기",
-    dive: "내려가기",
+    diveAgain: "다시 탐험하기",
+    dive: "탐험하기",
     double: "코인 2배",
     doubled: "2배 받았어요!",
     recover: "되찾기",
@@ -165,12 +192,13 @@ export const STR = {
     reset: "기록 초기화",
     resetConfirm: "한 번 더 누르면 모든 기록이 지워져요",
     noSave: "이 브라우저에서는 저장이 안 돼요. 창을 닫으면 기록이 사라져요.",
-    upgradeNames: { rope: "줄 길이", lantern: "랜턴", bag: "가방", magnet: "자석 장갑", helmet: "투구" },
-    upgradeDesc: { rope: "최대 깊이", lantern: "조명 시간", bag: "담을 수 있는 수", magnet: "줍는 범위", helmet: "낙석 막기" },
+    upgradeNames: { lantern: "랜턴", bag: "가방", hearts: "체력", pick: "곡괭이", ropes: "로프" },
+    upgradeDesc: { lantern: "조명 시간", bag: "담을 수 있는 수", hearts: "하트", pick: "파는 힘", ropes: "가져가는 로프" },
     zones: { village: "무너진 마을", mine: "지하 광산", library: "가라앉은 도서관" },
     rarity: { common: "일반", uncommon: "고급", rare: "희귀", epic: "영웅", legendary: "전설" },
     setNames: { village_memory: "마을의 기억", bell_tower: "종탑의 소리", miners_day: "광부의 하루", miners_treasure: "광부의 보물" },
-    bonusText: { magnet: "줍는 범위 +{v}", lantern: "랜턴 +{v}초", speed: "하강 속도 +{p}%", coins: "코인 +{p}%" },
+    bonusText: { ropes: "로프 +{v}", lantern: "랜턴 +{v}초", hearts: "하트 +{v}", coins: "코인 +{p}%" },
+    pickStone: "돌 캐기 가능",
     items: {
       rusty_key: ["녹슨 열쇠", "어느 집 대문 열쇠였을까."],
       teacup: ["깨진 찻잔", "금이 갔지만 꽃무늬는 그대로예요."],
@@ -204,7 +232,25 @@ export const STR = {
     },
   },
   en: {
-    tapToDive: "Tap to dive",
+    died: "You collapsed…",
+    lostBag: "Lost relics",
+    revive: "Get back up",
+    giveUp: "Give up",
+    keepDark: "Keep going in the dark",
+    darkness: "Lantern's out! The dark drains your health",
+    hurt: "Ouch!",
+    winchHint: "⬆ Press up to escape",
+    exitHint: "Climb the ladder to escape!",
+    noRope: "No ropes left",
+    tooHard: "Upgrade your pickaxe to dig this",
+    nearestExit: "Exit ↑{d}m",
+    atExit: "Exit right here!",
+    jump: "Jump",
+    ropeBtn: "Rope",
+    ctrlKeys: "←→ move · Space jump · ↑↓ ladders · X rope · push into walls to dig",
+    ctrlTouch: "Drag left side to move · drag down to dig · right button jumps",
+    keptCoins: "Kept half your coins",
+    tapToDive: "Tap to explore",
     dragHint: "Drag to move",
     ascend: "Go up",
     depth: "Depth",
@@ -224,8 +270,8 @@ export const STR = {
     looseCoins: "Coins picked up",
     newBonus: "NEW bonus",
     setBonus: "Bonus",
-    diveAgain: "Dive again",
-    dive: "Dive",
+    diveAgain: "Explore again",
+    dive: "Explore",
     double: "Double coins",
     doubled: "Doubled!",
     recover: "Recover",
@@ -265,12 +311,13 @@ export const STR = {
     reset: "Reset progress",
     resetConfirm: "Tap again to erase everything",
     noSave: "Saving is blocked in this browser. Progress is lost when you close it.",
-    upgradeNames: { rope: "Rope", lantern: "Lantern", bag: "Bag", magnet: "Magnet glove", helmet: "Helmet" },
-    upgradeDesc: { rope: "Max depth", lantern: "Light time", bag: "Slots", magnet: "Pickup range", helmet: "Blocks rocks" },
+    upgradeNames: { lantern: "Lantern", bag: "Bag", hearts: "Health", pick: "Pickaxe", ropes: "Ropes" },
+    upgradeDesc: { lantern: "Light time", bag: "Slots", hearts: "Hearts", pick: "Dig power", ropes: "Ropes carried" },
     zones: { village: "Fallen Village", mine: "Deep Mine", library: "Sunken Library" },
     rarity: { common: "Common", uncommon: "Uncommon", rare: "Rare", epic: "Epic", legendary: "Legendary" },
     setNames: { village_memory: "Village Memories", bell_tower: "Bell Tower", miners_day: "A Miner's Day", miners_treasure: "Miner's Treasure" },
-    bonusText: { magnet: "Pickup range +{v}", lantern: "Lantern +{v}s", speed: "Dive speed +{p}%", coins: "Coins +{p}%" },
+    bonusText: { ropes: "Ropes +{v}", lantern: "Lantern +{v}s", hearts: "Hearts +{v}", coins: "Coins +{p}%" },
+    pickStone: "Digs stone",
     items: {
       rusty_key: ["Rusty Key", "Whose front door did it open?"],
       teacup: ["Cracked Teacup", "Cracked, but the flowers survived."],

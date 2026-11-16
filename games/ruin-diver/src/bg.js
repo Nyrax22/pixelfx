@@ -1,165 +1,185 @@
-// The shaft: tiling wall textures for each zone, the sky over the surface, and the light that falls off with depth.
+// Drawing the cave: tile textures with lit and shaded edges, the back wall behind open space, the sky over the
+// surface, and the light that falls off with depth.
 
-import { W, H, SHAFT_L, SHAFT_R, PX_PER_M } from "./data.js";
+import { W, H, T, MW, MH } from "./data.js";
+import { AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, SOLID } from "./cave.js";
 
-const TH = 128;                         // texture height; every texture tiles vertically
-const SW = SHAFT_R - SHAFT_L, WW = SHAFT_L;
-const rgb = (r, g, b) => (255 << 24) | ((b & 255) << 16) | ((g & 255) << 8) | (r & 255);
+const rgb = (r, g, b) => (255 << 24) | ((Math.max(0, Math.min(255, b)) & 255) << 16) | ((Math.max(0, Math.min(255, g)) & 255) << 8) | (Math.max(0, Math.min(255, r)) & 255);
 const hx = (h) => { const v = parseInt(h.slice(1), 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
 function h2(x, y, s = 0) {
   let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(s | 0, 2246822519);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
-// periodic value noise, so textures tile
-function vnoise(x, y, per, s) {
-  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
-  const g = (a, b) => h2(((a % per) + per) % per, ((b % per) + per) % per, s);
-  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
-  return (g(xi, yi) * (1 - u) + g(xi + 1, yi) * u) * (1 - v) + (g(xi, yi + 1) * (1 - u) + g(xi + 1, yi + 1) * u) * v;
-}
-const shadeC = (c, k) => rgb(Math.min(255, c[0] * k), Math.min(255, c[1] * k), Math.min(255, c[2] * k));
+const sh = (c, k) => rgb(c[0] * k, c[1] * k, c[2] * k);
+const VAR = 4; // texture variants per material
 
-function tex(w, fn) {
-  const t = new Uint32Array(w * TH);
-  for (let y = 0; y < TH; y++) for (let x = 0; x < w; x++) t[y * w + x] = fn(x, y);
-  return t;
+function texSet(fn) {
+  return Array.from({ length: VAR }, (_, v) => {
+    const t = new Uint32Array(T * T);
+    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) t[y * T + x] = fn(x, y, v);
+    return t;
+  });
 }
-const mirror = (t, w) => {
-  const m = new Uint32Array(t.length);
-  for (let y = 0; y < TH; y++) for (let x = 0; x < w; x++) m[y * w + x] = t[y * w + (w - 1 - x)];
-  return m;
+function dirtTex(base, specks) {
+  const b = hx(base), s = specks.map(hx);
+  return (x, y, v) => {
+    const n = h2(x, y, v + 10);
+    let c = sh(b, 0.86 + h2(x >> 1, y >> 1, v) * 0.22);
+    if (n < 0.06) c = sh(s[0], 1);
+    else if (n > 0.95) c = sh(s[1], 1);
+    return c;
+  };
+}
+function stoneTex(base) {
+  const b = hx(base);
+  return (x, y, v) => {
+    // a couple of chunky facets per tile with cracks between
+    const cx = (x + (v & 1) * 5) % T, cy = (y + (v >> 1) * 7) % T;
+    const crack = (cx === 9 && cy < 11) || (cy === 10 && cx > 3) || (cx === 3 && cy > 10);
+    let k = 0.82 + h2(x >> 2, y >> 2, v + 30) * 0.3;
+    if (crack) k = 0.55;
+    else if ((cx === 10 && cy < 10) || (cy === 11 && cx > 3)) k *= 1.18;
+    return sh(b, k + (h2(x, y, v + 31) - 0.5) * 0.08);
+  };
+}
+function oreTex(baseFn, ore) {
+  const o = ore.map(hx);
+  return (x, y, v) => {
+    const blobs = [[4, 5], [11, 9], [6, 12], [12, 3]];
+    for (let i = 0; i < 3; i++) {
+      const [bx, by] = blobs[(i + v) % 4], dx = x - bx, dy = y - by, d = dx * dx + dy * dy;
+      if (d <= 2) return sh(o[d === 0 ? 2 : dx < 0 || dy < 0 ? 1 : 0], 1);
+    }
+    return baseFn(x, y, v);
+  };
+}
+const brickTex = (x, y, v) => {
+  const row = y >> 2, off = row & 1 ? 4 : 0, mortar = (y & 3) === 3 || ((x + off) & 7) === 7;
+  const b = hx("#7a4a3a");
+  return mortar ? sh(b, 0.5) : sh(b, 0.82 + h2((x + off) >> 3, row, v + 50) * 0.3 + ((y & 3) === 0 ? 0.12 : 0));
+};
+const woodTex = (x, y, v) => {
+  const b = hx("#7a5230"), plank = y >> 2;
+  if ((y & 3) === 3) return sh(b, 0.5);
+  if ((x + plank * 5 + v * 3) % 16 === 0) return sh(b, 0.6);
+  return sh(b, 0.85 + h2(x >> 2, plank, v + 60) * 0.25 + (h2(x, y, v + 61) - 0.5) * 0.1);
 };
 
-// ---- the fallen village: brick at the back, big mossy stones either side
-const vBack = tex(SW, (x, y) => {
-  const row = Math.floor(y / 8), off = row % 2 ? 8 : 0, bx = Math.floor((x + off) / 16);
-  const mortar = y % 8 === 7 || (x + off) % 16 === 15;
-  const base = hx("#3e3040"), k = 0.85 + h2(bx, row, 3) * 0.3 + (h2(x, y, 4) - 0.5) * 0.12;
-  if (mortar) return shadeC(base, 0.55);
-  if (y % 8 === 0) return shadeC(base, k * 1.12);
-  return shadeC(base, k);
-});
-const vWallL = tex(WW, (x, y) => {
-  const row = Math.floor(y / 16), off = row % 2 ? 12 : 0, bx = Math.floor((x + off) / 24);
-  const lx = (x + off) % 24, ly = y % 16;
-  const base = hx("#5e4e58");
-  let k = 0.82 + h2(bx, row, 7) * 0.3 + (vnoise(x / 3, y / 3, 1000, 2) - 0.5) * 0.18;
-  if (lx === 23 || ly === 15) k = 0.42;
-  else if (lx === 0 || ly === 0) k *= 1.22;
-  else if (lx === 22 || ly === 14) k *= 0.75;
-  let c = shadeC(base, k);
-  if (ly <= 2 && lx < 23 && h2(x, y, 9) < 0.35 + (2 - ly) * 0.15) c = shadeC(hx("#4a7a3a"), 0.75 + h2(x, y, 10) * 0.4);
-  // darker toward the shaft: the wall turns away from the light
-  if (x > WW - 7) c = shadeC([c & 255, (c >>> 8) & 255, (c >>> 16) & 255], 0.55 + (WW - 1 - x) * 0.06);
-  return c;
-});
-const vWallR = mirror(vWallL, WW);
-
-// ---- the mine: raw rock at the back with ore flecks, timbered walls
-const mBack = tex(SW, (x, y) => {
-  const n = vnoise(x / 9, y / 9, Math.round(SW / 9), 11) * 0.6 + vnoise(x / 3, y / 3, SW / 3, 12) * 0.4;
-  const base = hx("#2e2620");
-  let c = shadeC(base, 0.7 + n * 0.6);
-  if (h2(x, y, 13) < 0.006) c = rgb(200, 120, 60);
-  else if (h2(x, y, 14) < 0.004) c = rgb(120, 200, 220);
-  return c;
-});
-const mWallL = tex(WW, (x, y) => {
-  const n = vnoise(x / 7, y / 7, 1000, 21) * 0.65 + vnoise(x / 2.5, y / 2.5, 1000, 22) * 0.35;
-  let c = shadeC(hx("#4a3c32"), 0.62 + n * 0.62);
-  // a timber post along the shaft edge and a beam every 64 px
-  if (x >= WW - 12 && x < WW - 2) {
-    const g = vnoise(x * 0.8, y / 10, 1000, 23);
-    c = shadeC(hx("#6a4424"), x === WW - 12 || x === WW - 3 ? 0.5 : 0.8 + g * 0.35);
-  } else if (y % 64 < 6) {
-    c = shadeC(hx("#6a4424"), y % 64 === 0 || y % 64 === 5 ? 0.5 : 0.85 + vnoise(x / 10, y, 1000, 24) * 0.3);
-  }
-  if (x >= WW - 2) c = shadeC(hx("#1c1410"), 1);
-  if (h2(x, y, 25) < 0.004) c = rgb(220, 140, 70);
-  return c;
-});
-const mWallR = mirror(mWallL, WW);
-
-const ZT = [
-  { back: vBack, l: vWallL, r: vWallR },
-  { back: mBack, l: mWallL, r: mWallR },
+const dirtV = dirtTex("#6a4630", ["#4a2e1e", "#8a6a4a"]);
+const dirtM = dirtTex("#54443c", ["#3a2e28", "#76665c"]);
+const stoneV = stoneTex("#6a6a78");
+const stoneM = stoneTex("#585c6c");
+// [village, mine] textures per material
+const TEX = {
+  [DIRT]: [texSet(dirtV), texSet(dirtM)],
+  [STONE]: [texSet(stoneV), texSet(stoneM)],
+  [BEDROCK]: [texSet(stoneTex("#26222e")), texSet(stoneTex("#26222e"))],
+  [GOLD]: [texSet(oreTex(dirtV, ["#a06a0a", "#f0b424", "#fff0a0"])), texSet(oreTex(dirtM, ["#a06a0a", "#f0b424", "#fff0a0"]))],
+  [GEM]: [texSet(oreTex(stoneM, ["#1a6a8a", "#4ad0ff", "#e0ffff"])), texSet(oreTex(stoneM, ["#1a6a8a", "#4ad0ff", "#e0ffff"]))],
+  [BRICK]: [texSet(brickTex), texSet(brickTex)],
+  [WOOD]: [texSet(woodTex), texSet(woodTex)],
+};
+// the back wall: the same rock, dark and soft, behind open space
+const BACK = [
+  texSet((x, y, v) => sh(hx("#2a1c16"), 0.8 + h2(x >> 2, y >> 2, v + 70) * 0.35)),
+  texSet((x, y, v) => sh(hx("#1e1c22"), 0.8 + h2(x >> 2, y >> 2, v + 71) * 0.35)),
 ];
-const BOUNDARY = 100 * PX_PER_M;
-const SKY = ["#1b1530", "#3a2a4a", "#7a4a5a", "#d07a5a"].map(hx);
-const EARTH = hx("#3a2a22"), GRASS = hx("#4a7a3a"), GRASS_HI = hx("#7ab04a");
-export const SURFACE = -14;
+const GRASS = hx("#4a8a3a"), GRASS_HI = hx("#8ac04a");
+const SKY = ["#141030", "#2e2450", "#6a4066", "#d07a5a"].map(hx);
 
-function skyRow(wy) {
-  const t = Math.max(0, Math.min(1, (wy + 220) / 206)) * (SKY.length - 1), i = Math.min(SKY.length - 2, Math.floor(t)), f = t - i;
-  const a = SKY[i], b = SKY[i + 1];
-  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
-}
+/** Zone for texture choice: a soft dithered seam at 100m. */
+const zoneIdx = (wx, wy) => {
+  const d = wy - 100 * T;
+  if (d < -12) return 0;
+  if (d > 12) return 1;
+  return h2(wx, wy, 99) < (d + 12) / 24 ? 1 : 0;
+};
 
-/** Paint the background for a camera whose top edge is at world y camY (whole pixels). */
-export function drawBackground(frame, camY) {
-  const C = frame.color;
+/**
+ * Paint the cave for a camera whose top-left is at world (camX, camY), whole pixels. dig: Map of tile index
+ * to dig progress 0..1, drawn as cracks.
+ */
+export function drawCave(frame, cave, camX, camY, dig) {
+  const C = frame.color, { tile } = cave;
+  // sky above the surface
   for (let sy = 0; sy < H; sy++) {
-    const wy = camY + sy, row = sy * W;
-    if (wy < SURFACE) {
-      const s = skyRow(wy);
-      for (let x = 0; x < W; x++) {
-        // a few stars high up, and a gentle dither between sky bands
-        const d = (h2(x, wy, 31) - 0.5) * 6;
-        C[row + x] = h2(x, wy, 32) < 0.0015 && wy < -120 ? rgb(230, 220, 240) : rgb(s[0] + d, s[1] + d, s[2] + d);
-      }
+    const wy = camY + sy;
+    if (wy >= 0) break;
+    const t = Math.max(0, Math.min(1, (wy + 260) / 260)) * (SKY.length - 1), i = Math.min(SKY.length - 2, Math.floor(t)), f = t - i;
+    const a = SKY[i], b = SKY[i + 1], row = sy * W;
+    for (let x = 0; x < W; x++) {
+      const d = (h2(x + camX, wy, 3) - 0.5) * 6;
+      C[row + x] = h2(x + camX, wy, 4) < 0.002 && wy < -120 ? rgb(230, 220, 240) : rgb(a[0] + (b[0] - a[0]) * f + d, a[1] + (b[1] - a[1]) * f + d, a[2] + (b[2] - a[2]) * f + d);
+    }
+  }
+  const tx0 = Math.floor(camX / T), ty0 = Math.max(0, Math.floor(camY / T));
+  const tx1 = Math.min(MW - 1, Math.floor((camX + W - 1) / T)), ty1 = Math.min(MH - 1, Math.floor((camY + H - 1) / T));
+  const solidAt = (x, y) => (x < 0 || x >= MW || y >= MH ? true : y < 0 ? false : SOLID[tile[y * MW + x]]);
+  for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+    const m = tile[ty * MW + tx], v = (h2(tx, ty, 7) * VAR) | 0, z = zoneIdx(tx * T, ty * T);
+    const ox = tx * T - camX, oy = ty * T - camY;
+    if (m === AIR) {
+      blit(C, BACK[z][v], ox, oy, 0, 0, 0, 0, 0, 0);
       continue;
     }
-    const ty = ((Math.floor(wy) % TH) + TH) % TH;
-    const by = ((Math.floor(wy * 0.7) % TH) + TH) % TH; // the back wall scrolls slower: depth
-    const near = wy - BOUNDARY;
-    let z = wy < BOUNDARY ? 0 : 1;
-    const blend = Math.abs(near) < 18;
-    const T = ZT[z];
-    if (!blend) {
-      C.set(T.l.subarray(ty * WW, ty * WW + WW), row);
-      C.set(T.back.subarray(by * SW, by * SW + SW), row + SHAFT_L);
-      C.set(T.r.subarray(ty * WW, ty * WW + WW), row + SHAFT_R);
-    } else {
-      const f = (near + 18) / 36;
-      for (let x = 0; x < W; x++) {
-        const Z = ZT[h2(x, wy, 41) < f ? 1 : 0];
-        C[row + x] = x < SHAFT_L ? Z.l[ty * WW + x] : x < SHAFT_R ? Z.back[by * SW + x - SHAFT_L] : Z.r[ty * WW + x - SHAFT_R];
-      }
-    }
-    if (wy < 0) {
-      // the ground at the surface: grass on top, earth below, the shaft open in the middle
-      for (let x = 0; x < W; x++) {
-        if (x >= SHAFT_L && x < SHAFT_R) {
-          C[row + x] = shadeC(hx("#1c1418"), 1);
-          continue;
-        }
-        const d = wy - SURFACE;
-        const tuft = h2(x, 0, 51) < 0.3 ? 1 : 0;
-        C[row + x] = d < 2 + tuft ? shadeC(d === 0 ? GRASS_HI : GRASS, 0.9 + h2(x, wy, 52) * 0.2) : shadeC(EARTH, 0.8 + h2(x, wy, 53) * 0.3);
-      }
+    const top = !solidAt(tx, ty - 1), bot = !solidAt(tx, ty + 1), lf = !solidAt(tx - 1, ty), rt = !solidAt(tx + 1, ty);
+    blit(C, TEX[m][z][v], ox, oy, top, bot, lf, rt, ty <= 1 && top && (m === DIRT || m === GOLD), dig?.get(ty * MW + tx) ?? 0);
+  }
+}
+
+function blit(C, tex, ox, oy, top, bot, lf, rt, grass, crack) {
+  const x0 = Math.max(0, -ox), x1 = Math.min(T, W - ox), y0 = Math.max(0, -oy), y1 = Math.min(T, H - oy);
+  for (let y = y0; y < y1; y++) {
+    const row = (oy + y) * W + ox;
+    for (let x = x0; x < x1; x++) {
+      let c = tex[y * T + x];
+      if (grass && y < 3) c = y === 0 || (y === 2 && (x * 7) % 5 === 0) ? sh(GRASS_HI, 1) : y < 2 || (x * 3) % 4 ? sh(GRASS, 1) : c;
+      else if (top && y === 0) c = lighten(c, 1.35);
+      else if (top && y === 1) c = lighten(c, 1.15);
+      if (bot && y >= T - 2) c = lighten(c, y === T - 1 ? 0.45 : 0.7);
+      if (lf && x === 0) c = lighten(c, 0.6);
+      if (rt && x === T - 1) c = lighten(c, 0.6);
+      if (crack > 0 && CRACK[Math.min(3, (crack * 4) | 0)][y * T + x]) c = lighten(c, 0.35);
+      C[row + x] = c;
     }
   }
 }
+const lighten = (c, k) => rgb((c & 255) * k, ((c >>> 8) & 255) * k, ((c >>> 16) & 255) * k);
+// four stages of cracks, each adding to the last
+const CRACK = (() => {
+  const lines = [
+    [[8, 8, 4, 3], [8, 8, 12, 5]],
+    [[8, 8, 3, 12], [12, 5, 14, 2]],
+    [[8, 8, 13, 13], [4, 3, 1, 6], [3, 12, 6, 15]],
+    [[8, 8, 8, 1], [13, 13, 15, 10], [1, 6, 2, 9], [8, 8, 9, 15]],
+  ];
+  const out = [];
+  let acc = new Uint8Array(T * T);
+  for (const set of lines) {
+    acc = acc.slice();
+    for (const [a, b, c, d] of set) {
+      const n = Math.max(Math.abs(c - a), Math.abs(d - b));
+      for (let i = 0; i <= n; i++) acc[Math.round(b + ((d - b) * i) / n) * T + Math.round(a + ((c - a) * i) / n)] = 1;
+    }
+    out.push(acc);
+  }
+  return out;
+})();
 
 // ---------------------------------------------------------------- light
 
-/** How much daylight reaches world y. */
+/** How much daylight reaches world y (pixels). */
 export function ambientAt(wy) {
-  if (wy < SURFACE) return 1;
-  const m = wy / PX_PER_M;
-  if (m < 0) return 0.9;
-  if (m < 100) return 0.62 - (m / 100) * 0.42;
-  return Math.max(0.09, 0.2 - ((m - 100) / 200) * 0.11);
+  if (wy < 0) return 1;
+  const m = wy / T;
+  if (m < 3) return 0.85 - m * 0.12;
+  if (m < 100) return Math.max(0.16, 0.5 - ((m - 3) / 97) * 0.34);
+  return Math.max(0.07, 0.16 - ((m - 100) / 200) * 0.09);
 }
-
 export function fillAmbient(lm, camY) {
-  for (let sy = 0; sy < H; sy++) {
-    const a = ambientAt(camY + sy);
-    lm.fill(a, sy * W, sy * W + W);
-  }
+  for (let sy = 0; sy < H; sy++) lm.fill(ambientAt(camY + sy), sy * W, sy * W + W);
 }
-
 /** Add a pool of light around (cx, cy), screen space: k at the center, smooth to 0 at radius r. */
 export function addLight(lm, cx, cy, r, k) {
   const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(W - 1, Math.ceil(cx + r));
@@ -175,8 +195,7 @@ export function addLight(lm, cx, cy, r, k) {
     }
   }
 }
-
-/** Color times light, plus the frame's additive glow, into RGBA bytes. Light is quantized a little: pixel-art banding. */
+/** Color times light, plus the frame's additive glow, into RGBA bytes. Light steps a little: pixel-art banding. */
 export function compositeLit(frame, lm, out) {
   const C = frame.color, L = frame.light, n = W * H;
   for (let i = 0; i < n; i++) {

@@ -41,7 +41,7 @@ export const starsOf = (count) => STARS.filter((n) => count >= n).length;
 
 /** The bonuses from completed sets, summed. */
 export function setBonus(save) {
-  const b = { magnet: 0, lantern: 0, speed: 0, coins: 0 };
+  const b = { ropes: 0, lantern: 0, hearts: 0, coins: 0 };
   for (const s of SETS) if (save.sets[s.id]) for (const [k, v] of Object.entries(s.bonus)) b[k] += v;
   return b;
 }
@@ -52,12 +52,11 @@ export function stats(save) {
   const b = setBonus(save);
   const star3 = ITEMS.filter((it) => starsOf(save.book[it.id]?.count ?? 0) >= 3).length;
   return {
-    rope: lv("rope"),
     lantern: lv("lantern") + b.lantern,
     bag: lv("bag"),
-    magnet: lv("magnet") + b.magnet,
-    helmet: lv("helmet"),
-    speed: 1 + b.speed,
+    hearts: lv("hearts") + b.hearts,
+    pick: lv("pick"),
+    ropes: lv("ropes") + b.ropes,
     coinK: 1 + b.coins + star3 * STAR3_COIN_BONUS,
   };
 }

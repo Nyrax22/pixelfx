@@ -2,7 +2,7 @@
 
 import { createFrame, clearFrame, createFx, painterFor } from "../../../src/core/index.js";
 import * as confettiFx from "../../../src/fx/ui/confetti.js";
-import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, PX_PER_M } from "./data.js";
+import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP } from "./data.js";
 import { loadSave, writeSave, wipeSave, storageOk, stats, applyRun, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
 import { Run } from "./world.js";
 import { compositeLit } from "./bg.js";
@@ -17,12 +17,12 @@ const img = ctx.createImageData(W, H), frame = createFrame(W, H), lm = new Float
 let save = loadSave();
 let lang = save.lang ?? ((navigator.language || "en").toLowerCase().startsWith("ko") ? "ko" : "en");
 let mode = "boot";            // boot, ready, run, prompt, paused, escaping, results, book
-let run = new Run(save, stats(save), false);
+let run = new Run(save, stats(save), save.runs === 0);
+run.state = "preview"; // the cave behind the title and the hub, standing still
 let result = null;            // the last dive's outcome
 let freshInBook = new Set();  // owned since the book was last opened
 let setQueue = [];
 let screenFx = [];
-let dragged = 0;
 audio.setMuted(!!save.muted);
 
 // ------------------------------------------------------------ text
@@ -54,45 +54,84 @@ function layout() {
 window.addEventListener("resize", layout);
 
 // ------------------------------------------------------------ input
-const input = { dx: 0, dir: 0 };
+// keyboard: arrows or WASD, Space/Z jump, X/C rope. touch: drag on the left half to move (down digs, up climbs),
+// the buttons on the right jump and throw a rope.
 const keys = new Set();
-let drag = null;
+const touch = { dir: 0, up: false, down: false, jump: false };
+let jumpEdge = false, ropeEdge = false;
+const isTouch = matchMedia("(pointer: coarse)").matches;
+let stick = null;
 stage.addEventListener("pointerdown", (e) => {
   audio.unlock();
   if (mode !== "run" || e.target.closest("button")) return;
-  drag = { id: e.pointerId, x: e.clientX };
+  const r = stage.getBoundingClientRect();
+  if (e.clientX - r.left > r.width * 0.55) { jumpEdge = true; touch.jump = true; stick = stick ?? null; return; }
+  stick = { id: e.pointerId, x: e.clientX, y: e.clientY };
   stage.setPointerCapture?.(e.pointerId);
+  const k = $("stick");
+  k.style.left = e.clientX - r.left + "px";
+  k.style.top = e.clientY - r.top + "px";
+  show("stick");
+  moveStick(0, 0);
 });
 stage.addEventListener("pointermove", (e) => {
-  if (!drag || e.pointerId !== drag.id) return;
-  const k = W / stage.getBoundingClientRect().width, dx = (e.clientX - drag.x) * k;
-  drag.x = e.clientX;
-  input.dx += dx;
-  dragged += Math.abs(dx);
+  if (!stick || e.pointerId !== stick.id) return;
+  const em = parseFloat(stage.style.fontSize);
+  moveStick((e.clientX - stick.x) / em, (e.clientY - stick.y) / em);
 });
-const endDrag = (e) => { if (drag && e.pointerId === drag.id) drag = null; };
-stage.addEventListener("pointerup", endDrag);
-stage.addEventListener("pointercancel", endDrag);
+function moveStick(dx, dy) {
+  // dx, dy in em; the knob moves at most 2.2em from the center
+  const d = Math.hypot(dx, dy), m = Math.min(1, 2.2 / (d || 1));
+  $("stickKnob").style.transform = `translate(${dx * m}em, ${dy * m}em)`;
+  touch.dir = dx > 0.8 ? 1 : dx < -0.8 ? -1 : 0;
+  touch.up = dy < -1.4;
+  touch.down = dy > 1.4;
+}
+const endStick = (e) => {
+  if (stick && e.pointerId === stick.id) { stick = null; touch.dir = 0; touch.up = touch.down = false; show("stick", false); }
+  else touch.jump = false;
+};
+stage.addEventListener("pointerup", endStick);
+stage.addEventListener("pointercancel", endStick);
 stage.addEventListener("contextmenu", (e) => e.preventDefault());
+const hold = (id, on, off) => {
+  const el = $(id);
+  el.addEventListener("pointerdown", (e) => { e.preventDefault(); audio.unlock(); on(); });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) el.addEventListener(ev, off);
+};
+hold("jumpBtn", () => { jumpEdge = true; touch.jump = true; }, () => (touch.jump = false));
+hold("ropeBtn", () => (ropeEdge = true), () => {});
 
 window.addEventListener("keydown", (e) => {
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
   audio.unlock();
   const k = e.key.toLowerCase();
-  keys.add(k);
   if (mode === "ready" && !e.repeat) return startDive();
-  if (k === "escape" || k === " ") {
-    if (e.repeat) return;
+  if (k === "escape" && !e.repeat) {
     if (mode === "run") return pause();
     if (mode === "paused") return resume();
-    if (mode === "book" && k === "escape") return closeBook();
-    if (mode === "results" && k === " ") return dive();
+    if (mode === "book") return closeBook();
   }
-  if (mode === "run" && (k === "arrowup" || k === "w")) run.ascend("manual");
+  if (mode === "results" && k === "enter" && !e.repeat) return dive();
+  if (!e.repeat && (k === " " || k === "z" || k === "k")) jumpEdge = true;
+  if (!e.repeat && (k === "x" || k === "c" || k === "r")) ropeEdge = true;
+  keys.add(k);
 });
 window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
 window.addEventListener("blur", () => keys.clear());
 document.addEventListener("visibilitychange", () => { if (document.hidden && mode === "run") pause(); });
+
+function readInput() {
+  const kd = (...ks) => ks.some((k) => keys.has(k));
+  const up = kd("arrowup", "w") || touch.up, down = kd("arrowdown", "s") || touch.down;
+  const dir = (kd("arrowright", "d") ? 1 : 0) - (kd("arrowleft", "a") ? 1 : 0) || touch.dir;
+  // on the keyboard, up also jumps when there's no ladder to climb
+  const upJump = kd("arrowup", "w") && !run.climbable(run.p.x + 5, run.p.y + 7) && !run.climbable(run.p.x + 5, run.p.y + 2) && !run.atWinch;
+  const inp = { dir, up, down, jump: kd(" ", "z", "k") || touch.jump || upJump, jumpPressed: jumpEdge || (upJump && !readInput.upWas), ropePressed: ropeEdge };
+  readInput.upWas = upJump;
+  jumpEdge = ropeEdge = false;
+  return inp;
+}
 
 // ------------------------------------------------------------ toasts and banners
 let toastTimer = 0;
@@ -104,7 +143,7 @@ function toast(text, color = "#fff") {
   void t.offsetWidth;
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 1700);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 1900);
 }
 function banner(title, sub) {
   const b = $("banner");
@@ -117,51 +156,58 @@ function banner(title, sub) {
 const show = (id, on = true) => $(id).classList.toggle("hidden", !on);
 
 // ------------------------------------------------------------ HUD
-let hudBag = -1;
+let hudBag = -1, gaugeMax = 60, lastHud = {};
 function buildHud() {
   const st = run.st;
   const slots = $("bagSlots");
   slots.innerHTML = "";
   for (let i = 0; i < st.bag; i++) slots.appendChild(Object.assign(document.createElement("div"), { className: "slot" }));
   hudBag = -1;
-  // the depth gauge: the rope's length top to bottom, with the record, the zone line and the seal
-  const max = st.rope, marks = $("gaugeMarks");
+  lastHud = {};
+  // the depth gauge reaches a bit past the record, with the zone line, the winches and the seal
+  gaugeMax = Math.min(SEAL_DEPTH, Math.max(60, Math.ceil((save.best + 40) / 20) * 20));
+  const marks = $("gaugeMarks");
   marks.innerHTML = "";
   const mark = (m, cls, label) => {
     const el = document.createElement("div");
     el.className = "gmark " + cls;
-    el.style.top = (m / max) * 100 + "%";
+    el.style.top = (m / gaugeMax) * 100 + "%";
     el.innerHTML = `<i></i>${label}`;
     marks.appendChild(el);
   };
   mark(0, "", "0m");
-  for (const z of ZONES) if (z.from > 0 && z.from < max) mark(z.from, "zone", `${z.from}m`);
-  if (save.best > 0 && save.best < max - 4) mark(save.best, "best", `★ ${save.best}m`);
-  if (max >= SEAL_DEPTH) mark(SEAL_DEPTH, "seal", `🔒 ${SEAL_DEPTH}m`);
-  else mark(max, "", `${max}m`);
-  show("helmetRow", st.helmet > 0);
+  for (const z of ZONES) if (z.from > 0 && z.from < gaugeMax) mark(z.from, "zone", `${z.from}m`);
+  for (const w of run.cave.winches) if (w.y < gaugeMax) mark(w.y, "exit", `⬆${w.y}m`);
+  if (save.best > 4 && save.best < gaugeMax - 4) mark(save.best, "best", `★${save.best}m`);
+  if (gaugeMax >= SEAL_DEPTH) mark(SEAL_DEPTH, "seal", `🔒${SEAL_DEPTH}m`);
+  else mark(gaugeMax, "", `${gaugeMax}m`);
+  show("touchPad", isTouch);
   updateHud(true);
 }
-let lastHud = {};
 function updateHud(force = false) {
   const st = run.st, d = run.depth;
   if (force || lastHud.d !== d) {
     $("hDepth").innerHTML = `${d}<small>m</small>`;
-    $("hZone").textContent = STR[lang].zones[zoneAt(d).id];
-    const k = Math.min(1, run.p.y / PX_PER_M / st.rope);
+    const k = Math.min(1, d / gaugeMax);
     $("gaugeFill").style.height = k * 100 + "%";
     $("gaugeMe").style.top = k * 100 + "%";
+    const ex = run.nearestExit();
+    $("hExit").textContent = ex <= 1 ? S("atExit") : S("nearestExit", { d: ex });
+    $("hZone").textContent = STR[lang].zones[zoneAt(d).id];
     lastHud.d = d;
   }
   const coins = save.coins + run.coins;
-  if (force || lastHud.coins !== coins) {
-    $("hCoins").textContent = coins;
-    lastHud.coins = coins;
+  if (force || lastHud.coins !== coins) { $("hCoins").textContent = coins; lastHud.coins = coins; }
+  if (force || lastHud.hp !== run.hp) {
+    $("hearts").innerHTML = Array.from({ length: st.hearts }, (_, i) => `<span class="${i < run.hp ? "on" : "off"}">♥</span>`).join("");
+    if (lastHud.hp != null && run.hp < lastHud.hp) { $("hearts").classList.remove("hit"); void $("hearts").offsetWidth; $("hearts").classList.add("hit"); }
+    lastHud.hp = run.hp;
   }
-  const lr = Math.max(0, run.lantern / st.lantern);
+  if (force || lastHud.ropes !== run.ropes) { $("ropeTx").textContent = `🪢 ×${run.ropes}`; $("ropeBtnN").textContent = run.ropes; lastHud.ropes = run.ropes; }
+  const lr = run.first ? 1 : Math.max(0, run.lantern / st.lantern);
   $("lanternFill").style.width = lr * 100 + "%";
-  $("lanternTx").textContent = Math.ceil(run.lantern) + S("sec");
-  $("lanternBox").classList.toggle("low", lr < 0.25 && run.state === "descend");
+  $("lanternTx").textContent = run.first ? "∞" : Math.ceil(run.lantern) + S("sec");
+  $("lanternBox").classList.toggle("low", lr < 0.2 && run.state === "play");
   if (force || hudBag !== run.bagVer) {
     const slots = $("bagSlots").children;
     for (let i = 0; i < slots.length; i++) {
@@ -172,13 +218,10 @@ function updateHud(force = false) {
     $("bagTx").textContent = `${run.bag.length}/${st.bag}`;
     hudBag = run.bagVer;
   }
-  $("helmetTx").textContent = "●".repeat(run.helmet) + "○".repeat(Math.max(0, st.helmet - run.helmet));
-  show("ascendBtn", run.state === "descend");
 }
-$("ascendBtn").addEventListener("click", () => run.ascend("manual"));
 $("pauseBtn").addEventListener("click", () => pause());
 
-// ------------------------------------------------------------ the dive
+// ------------------------------------------------------------ the expedition
 function startDive() {
   audio.unlock();
   const first = save.runs === 0;
@@ -188,10 +231,12 @@ function startDive() {
   show("hud");
   buildHud();
   mode = "run";
-  run.start();
   poki.gameplayStart();
-  dragged = 0;
-  show("hint", first);
+  $("hint").querySelector("div:last-child").textContent = isTouch ? S("ctrlTouch") : S("ctrlKeys");
+  $("hint").querySelector(".hand").textContent = isTouch ? "👆" : "⌨️";
+  show("hint", save.runs < 2);
+  clearTimeout(startDive.hintT);
+  startDive.hintT = setTimeout(() => show("hint", false), 9000);
 }
 async function dive() {
   if (mode !== "results") return;
@@ -204,77 +249,86 @@ function hideScreens() {
   for (const id of ["ready", "results", "book", "lanternPrompt", "pause", "setPop"]) show(id, false);
 }
 
+let promptAction = null;
+function promptBox(title, stdLabel, adLabel, onStd, onAd) {
+  mode = "prompt";
+  poki.gameplayStop();
+  stick = null; touch.dir = 0; touch.up = touch.down = touch.jump = false; keys.clear();
+  show("stick", false);
+  $("lpTitle").textContent = title;
+  $("lpUp").textContent = stdLabel;
+  $("lpAdTx").textContent = adLabel;
+  promptAction = { onStd, onAd };
+  show("lanternPrompt");
+}
+$("lpUp").addEventListener("click", () => {
+  show("lanternPrompt", false);
+  promptAction?.onStd();
+});
+$("lpAd").addEventListener("click", async () => {
+  show("lanternPrompt", false);
+  const ok = await poki.rewardedBreak();
+  promptAction?.onAd(ok);
+});
+const backToRun = () => { mode = "run"; poki.gameplayStart(); };
+
 function handleEvents() {
   while (run.events.length) {
     const e = run.events.shift();
     switch (e.type) {
       case "toast":
-        toast(S(e.key), e.key === "helmetSave" ? "#ffe06a" : "#fff");
-        break;
-      case "ascend":
-        show("hint", false);
-        if (e.reason === "manual") toast(S("goingUp"), "#9ad0ff");
+        toast(S(e.key), e.key === "winchHint" || e.key === "exitHint" ? "#9affb0" : e.key === "tooHard" ? "#ffb04a" : "#fff");
         break;
       case "zone":
         banner(STR[lang].zones[e.zone], `${e.depth}m`);
         break;
       case "seal":
-        setTimeout(() => toast(bookPercent(save) >= 0.3 ? S("sealOpen") : S("sealNeed", { p: 30 }), "#6ad0ff"), 900);
+        setTimeout(() => toast(bookPercent(save) >= 0.3 ? S("sealOpen") : S("sealNeed", { p: 30 }), "#6ad0ff"), 400);
         break;
       case "coin":
         $("hCoinsBox").classList.remove("bump");
         void $("hCoinsBox").offsetWidth;
         $("hCoinsBox").classList.add("bump");
         break;
-      case "drop":
-        toast(S("lost"), "#ff8a8a");
-        break;
       case "lanternOut":
-        if (e.depth >= 40 && !e.relit) {
-          mode = "prompt";
-          poki.gameplayStop();
-          $("lpAdTx").textContent = S("relight", { s: LANTERN_AD_SECONDS });
-          show("lanternPrompt");
-        } else {
-          toast(S("lanternOut"), "#ffb04a");
-          run.ascend("lantern");
-        }
+        if (!e.relit) promptBox("🔦 " + S("lanternOut"), S("keepDark"), S("relight", { s: LANTERN_AD_SECONDS }),
+          () => { backToRun(); toast(S("darkness"), "#ff8a6a"); },
+          (ok) => { backToRun(); if (ok) run.relight(LANTERN_AD_SECONDS); else toast(S("darkness"), "#ff8a6a"); });
+        else toast(S("darkness"), "#ff8a6a");
+        break;
+      case "dead":
+        setTimeout(() => {
+          if (run.revived) return finishDive(true);
+          promptBox("💀 " + S("died"), S("giveUp"), S("revive"),
+            () => finishDive(true),
+            (ok) => { if (ok) { run.revive(); backToRun(); } else finishDive(true); });
+        }, 900);
         break;
       case "escaped":
-        finishDive();
+        finishDive(false);
         break;
     }
   }
 }
-$("lpUp").addEventListener("click", () => {
-  show("lanternPrompt", false);
-  mode = "run";
-  poki.gameplayStart();
-  run.ascend("lantern");
-});
-$("lpAd").addEventListener("click", async () => {
-  show("lanternPrompt", false);
-  const ok = await poki.rewardedBreak();
-  mode = "run";
-  poki.gameplayStart();
-  if (ok) run.relight(LANTERN_AD_SECONDS);
-  else run.ascend("lantern");
-});
 
-function finishDive() {
+function finishDive(died) {
   mode = "escaping";
   poki.gameplayStop();
   show("hint", false);
+  show("stick", false);
   const before = new Set(ITEMS.filter((it) => (save.book[it.id]?.count ?? 0) > 0).map((it) => it.id));
-  result = applyRun(save, { bag: run.bag, dropped: run.dropped, seen: run.seen, coins: run.coins, depth: run.depthMax });
-  result.dropped = run.dropped.slice();
+  const lost = died ? run.bag.slice() : [];
+  const coins = died ? Math.floor(run.coins * DEATH_COIN_KEEP) : run.coins;
+  result = applyRun(save, { bag: died ? [] : run.bag, dropped: lost, seen: run.seen, coins, depth: run.depthMax });
+  result.died = died;
+  result.lost = lost;
   for (const it of result.items) if (!before.has(it.id)) freshInBook.add(it.id);
   setQueue.push(...result.newSets);
   writeSave(save);
   setTimeout(() => {
     show("hud", false);
     showResults();
-  }, 700);
+  }, died ? 300 : 800);
 }
 
 // ------------------------------------------------------------ results (and the hub, when there's no dive to show)
@@ -285,16 +339,18 @@ function showResults() {
   const title = $("resTitle"), grid = $("lootGrid");
   grid.innerHTML = "";
   if (r) {
-    title.innerHTML = `${S("escaped")} <small>${S("reachedDepth")} ${r.depth}m</small>${r.record ? `<span id="resRecord">★ ${S("newRecord")}</span>` : ""}`;
-    show("resEmpty", !r.items.length);
+    title.innerHTML = `<span class="${r.died ? "dead" : ""}">${r.died ? S("died") : S("escaped")}</span> <small>${S("reachedDepth")} ${r.depth}m</small>${r.record ? `<span id="resRecord">★ ${S("newRecord")}</span>` : ""}`;
+    show("resEmpty", !r.items.length && !r.died);
     $("resEmpty").textContent = S("nothing");
     const shown = stack(r.items);
     shown.forEach((it, i) => grid.appendChild(card(it, i)));
     renderCoins(r);
+    // what was in the bag when you fell: it stays down there
     const dr = $("droppedRow");
-    show("droppedRow", r.dropped.length > 0);
-    dr.querySelector(".ic").innerHTML = r.dropped.map((d) => `<img src="${itemIcon(ITEM[d.id], "color", d.variant)}" alt="">`).join("");
-    $("dropAd").disabled = false;
+    show("droppedRow", r.died);
+    dr.querySelector(".lbl").textContent = r.lost.length ? S("lostBag") : S("keptCoins");
+    dr.querySelector(".ic").innerHTML = r.lost.map((d) => `<img src="${itemIcon(ITEM[d.id], "color", d.variant)}" alt="">`).join("");
+    dr.querySelector(".sp").textContent = r.lost.length ? S("keptCoins") : "";
     $("doubleBtn").disabled = r.total <= 0;
     show("doubleBtn", true);
     $("diveBtn").textContent = S("diveAgain");
@@ -401,38 +457,6 @@ $("doubleBtn").addEventListener("click", async () => {
   renderCoins(result);
   renderUpgrades();
 });
-$("dropSkip").addEventListener("click", () => show("droppedRow", false));
-$("dropAd").addEventListener("click", async () => {
-  if (!result?.dropped.length) return;
-  $("dropAd").disabled = true;
-  const ok = await poki.rewardedBreak();
-  if (!ok) return ($("dropAd").disabled = false);
-  const before = new Set(ITEMS.filter((it) => (save.book[it.id]?.count ?? 0) > 0).map((it) => it.id));
-  const extra = applyRun(save, { bag: result.dropped, dropped: [], seen: {}, coins: 0, depth: 0 }, true);
-  writeSave(save);
-  for (const it of extra.items) if (!before.has(it.id)) freshInBook.add(it.id);
-  const grid = $("lootGrid");
-  for (const it of extra.items) {
-    const el = card(it, 0);
-    grid.appendChild(el);
-    requestAnimationFrame(() => el.classList.add("in"));
-  }
-  result.items.push(...extra.items);
-  result.itemCoins += extra.itemCoins;
-  result.newCoins += extra.newCoins;
-  result.total += extra.total;
-  result.dropped = [];
-  show("droppedRow", false);
-  show("resEmpty", false);
-  renderCoins(result);
-  renderUpgrades();
-  renderBookBtn();
-  setQueue.push(...extra.newSets);
-  toast(S("recovered"), "#8aff8a");
-  audio.play("newItem");
-  nextSetPop();
-});
-
 // ------------------------------------------------------------ set complete
 function nextSetPop() {
   if (mode !== "results" || !setQueue.length || !$("setPop").classList.contains("hidden")) return;
@@ -580,17 +604,14 @@ function adPlaceholder(ms) {
 
 // ------------------------------------------------------------ the loop
 let last = performance.now();
-const idle = { dx: 0, dir: 0 };
+const idle = { dir: 0, up: false, down: false, jump: false, jumpPressed: false, ropePressed: false };
 function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (mode === "run" && !poki.inAd) {
-    input.dir = (keys.has("arrowright") || keys.has("d") ? 1 : 0) - (keys.has("arrowleft") || keys.has("a") ? 1 : 0);
-    run.update(dt, input);
-    input.dx = 0;
+    run.update(dt, readInput());
     handleEvents();
     if (mode === "run") updateHud();
-    if (run.first && dragged > 40) show("hint", false);
   } else if (mode !== "paused" && mode !== "prompt") {
     run.update(dt, idle);
     if (mode === "escaping") handleEvents();
@@ -635,4 +656,6 @@ async function boot() {
   }
   requestAnimationFrame(tick);
 }
+// ?debug exposes the game for automated playtests
+if (/[?&]debug/.test(location.search)) window.__rd = { get run() { return run; }, get mode() { return mode; }, save: () => save };
 boot();
