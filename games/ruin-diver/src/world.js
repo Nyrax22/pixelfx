@@ -7,9 +7,9 @@ import * as poofFx from "../../../src/fx/spawn/poof.js";
 import * as torchFx from "../../../src/fx/fire/torch.js";
 import * as campfireFx from "../../../src/fx/fire/campfire.js";
 import * as beamFx from "../../../src/fx/pickups/loot-beam.js";
-import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME, SURVIVE, START_KIT } from "./data.js";
-import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL, CHEST, CHEST_PAL, GOLD_SLIME_PAL, MUSHROOM, MUSHROOM_PAL, OIL, OIL_PAL, ROOT_SPR, ROOT_PAL, CRATE, CRATE_PAL } from "./sprites.js";
-import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE, POOL, ROOT } from "./cave.js";
+import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME, SURVIVE, START_KIT, EVENTS, BEASTS, ORES } from "./data.js";
+import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL, CHEST, CHEST_PAL, GOLD_SLIME_PAL, MUSHROOM, MUSHROOM_PAL, OIL, OIL_PAL, ROOT_SPR, ROOT_PAL, CRATE, CRATE_PAL, ALTAR, ALTAR_PAL, MERCHANT, MERCHANT_PAL, CURSED_PAL, VAULT_PAL } from "./sprites.js";
+import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE, POOL, ROOT, rollItem } from "./cave.js";
 import { drawCave, fillAmbient, addLight } from "./bg.js";
 import { zoneAt, missionProgress } from "./logic.js";
 import { audio } from "./audio.js";
@@ -28,6 +28,10 @@ const RTXT = Object.fromEntries(Object.entries(RARITY).map(([k, r]) => [k, r.col
 const DEBRIS = { [DIRT]: ["#6a4630", "#4a2e1e", "#8a6a4a"], [STONE]: ["#6a6a78", "#4a4a58", "#9a9aa8"], [GOLD]: ["#f0b424", "#6a4630", "#fff0a0"], [GEM]: ["#4ad0ff", "#585c6c", "#e0ffff"], [BRICK]: ["#7a4a3a", "#5a3020", "#a06a50"], [WOOD]: ["#7a5230", "#5a3a20", "#b07a40"] };
 const POOF_DARK = ["#120c18", "#2a2036", "#4a3a5a", "#6a5a7a", "#9a8aaa", "#c8bad8"];
 const PW = 10, PH = 15; // the explorer's box
+const BEAST = Object.fromEntries(BEASTS.map((b) => [b.id, b]));
+const ORE_COL = { copper: [0xff3a8ae0, 0xff9ad0ff], iron: [0xffc8b4a0, 0xfffff0e0], crystal: [0xffffe04a, 0xffffffb0] };
+const beastOf = (en) => (en.gold ? "gold_slime" : en.red ? "red_slime" : en.kind);
+const NO_PERKS = { dig: 1, waterK: 1, jumpK: 1, fall: 0, lightK: 1, lamp: 1, hearts: 0, detect: 0, poolK: 1, oil: 0, torchK: 1, campStone: 0, hunterK: 1, kit: {} };
 
 export class Run {
   constructor(save, st, first = false, start = null) {
@@ -51,7 +55,16 @@ export class Run {
     this.food = 100;
     this.water = 100;
     this.light = 100;
+    this.pk = st.pk ?? NO_PERKS;
     this.inv = { ...START_KIT, wood: START_KIT.wood + (st.ropes ?? 0) * 2 };
+    for (const [k, v] of Object.entries(this.pk.kit)) this.inv[k] = (this.inv[k] ?? 0) + v;
+    // the long game: what this dive brings home besides relics and coins
+    this.mats = {};
+    this.beasts = {};          // id -> { seen, kills, drops }
+    this.used = {};
+    this.torchesPlaced = 0;
+    this.eventsMet = [];
+    this.ores = this.cave.ores ?? new Map();
     this.carry = st.bag;
     this.starveT = 0;
     this.spawnT = SURVIVE.hunters.lit;
@@ -89,6 +102,8 @@ export class Run {
     this.pools = new Map(this.cave.pools.map((q) => [q.ty * MW + q.tx, { units: SURVIVE.poolUnits, regen: 0, sip: 0 }]));
     this.chests = this.cave.chests.map((c) => ({ ...c, x: c.tx * T + 8, y: (c.ty + 1) * T, open: false, t: 0 }));
     this.hints = this.cave.hints.map((h) => ({ ...h, shown: false }));
+    this.evs = (this.cave.events ?? []).map((e) => ({ ...e, x: e.tx * T + 8, y: (e.ty + 1) * T, done: false, found: false }));
+    this.nearEv = null;
     // what this expedition did, for missions
     this.tally = { slimes: 0, bats: 0, skulls: 0, gold: 0, chests: 0, hearts: 0, goldSlime: 0, combo: 0, depth: 0, winch: 0, escapeWith: 0, boss_slime_king: 0, boss_golem: 0 };
     this.missionsDone = new Set();
@@ -182,6 +197,7 @@ export class Run {
         this.updateBosses(dt);
         this.updateResources(dt);
         this.spawnHunters(dt);
+        this.updateEvents(input);
       }
       this.depthMax = Math.max(this.depthMax, this.depth);
       this.tally.depth = this.depthMax;
@@ -244,7 +260,7 @@ export class Run {
   }
   addLight(x, y, kind) {
     const fx = createFx(kind === "campfire" ? campfireFx : torchFx, { seed: this.lights.length + 3 });
-    this.lights.push({ x, y, kind, fx, r: kind === "campfire" ? SURVIVE.campfire.radius : SURVIVE.torch.radius, healT: 0 });
+    this.lights.push({ x, y, kind, fx, r: kind === "campfire" ? SURVIVE.campfire.radius : SURVIVE.torch.radius * (this.pk?.torchK ?? 1), healT: 0 });
   }
   updateSurvival(dt, input) {
     const S = SURVIVE, st = this.st, p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
@@ -252,9 +268,9 @@ export class Run {
     const camp = this.lit(cx, cy);
     // meters run down; a campfire keeps the lantern topped up
     this.food = Math.max(0, this.food - (100 / (S.food * st.stomach)) * dt);
-    this.water = Math.max(0, this.water - (100 / (S.water * st.stomach)) * dt);
+    this.water = Math.max(0, this.water - (100 / (S.water * st.stomach)) * this.pk.waterK * dt);
     if (camp?.kind === "campfire") this.light = Math.min(100, this.light + 20 * dt);
-    else this.light = Math.max(0, this.light - (100 / st.lantern) * dt);
+    else this.light = Math.max(0, this.light - (100 / st.lantern) * this.pk.lightK * dt);
     if (this.food < 35) this.hint("hintEat");
     if (this.water < 35) this.hint("hintDrink");
     if (this.light < 30) this.hint("hintLight");
@@ -279,6 +295,7 @@ export class Run {
     if (this.inv.mushroom <= 0) return this.emit("toast", { key: "needs", what: "mushroom" });
     if (this.food >= 99) return this.emit("toast", { key: "full" });
     this.inv.mushroom--;
+    this.use("eat");
     const cooked = camp?.kind === "campfire";
     this.food = Math.min(100, this.food + (cooked ? SURVIVE.cooked : SURVIVE.mushroom));
     this.text(cooked ? "YUM!" : "+FOOD", this.p.x + 5, this.p.y - 8, "#ffb04a", "big");
@@ -290,17 +307,28 @@ export class Run {
     if (this.inv.water <= 0) return this.emit("toast", { key: "needs", what: "water" });
     if (this.water >= 99) return this.emit("toast", { key: "full" });
     this.inv.water--;
+    this.use("drink");
     this.water = Math.min(100, this.water + SURVIVE.drink);
     this.text("+WATER", this.p.x + 5, this.p.y - 8, "#6ac8ff", "big");
     audio.play("drink");
     this.emit("inv");
   }
+  use(k) {
+    this.used[k] = (this.used[k] ?? 0) + 1;
+  }
+  craftCost(kind) {
+    const c = { ...SURVIVE[kind] };
+    if (kind === "campfire") c.stone = Math.max(0, c.stone - this.pk.campStone);
+    return c;
+  }
   craft(kind) {
-    const cost = SURVIVE[kind], p = this.p;
+    const cost = this.craftCost(kind), p = this.p;
     for (const k of ["wood", "stone"]) if ((cost[k] ?? 0) > this.inv[k]) return this.emit("toast", { key: "needs", what: k });
     if (kind === "campfire" && !p.ground) return;
     for (const k of ["wood", "stone"]) this.inv[k] -= cost[k] ?? 0;
     this.addLight(p.x + PW / 2 + p.face * 8, p.y + PH, kind);
+    this.use(kind);
+    if (kind === "torch") this.torchesPlaced++;
     this.emit("toast", { key: "placed", what: kind });
     audio.play("place");
     this.emit("inv");
@@ -316,7 +344,7 @@ export class Run {
     }
     for (const o of this.oils) {
       if (o.taken || Math.abs(o.x - cx) > 9 || Math.abs(o.y - 4 - cy) > 12 || this.light > 95) continue;
-      o.taken = true; this.light = Math.min(100, this.light + SURVIVE.oil);
+      o.taken = true; this.light = Math.min(100, this.light + SURVIVE.oil + this.pk.oil);
       this.text("+LIGHT", o.x, o.y - 12, "#ffe06a", "big"); audio.play("heal");
     }
     // pools: stand in one and your flask fills, sip by sip
@@ -329,7 +357,7 @@ export class Run {
     if (pool) {
       this.hint("hintPool");
       pool.sip += dt;
-      if (pool.sip >= SURVIVE.poolFill && pool.units > 0 && this.inv.water < this.carry) {
+      if (pool.sip >= SURVIVE.poolFill * this.pk.poolK && pool.units > 0 && this.inv.water < this.carry) {
         pool.sip = 0; pool.units--; this.inv.water++;
         this.text("+1", cx, p.y - 6, "#6ac8ff"); audio.play("drink"); this.emit("inv");
       }
@@ -352,23 +380,109 @@ export class Run {
     const H_ = SURVIVE.hunters, p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
     if (this.lit(cx, cy)) return;
     const k = this.hard(p.y);
-    this.spawnT -= dt * k * (this.light <= 0 ? 2.2 : 1);
+    this.spawnT -= dt * k * (this.light <= 0 ? 2.2 : 1) * this.pk.hunterK;
     if (this.spawnT > 0) return;
     this.spawnT = this.light <= 0 ? H_.dark : H_.lit + this.rng.range(-3, 3);
     if (this.depth < 12) return;
     const near = this.enemies.filter((e) => e.alive && Math.abs(e.x - cx) < W && Math.abs(e.y - cy) < H).length;
     if (near >= H_.cap) return;
-    // somewhere open just off screen
+    this.spawnHunter(170, 230);
+  }
+  /** One creature somewhere open, between dmin and dmax pixels away. */
+  spawnHunter(dmin, dmax, ignoreLight = false) {
+    const p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
     for (let tries = 0; tries < 20; tries++) {
-      const ang = this.rng.range(0, Math.PI * 2), d = this.rng.range(170, 230);
+      const ang = this.rng.range(0, Math.PI * 2), d = this.rng.range(dmin, dmax);
       const x = cx + Math.cos(ang) * d, y = cy + Math.sin(ang) * d * 0.7;
       const tx = Math.floor(x / T), ty = Math.floor(y / T);
-      if (ty < 1 || this.solid(tx, ty) || this.lit(x, y, 20)) continue;
+      if (ty < 1 || this.solid(tx, ty) || (!ignoreLight && this.lit(x, y, 20))) continue;
       const mine = zoneAt(ty).id === "mine";
       const kind = mine && this.rng.next() < 0.4 ? "skull" : "bat";
       this.enemies.push({ kind, x, y, state: kind === "bat" ? "fly" : "hang", vx: 0, vy: 0, alive: true, hp: 1, t: 0, cd: 1, seed: this.rng.int(1, 999), hunter: true });
       return;
     }
+  }
+
+  // ------------------------------------------------------------ the long game: materials, monsters, events
+  addMat(id, n, x, y) {
+    this.mats[id] = (this.mats[id] ?? 0) + n;
+    this.text(`+${n} ${id.toUpperCase()}`, x, y, "#9ae0ff", "big");
+    this.emit("mat", { id, n });
+  }
+  spot(id, y) {
+    if (!this.beasts[id]) { this.beasts[id] = { seen: Math.max(0, Math.floor(y / T)), kills: 0, drops: {} }; this.emit("beastSeen", { id }); }
+  }
+  killed(id, x, y) {
+    this.spot(id, y);
+    const b = this.beasts[id];
+    b.kills++;
+    for (const [m, ch] of Object.entries(BEAST[id]?.drops ?? {})) {
+      const n = ch >= 1 ? Math.round(ch) : this.rng.next() < ch ? 1 : 0;
+      if (!n) continue;
+      b.drops[m] = true;
+      this.addMat(m, n, x, y - 10);
+    }
+  }
+  /** The rare material this depth's ore would be. */
+  zoneMat(ty) {
+    const opts = ORES.filter((o) => ty >= o.from - 10 && ty < o.to).map((o) => o.id);
+    return opts.length ? opts[this.rng.int(0, opts.length - 1)] : "copper";
+  }
+  updateEvents(input) {
+    const p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
+    const upEdge = input.up && !this.upWas;
+    this.upWas = input.up;
+    this.nearEv = null;
+    for (const ev of this.evs) {
+      const dx = Math.abs(ev.x - cx), dy = Math.abs(ev.y - 8 - cy);
+      if (!ev.found && dx < 150 && dy < 90) {
+        ev.found = true;
+        this.eventsMet.push(ev.type);
+        this.emit("evFound", { type: ev.type });
+        audio.play("reveal", 2);
+      }
+      if (ev.done || EVENTS[ev.type].passive || dx > 16 || dy > 18 || !p.ground) continue;
+      this.nearEv = ev;
+      if (upEdge || input.look) this.emit("event", { ev });
+    }
+  }
+  /** Can the dive pay this cost right now? hp must stay above zero. */
+  canPay(cost) {
+    return Object.entries(cost).every(([k, v]) => (k === "hp" ? this.hp > v : k === "coins" ? this.coins >= v : (this.inv[k] ?? 0) >= v));
+  }
+  /** Do an event's option. Returns a message key, or null if it couldn't be done. */
+  resolveEvent(ev, id) {
+    const def = EVENTS[ev.type], opt = def.opts?.find((o) => o.id === id);
+    if (!opt || ev.done || !this.canPay(opt.cost)) return null;
+    for (const [k, v] of Object.entries(opt.cost)) { if (k === "hp") this.hp -= v; else if (k === "coins") this.coins -= v; else this.inv[k] -= v; }
+    const z = zoneAt(ev.ty), x = ev.x, y = ev.y - 12;
+    const relic = (item, variant = false) => {
+      const id2 = item ?? rollItem(this.rng, z, ev.ty, (i) => this.save.book[i]?.count ?? 0, 2);
+      if (id2) this.items.push({ id: id2, variant, tx: ev.tx, ty: ev.ty - 1, x, y: y - 14, pop: 0.3 });
+    };
+    const coins = (n) => { for (let k = 0; k < n; k++) this.popCoins.push({ x, y, vx: this.rng.range(-110, 110), vy: this.rng.range(-260, -120), v: z.coinValue, t: 0 }); };
+    let msg = id;
+    switch (id) {
+      case "blood": relic(); this.shake = 0.3; audio.play("set"); break;
+      case "offer": this.addMat(this.zoneMat(ev.ty), 1, x - 10, y); this.addMat(this.zoneMat(ev.ty), 1, x + 10, y - 10); audio.play("set"); break;
+      case "food": this.inv.mushroom += 2; msg = "bought"; break;
+      case "water": this.inv.water += 2; msg = "bought"; break;
+      case "oil": this.light = 100; msg = "bought"; break;
+      case "mats": this.inv.wood += 3; this.inv.stone += 3; msg = "bought"; break;
+      case "rare": this.addMat(this.zoneMat(ev.ty), 1, x, y); msg = "bought"; break;
+      case "open":
+        relic(ev.item, ev.variant); coins(14); this.addMat(this.zoneMat(ev.ty), 2, x, y);
+        this.light = Math.max(0, this.light - 50);
+        for (let k = 0; k < 4; k++) this.spawnHunter(90, 150, true);
+        this.shake = 0.6; audio.play("boss");
+        break;
+      case "break": relic(ev.item, ev.variant); coins(10); this.addMat(this.zoneMat(ev.ty), 2, x, y); this.chips(ev.tx, ev.ty, STONE, 12); audio.play("chest"); break;
+      case "drink": this.water = 100; this.hp = Math.min(this.st.hearts, this.hp + 1); audio.play("heal"); break;
+    }
+    if (msg === "bought") audio.play("coin");
+    if (!def.stay) ev.done = true;
+    this.emit("inv");
+    return msg;
   }
 
   updatePlayer(dt, input) {
@@ -414,7 +528,7 @@ export class Run {
       p.vx = p.vx < target ? Math.min(target, p.vx + a) : Math.max(target, p.vx - a);
       p.vy = Math.min(P.maxFall, p.vy + P.gravity * dt);
       if (p.buf > 0 && p.coyote > 0) {
-        p.vy = -P.jump;
+        p.vy = -P.jump * this.pk.jumpK;
         p.buf = 0;
         p.coyote = 0;
         p.ground = false;
@@ -437,8 +551,8 @@ export class Run {
     if (!p.ground && !p.climb) p.fallTop = Math.min(p.fallTop, p.y);
     if (p.ground && !wasGround && !p.climb) {
       const fell = (p.y - p.fallTop) / T;
-      if (fell > P.fallHurt2) this.hurt(2, "fall");
-      else if (fell > P.fallHurt) this.hurt(1, "fall");
+      if (fell > P.fallHurt2 + this.pk.fall) this.hurt(2, "fall");
+      else if (fell > P.fallHurt + this.pk.fall) this.hurt(1, "fall");
       else if (fell > 1.5) audio.play("land");
       this.dust(p.x + PW / 2, p.y + PH, 4);
     }
@@ -533,6 +647,8 @@ export class Run {
     this.chips(tx, ty, m, 10);
     audio.play("break");
     // what the rock gives back
+    const ore = this.ores.get(i);
+    if (ore) { this.ores.delete(i); this.addMat(ore, 1, tx * T + 8, ty * T - 6); audio.play("newItem"); }
     if (m === STONE || m === GEM || m === BRICK) { this.inv.stone++; this.text("+STONE", tx * T + 8, ty * T, "#b8b8c8"); this.emit("inv"); }
     if (m === WOOD) { this.inv.wood++; this.text("+WOOD", tx * T + 8, ty * T, "#c89a60"); this.emit("inv"); }
     if (m === GOLD) this.tally.gold++;
@@ -557,6 +673,7 @@ export class Run {
     while (bot < MH - 1 && !this.solid(tx, bot + 1) && bot - top < ROPE_LEN + 4) bot++;
     if (top === ty && bot === ty) return;
     this.inv.wood -= SURVIVE.rope.wood;
+    this.use("rope");
     this.emit("inv");
     for (let y = top; y <= bot; y++) if (this.deco[y * MW + tx] === NONE) this.deco[y * MW + tx] = ROPE;
     audio.play("rope");
@@ -646,6 +763,7 @@ export class Run {
       if (!en.alive) continue;
       const dx = px - en.x, dy = py - en.y;
       if (Math.abs(dx) > W || Math.abs(dy) > H) continue;
+      if (Math.abs(dx) < W / 2 && Math.abs(dy) < H / 2) this.spot(beastOf(en), en.y);
       en.t += dt;
       const k = this.hard(en.y);
       if (en.kind === "bat") {
@@ -723,6 +841,7 @@ export class Run {
       this.freeze = 0.06;
       if (--en.hp > 0) { en.hurtT = 0.3; audio.play("stomp"); return; }
       en.alive = false;
+      this.killed(beastOf(en), ex, ey);
       this.combo++;
       this.tally.combo = Math.max(this.tally.combo, this.combo);
       if (en.kind === "slime") this.tally.slimes++;
@@ -851,6 +970,7 @@ export class Run {
           b.state = "fight";
           b.x = px < MW * T / 2 ? (MW - 6) * T : 6 * T;
           this.emit("bossWake", { id: b.id, hp: b.hp });
+          this.spot(b.id, b.y);
           audio.play("boss");
           this.shake = 0.5;
         }
@@ -952,6 +1072,7 @@ export class Run {
     this.items.push({ id: b.trophy, variant: false, tx: Math.floor(b.x / T), ty: b.floor - 1, x: b.x, y: (b.floor - 1) * T + 9 });
     for (const y of [b.floor, b.floor + 1]) { this.tile[y * MW + b.gx] = AIR; this.deco[y * MW + b.gx] = LADDER; }
     this.bossesBeaten = [...(this.bossesBeaten ?? []), b.id];
+    this.killed(b.id, b.x, b.y - 30);
     this.emit("bossDown", { id: b.id });
     audio.play("set");
   }
@@ -1111,6 +1232,61 @@ export class Run {
         P.glow(ox + 8, oy - h, 10, 0xffff8a3a, 0.25);
       } else if (d === ROOT) P.sprite(ROOT_SPR, ROOT_PAL, tx * T - camX + 5, ty * T - camY);
     }
+    // rare ore glinting in the rock
+    for (const [i, id] of this.ores) {
+      const tx = i % MW, ty = (i / MW) | 0, ox = tx * T - camX, oy = ty * T - camY;
+      if (ox < -16 || ox > W || oy < -16 || oy > H) continue;
+      const [c1, c2] = ORE_COL[id];
+      for (const [ax, ay] of [[4, 5], [10, 3], [7, 10], [12, 11], [3, 12]]) P.rect(ox + ax, oy + ay, 2, 2, c1);
+      const s2 = Math.floor(t * 3 + i) % 5;
+      P.dot(ox + [4, 10, 7, 12, 3][s2], oy + [5, 3, 10, 11, 12][s2], c2);
+      P.glow(ox + 8, oy + 8, 10, c1, 0.3 + Math.sin(t * 3 + i) * 0.1);
+      addLight(lm, ox + 8, oy + 8, 14, 0.25);
+    }
+    // events
+    for (const ev of this.evs) {
+      if (!onScreen(ev.x, ev.y, 40)) continue;
+      const ex = sx(ev.x), ey = sy(ev.y);
+      if (ev.type === "altar") {
+        P.sprite(ALTAR, ALTAR_PAL, ex - 8, ey - ALTAR.length);
+        if (!ev.done) { P.glow(ex, ey - 14, 14, 0xffff5ac2, 0.6 + Math.sin(t * 3) * 0.2); addLight(lm, ex, ey - 12, 40, 0.5); }
+      } else if (ev.type === "merchant") {
+        P.sprite(MERCHANT, MERCHANT_PAL, ex - 6, ey - MERCHANT.length, { flip: this.p.x < ev.x });
+        P.glow(ex + 6, ey - 8, 10, 0xff40c0ff, 0.6); addLight(lm, ex + 4, ey - 8, 50, 0.6);
+      } else if (ev.type === "cursed" || ev.type === "vault") {
+        const fr = CHEST[ev.done ? 1 : 0];
+        P.sprite(fr, ev.type === "cursed" ? CURSED_PAL : VAULT_PAL, ex - 7, ey - fr.length);
+        if (!ev.done && ev.type === "cursed") for (let k = 0; k < 3; k++) { const a = t * 1.5 + k * 2.1; P.glow(ex + Math.sin(a) * 6, ey - 14 - ((t * 10 + k * 7) % 14), 5, 0xff8a1a6a, 0.6); }
+        if (!ev.done && ev.type === "vault") P.rect(ex - 1, ey - 7, 3, 3, 0xff40c0f0);
+        addLight(lm, ex, ey - 6, 24, 0.3);
+      } else if (ev.type === "spring") {
+        P.rect(ex - 10, ey - 4, 20, 4, ev.done ? 0xff7a5a3a : 0xffffb84a);
+        P.rect(ex - 10, ey - 4, 20, 1, 0xfffff0c8);
+        if (!ev.done) for (let k = 0; k < 3; k++) P.dot(ex - 6 + k * 6, ey - 5 - (Math.floor(t * 6 + k * 3) % 6), 0xffffffff, 0.8);
+        P.glow(ex, ey - 4, 16, 0xffffa040, ev.done ? 0.1 : 0.5); addLight(lm, ex, ey - 6, 34, 0.4);
+      }
+      if (this.nearEv === ev) {
+        const ay = ey - 36 + Math.round(Math.sin(t * 6));
+        P.tri(ex, ay - 1, ex - 5, ay + 5, ex + 5, ay + 5, 0xff0a0810);
+        P.tri(ex, ay + 1, ex - 3, ay + 4, ex + 3, ay + 4, 0xffffe06a);
+        addLight(lm, ex, ay + 2, 14, 1);
+      }
+    }
+    // the detector: an arrow toward the nearest thing worth finding
+    if (this.pk.detect && this.state === "play") {
+      const px0 = p.x + PW / 2, py0 = p.y + PH / 2;
+      let best = null, bd = 34 * T;
+      const consider = (x, y) => { const d = Math.hypot(x - px0, y - py0); if (d < bd && d > 40) { bd = d; best = [x, y]; } };
+      for (const c of this.chests) if (!c.open && !c.crate) consider(c.x, c.y - 6);
+      for (const ev of this.evs) if (!ev.done && !EVENTS[ev.type].passive) consider(ev.x, ev.y - 8);
+      for (const [i] of this.ores) consider((i % MW) * T + 8, ((i / MW) | 0) * T + 8);
+      if (best) {
+        const a = Math.atan2(best[1] - py0, best[0] - px0), r = 22, ax = sx(px0) + Math.cos(a) * r, ay = sy(py0) + Math.sin(a) * r;
+        const col = 0xff6aff9a, k = 0.6 + Math.sin(t * 6) * 0.3;
+        P.tri(ax + Math.cos(a) * 5, ay + Math.sin(a) * 5, ax + Math.cos(a + 2.4) * 4, ay + Math.sin(a + 2.4) * 4, ax + Math.cos(a - 2.4) * 4, ay + Math.sin(a - 2.4) * 4, col);
+        P.glow(ax, ay, 6, col, k);
+      }
+    }
     // chests
     for (const c of this.chests) {
       if (!onScreen(c.x, c.y)) continue;
@@ -1232,7 +1408,7 @@ export class Run {
     const dark = this.light <= 0;
     const lampX = px + 5 + p.face * 4, lampY = py + 2;
     const flick = 1 + Math.sin(t * 13) * 0.02 + (lr < 0.2 ? Math.sin(t * 31) * 0.08 : 0);
-    addLight(lm, lampX, lampY + 6, dark ? 30 : (50 + 80 * lr) * flick, dark ? 0.5 : 0.95);
+    addLight(lm, lampX, lampY + 6, dark ? 30 : (50 + 80 * lr) * flick * this.pk.lamp, dark ? 0.5 : 0.95);
     if (!dark) P.glow(lampX, lampY, 9, 0xff60c0ff, 0.5);
 
     for (const d of this.debris) P.dot(sx(d.x), sy(d.y), d.c, Math.min(1, d.life * 3));

@@ -1,29 +1,70 @@
 // Rules that turn a save into numbers: stats, the collection, and what a finished dive is worth.
 
-import { ITEMS, ITEM, RARITY, SETS, STARS, STAR3_COIN_BONUS, UPGRADES, UPGRADE, ZONES, MISSIONS, MISSION_BEST, upgradeCost } from "./data.js";
+import { ITEMS, ITEM, RARITY, SETS, STARS, STAR3_COIN_BONUS, UPGRADES, UPGRADE, ZONES, MISSIONS, MISSION_BEST, upgradeCost, MATS, FACILITIES, GEAR, RESEARCH, STORE_KIT, MUSEUM_COINS } from "./data.js";
 
 const SAVE_KEY = "ruindiver.v1";
+export const SAVE_VERSION = 2;
 export let storageOk = true;
+export let saveWasCorrupt = false;
 
 export function defaultSave() {
   return {
-    v: 1, coins: 0, best: 0, runs: 0, muted: false, lang: null,
+    v: SAVE_VERSION, coins: 0, best: 0, runs: 0, muted: false, lang: null,
     up: Object.fromEntries(UPGRADES.map((u) => [u.id, 0])),
     book: {},   // id -> { seen: meters first seen, count, variant }
     sets: {},   // id -> true once completed
     bossKills: {}, // id -> times beaten
     start: "top",  // where the next expedition starts
     missions: { next: 3, active: [{ i: 0, p: 0 }, { i: 1, p: 0 }, { i: 2, p: 0 }] },
+    hintsShown: [],
+    // v2: the long game
+    mats: Object.fromEntries(MATS.map((m) => [m, 0])),
+    base: Object.fromEntries(FACILITIES.map((f) => [f.id, f.start])),
+    gear: {}, equip: [], research: {},
+    beasts: {},   // id -> { seen: meters, kills, drops: { mat: true } }
+    rec: { escapes: 0, deaths: 0, time: 0, coins: 0, kills: 0, events: 0, used: {} },
+    claimed: {},  // challenge id -> true
+    eventLog: [], // the last few dives' events, so they don't repeat too often
   };
 }
+const isObj = (o) => o && typeof o === "object" && !Array.isArray(o);
+const num = (v, d = 0) => (typeof v === "number" && isFinite(v) ? v : d);
+/** Bring any older or partly broken save up to the current shape, keeping what can be kept. */
+export function migrate(s) {
+  const d = defaultSave();
+  if (!isObj(s)) return d;
+  const out = { ...d, ...s, v: SAVE_VERSION };
+  for (const k of ["coins", "best", "runs"]) out[k] = Math.max(0, num(s[k]));
+  for (const k of ["up", "book", "sets", "bossKills", "gear", "research", "beasts", "claimed"]) out[k] = isObj(s[k]) ? { ...d[k], ...s[k] } : d[k];
+  out.mats = { ...d.mats };
+  if (isObj(s.mats)) for (const m of MATS) out.mats[m] = Math.max(0, num(s.mats[m]));
+  out.base = { ...d.base };
+  if (isObj(s.base)) for (const f of FACILITIES) out.base[f.id] = Math.max(f.start, Math.min(f.max, num(s.base[f.id], f.start)));
+  out.rec = { ...d.rec, ...(isObj(s.rec) ? s.rec : {}) };
+  out.rec.used = isObj(out.rec.used) ? out.rec.used : {};
+  if (!isObj(s.rec) && out.runs) out.rec.deaths = 0; // v1 saves didn't keep records: start counting now
+  out.equip = Array.isArray(s.equip) ? s.equip.filter((id) => out.gear[id]) : [];
+  out.eventLog = Array.isArray(s.eventLog) ? s.eventLog.slice(-16) : [];
+  out.hintsShown = Array.isArray(s.hintsShown) ? s.hintsShown : [];
+  out.missions = isObj(s.missions) ? s.missions : d.missions;
+  for (const u of UPGRADES) out.up[u.id] = Math.max(0, Math.min(u.levels.length - 1, num(out.up[u.id])));
+  return out;
+}
 export function loadSave() {
+  let raw = null;
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return defaultSave();
-    const s = JSON.parse(raw), d = defaultSave();
-    return { ...d, ...s, up: { ...d.up, ...s.up }, bossKills: { ...(s.bossKills ?? {}) }, missions: s.missions ?? d.missions };
+    raw = localStorage.getItem(SAVE_KEY);
   } catch {
     storageOk = false;
+    return defaultSave();
+  }
+  if (!raw) return defaultSave();
+  try {
+    return migrate(JSON.parse(raw));
+  } catch {
+    // unreadable: keep a copy aside rather than lose it, and start over
+    saveWasCorrupt = true;
+    try { localStorage.setItem(SAVE_KEY + ".broken", raw); } catch {}
     return defaultSave();
   }
 }
@@ -49,19 +90,36 @@ export function setBonus(save) {
   return b;
 }
 
+/** The perks from gear you have equipped, research done and the base, merged into one set of numbers. */
+export function perks(save) {
+  const k = { dig: 1, waterK: 1, jumpK: 1, fall: 0, lightK: 1, lamp: 1, hearts: 0, detect: 0, poolK: 1, oil: 0, torchK: 1, campStone: 0, hunterK: 1, kit: {} };
+  const add = (fx) => {
+    for (const [n, v] of Object.entries(fx)) {
+      if (n === "kit") { for (const [r, c] of Object.entries(v)) k.kit[r] = (k.kit[r] ?? 0) + c; }
+      else if (n.endsWith("K") || n === "dig" || n === "lamp") k[n] *= v;
+      else k[n] += v;
+    }
+  };
+  for (const id of save.equip ?? []) { const g = GEAR.find((x) => x.id === id); if (g && save.gear?.[id]) add(g.fx); }
+  for (const r of RESEARCH) if (save.research?.[r.id]) add(r.fx);
+  add({ kit: STORE_KIT[save.base?.store ?? 0] ?? {} });
+  return k;
+}
+
 /** Everything a dive needs to know about the player's gear. */
 export function stats(save) {
   const lv = (id) => UPGRADE[id].levels[Math.min(save.up[id], UPGRADE[id].levels.length - 1)];
-  const b = setBonus(save);
+  const b = setBonus(save), pk = perks(save);
   const star3 = ITEMS.filter((it) => starsOf(save.book[it.id]?.count ?? 0) >= 3).length;
   return {
     lantern: lv("lantern") + b.lantern,
     bag: lv("bag"),
-    hearts: lv("hearts") + b.hearts,
-    pick: lv("pick"),
+    hearts: lv("hearts") + b.hearts + pk.hearts,
+    pick: lv("pick") * pk.dig,
     stomach: lv("stomach"),
     ropes: b.ropes,
-    coinK: 1 + b.coins + star3 * STAR3_COIN_BONUS,
+    coinK: 1 + b.coins + star3 * STAR3_COIN_BONUS + (save.base?.museum ?? 0) * MUSEUM_COINS,
+    pk,
   };
 }
 

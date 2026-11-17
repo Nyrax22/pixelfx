@@ -1,7 +1,8 @@
 // The cave: a new one every expedition. Tiles, ladders, escape winches, treasure and things that bite.
 
 import { Rng } from "../../../src/core/index.js";
-import { MW, MH, ZONES, ITEMS, WINCH_DEPTHS, SEAL_DEPTH, VARIANT_CHANCE, RARITY, BOSSES, CHESTS, GOLD_SLIME } from "./data.js";
+import { MW, MH, ZONES, ITEMS, WINCH_DEPTHS, SEAL_DEPTH, VARIANT_CHANCE, RARITY, BOSSES, CHESTS, GOLD_SLIME, ORES, EVENTS } from "./data.js";
+import { pickEvents } from "./meta.js";
 import { zoneAt } from "./logic.js";
 
 // tile materials
@@ -244,6 +245,73 @@ export function makeCave(seed, save, firstRun) {
     }
   }
 
+  // random events: a few per zone, picked fresh every dive
+  const events = [], enemiesPre = [];
+  for (const z of ZONES) {
+    if (z.coming) continue;
+    for (const type of pickEvents(R, z.id, save.eventLog ?? [])) {
+      const def = EVENTS[type], lo = Math.max(z.from, def.from ?? 0);
+      if (type === "cavein") {
+        // rubble across the main way: dig through it (stone for your trouble) or find another way
+        const segs = pathCells.filter(([px, py]) => py >= lo && py < z.to && !inArena(py) && deco[at(px, py)] === NONE && deco[at(px + 1, py)] === NONE && deco[at(px - 1, py)] === NONE
+          && SOLID[tile[at(px, py + 1)]] && SOLID[tile[at(px + 1, py + 1)]] && free(px, py));
+        if (!segs.length) continue;
+        const [cx, cy] = segs[R.int(0, segs.length - 1)];
+        for (const xx of [cx, cx + 1]) for (let yy = cy; yy > cy - 3 && tile[at(xx, yy)] === AIR && deco[at(xx, yy)] === NONE; yy--) tile[at(xx, yy)] = STONE;
+        events.push({ type, tx: cx, ty: cy });
+        claim(cx, cy, 2);
+        continue;
+      }
+      // everything else stands on a floor near the way down, with room around it
+      const spots = floors.filter(([fx, fy]) => fy >= lo && fy < z.to && free(fx, fy) && free(fx - 1, fy) && free(fx + 1, fy)
+        && floorAt(fx - 1, fy) && floorAt(fx + 1, fy) && tile[at(fx, fy - 1)] === AIR && tile[at(fx, fy - 2)] === AIR
+        && dist[at(fx, fy)] >= (type === "supply" ? 2 : 1) && dist[at(fx, fy)] <= 16);
+      if (!spots.length) continue;
+      const [fx, fy] = spots[R.int(0, spots.length - 1)];
+      if (type === "supply") {
+        // a cache of crates, and something living in it
+        for (const dx of [-1, 0, 1]) chests.push({ tx: fx + dx * 1, ty: fy, crate: true });
+        const cs = ceilings.filter(([cx, cy]) => Math.abs(cx - fx) < 6 && cy < fy && fy - cy < 7);
+        for (let k = 0; k < 2 && cs.length; k++) { const [bx, by] = cs.splice(R.int(0, cs.length - 1), 1)[0]; enemiesPre.push({ kind: "bat", tx: bx, ty: by, seed: R.int(1, 999) }); }
+      }
+      if (type === "vault" || type === "cursed") {
+        const id = rollItem(R, z, fy, bookCount, 2);
+        events.push({ type, tx: fx, ty: fy, item: id, variant: R.next() < VARIANT_CHANCE * 3 });
+      } else events.push({ type, tx: fx, ty: fy });
+      claim(fx, fy, 3);
+    }
+  }
+
+  // rare ores, sealed in the rock beside open cave: dig them out
+  const ores = new Map();
+  for (const o of ORES) {
+    const cand = [];
+    for (let y = Math.max(o.from, 12); y < Math.min(o.to, SEAL_DEPTH - 2); y++) {
+      if (inArena(y)) continue;
+      for (let x = 1; x < MW - 1; x++) {
+        const tt = tile[at(x, y)];
+        if (tt !== DIRT && tt !== STONE) continue;
+        // touching air that you can reach
+        const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => at(x + dx, y + dy)).filter((j) => tile[j] === AIR && dist[j] >= 0);
+        if (!nb.length) continue;
+        const d = Math.min(...nb.map((j) => dist[j]));
+        cand.push([x, y, d]);
+      }
+    }
+    // weighted toward the far corners
+    const w = cand.map(([, , d]) => 1 + Math.min(d, 20) / 4);
+    let tw = w.reduce((a, b) => a + b, 0);
+    for (let n = 0; n < o.n && tw > 0; n++) {
+      let t = R.next() * tw, k = 0;
+      while (k < cand.length - 1 && (t -= w[k]) > 0) k++;
+      tw -= w[k]; w[k] = 0;
+      const [x, y] = cand[k];
+      if (ores.has(at(x, y))) continue;
+      tile[at(x, y)] = STONE;
+      ores.set(at(x, y), o.id);
+    }
+  }
+
   // loose coins along the way down, a trail to follow
   const coins = [];
   for (const [fx, fy] of floors) if (dist[at(fx, fy)] >= 0 && dist[at(fx, fy)] < 3 && free(fx, fy) && R.next() < 0.07) coins.push({ tx: fx, ty: fy, v: zoneAt(fy).coinValue });
@@ -318,7 +386,7 @@ export function makeCave(seed, save, firstRun) {
   }
 
   // enemies: bats hang from ceilings, slimes patrol floors, skulls haunt the mine; more of all of them deeper down
-  const enemies = [];
+  const enemies = [...enemiesPre];
   const pick = (list, z) => {
     // weighted toward the bottom of the zone
     const w = list.map(([, y]) => 1 + 2 * (y - z.from) / (z.to - z.from));
@@ -365,10 +433,10 @@ export function makeCave(seed, save, firstRun) {
     if (R.next() < z.stalactites * (1 + (cy - z.from) / 100)) { deco[at(cx, cy)] = STALACTITE; claim(cx, cy, 0); }
   }
 
-  return { tile, deco, items, chests, coins, hearts, mushrooms, oils, pools, enemies, winches, rooms, arenas, entrance: ENTRANCE, path, dist, hints: [] };
+  return { tile, deco, items, chests, coins, hearts, mushrooms, oils, pools, enemies, winches, rooms, arenas, entrance: ENTRANCE, path, dist, hints: [], events, ores };
 }
 
-function rollItem(R, zone, m, bookCount, bump = 0) {
+export function rollItem(R, zone, m, bookCount, bump = 0) {
   if (!zone.weights) return null;
   const pool = ITEMS.filter((it) => it.zone === zone.id && !it.boss && (it.min ?? 0) <= m);
   const rarities = Object.entries(zone.weights).filter(([r]) => pool.some((it) => it.rarity === r));

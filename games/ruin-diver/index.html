@@ -199,7 +199,7 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
 #stage * { border-radius: 0 !important; }
 .pi { height: 1.05em; image-rendering: pixelated; vertical-align: -0.12em; margin-right: 0.25em; }
 .cut { clip-path: polygon(var(--px) 0, calc(100% - var(--px)) 0, 100% var(--px), 100% calc(100% - var(--px)), calc(100% - var(--px)) 100%, var(--px) 100%, 0 calc(100% - var(--px)), 0 var(--px)); }
-.hud-box, .panel, .slot, #pauseBtn, .tab, #bookClose, .btn, .up, .up button, .card, .bc, .set, #bookSide, #touchPad button, #droppedRow {
+#baseBtn, .hud-box, .panel, .slot, #pauseBtn, .tab, #bookClose, .btn, .up, .up button, .card, .bc, .set, #bookSide, #touchPad button, #droppedRow {
   border: var(--px) solid var(--edge) !important;
   box-shadow: inset var(--px) var(--px) 0 var(--hi), inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--lo) !important;
 }
@@ -288,6 +288,80 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
 #resTitle { flex-wrap: wrap; row-gap: 0.1em; }
 #resTitle > span:first-child { white-space: nowrap; }
 #resTitle small { flex-basis: 100%; }
+/* ---------- the base */
+#baseBtn { position: relative; background: #2e3a48; font-size: 1.05em; }
+#baseBtn .dot { position: absolute; top: -0.4em; right: -0.4em; background: #ff3a5a; font-size: 0.7em; padding: 0.1em 0.45em; border: 0.15em solid var(--edge); }
+#base { background: rgba(6, 4, 12, 0.6); }
+#basePanel { width: 46em; height: 25.4em; display: flex; flex-direction: column; gap: 0.5em; padding: 0.8em 0.9em; }
+#baseHead { display: flex; align-items: center; gap: 0.6em; }
+#baseHead h2 { margin: 0; font-size: 1.4em; white-space: nowrap; }
+#baseMats { flex: 1; display: flex; flex-wrap: wrap; gap: 0.2em 0.7em; font-size: 0.8em; justify-content: flex-end; }
+#baseMats span { display: flex; align-items: center; gap: 0.15em; }
+#baseMats .pi { height: 1.2em; margin: 0; }
+#baseMats b { color: var(--gold); }
+#baseClose { width: 2.4em; height: 2.4em; background: #3a3054; font-weight: 900; border: var(--px) solid var(--edge); }
+#baseTabs { display: flex; gap: 0.3em; }
+#baseTabs .tab { position: relative; }
+#baseTabs .tab .dot { position: absolute; top: -0.35em; right: -0.25em; width: 0.6em; height: 0.6em; background: #ff3a5a; border: 0.12em solid var(--edge); }
+#baseBody { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 0.45em; align-content: start; padding-right: 0.2em; }
+#baseBody.one { grid-template-columns: 1fr; }
+#baseBody.beasts { grid-template-columns: 1fr 15em; }
+.bx { display: grid; grid-template-columns: 2.6em 1fr auto; gap: 0.5em; align-items: center; background: #241c38; border: var(--px) solid var(--edge); padding: 0.35em 0.5em; font-size: 0.78em; }
+.bx > .pi { height: 2.2em; margin: 0 auto; }
+.bx b { font-size: 1.1em; }
+.bx .d { color: var(--dim); font-size: 0.92em; line-height: 1.3; }
+.bx .c { display: flex; flex-wrap: wrap; gap: 0.1em 0.5em; font-size: 0.92em; margin-top: 0.15em; }
+.bx .c span { display: flex; align-items: center; gap: 0.1em; }
+.bx .c .pi { height: 1.1em; margin: 0; }
+.bx .c .no { color: #ff7a7a; }
+.bx button { min-width: 5em; padding: 0.45em 0.5em; background: #3e3458; color: var(--dim); font-weight: 900; border: var(--px) solid var(--edge); }
+.bx button.can { background: #ffcf4a; color: #2a1404; }
+.bx button.on { background: #4a8aff; color: #fff; }
+.bx.done { outline: var(--px) solid #6fd36a; outline-offset: calc(-2 * var(--px)); }
+.bx.lock { opacity: 0.55; }
+.bx .lv { color: var(--gold); margin-left: 0.3em; }
+#baseNote { font-size: 0.75em; color: var(--dim); grid-column: 1 / -1; }
+.bgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.45em; align-content: start; }
+.bcell { background: #241c38; border: var(--px) solid var(--edge); text-align: center; padding: 0.3em; cursor: pointer; font-size: 0.72em; }
+.bcell img { height: 3.2em; image-rendering: pixelated; display: block; margin: 0.2em auto; }
+.bcell.sel { outline: var(--px) solid #fff; outline-offset: calc(-2 * var(--px)); }
+.bcell .k { color: var(--gold); }
+#beastSide { background: #1c1630; border: var(--px) solid var(--edge); padding: 0.6em; font-size: 0.8em; display: flex; flex-direction: column; gap: 0.35em; }
+#beastSide img { height: 5em; image-rendering: pixelated; display: block; margin: 0 auto; }
+#beastSide h4 { margin: 0; text-align: center; font-size: 1.15em; }
+#beastSide p { margin: 0; color: var(--dim); line-height: 1.35; }
+#beastSide .row { display: flex; justify-content: space-between; }
+#beastSide .pi { height: 1.2em; margin: 0 0.1em 0 0; }
+.recs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25em 1em; font-size: 0.82em; background: #1c1630; border: var(--px) solid var(--edge); padding: 0.5em 0.7em; }
+.recs div { display: flex; justify-content: space-between; }
+.recs b { color: var(--gold); }
+.chl { display: grid; grid-template-columns: 1fr 5em auto auto; gap: 0.5em; align-items: center; font-size: 0.78em; background: #241c38; border: var(--px) solid var(--edge); padding: 0.3em 0.5em; }
+.chl i { height: 0.6em; background: #2a2240; border: 0.12em solid var(--edge); display: block; }
+.chl u { display: block; height: 100%; background: #6fd36a; }
+.chl em { font-style: normal; color: var(--gold); white-space: nowrap; }
+.chl button { padding: 0.35em 0.5em; background: #3e3458; color: var(--dim); font-weight: 900; border: var(--px) solid var(--edge); min-width: 4.4em; }
+.chl button.can { background: #ffcf4a; color: #2a1404; }
+.chl.got { opacity: 0.6; }
+/* ---------- event choices */
+#choice .panel { min-width: 26em; }
+#choice p { margin: 0; color: var(--dim); font-size: 0.9em; }
+#chOpts { display: flex; flex-direction: column; gap: 0.4em; }
+#chOpts button { display: flex; justify-content: space-between; align-items: center; gap: 1em; padding: 0.55em 0.8em; background: #3e3458; border: var(--px) solid var(--edge); font-weight: 800; text-align: left; }
+#chOpts button:disabled { opacity: 0.4; }
+#chOpts button .cost { display: flex; align-items: center; gap: 0.15em; color: var(--gold); white-space: nowrap; }
+#chOpts button .cost .pi { height: 1.1em; margin: 0; }
+#chOpts button.leave { background: #241c38; justify-content: center; }
+#chHave { display: flex; justify-content: center; gap: 0.8em; font-size: 0.8em; color: var(--dim); }
+#chHave span { display: flex; align-items: center; gap: 0.15em; }
+#chHave .pi { height: 1.1em; margin: 0; }
+#resBottom .btn { white-space: nowrap; font-size: 0.95em; }
+#doubleBtn { flex: 0 0 auto !important; }
+#diveBtn { font-size: 1.25em !important; }
+#lookBtn { width: 4.4em; height: 4.4em; background: rgba(255, 224, 106, 0.7); color: #2a1004; margin-bottom: 2em; font-size: 0.85em; }
+#matsRow { margin-top: 0.4em; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3em 0.7em; font-size: 0.8em; background: #14202a; border: var(--px) solid var(--edge); padding: 0.3em 0.5em; }
+#matsRow span { display: flex; align-items: center; gap: 0.15em; }
+#matsRow .pi { height: 1.2em; margin: 0; }
+#matsRow .lbl { color: #9ae0ff; }
 </style>
 </head>
 <body>
@@ -319,6 +393,7 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
     </div>
     <div id="stick" class="hidden"><div id="stickKnob"></div></div>
     <div id="touchPad" class="hidden">
+      <button id="lookBtn" class="hidden" data-s="look"></button>
       <button id="ropeBtn" class="hidden"><i data-icon="ropes"></i><b id="ropeBtnN">0</b></button>
       <button id="jumpBtn" data-s="jump"></button>
     </div>
@@ -342,6 +417,7 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
         <div id="resCoins"></div>
         <div id="missionBox"></div>
         <div id="starts" class="hidden"></div>
+        <div id="matsRow" class="hidden"></div>
         <div id="droppedRow" class="hidden"><span class="lbl"></span><span class="ic"></span><span class="sp"></span></div>
       </div>
       <div id="resRight">
@@ -350,6 +426,7 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
         <div id="goal"></div>
       </div>
       <div id="resBottom">
+        <button class="btn" id="baseBtn"><i data-icon="base"></i><span data-s="base"></span><span class="dot hidden" id="baseDot">!</span></button>
         <button class="btn" id="bookBtn"><i data-icon="book"></i><span data-s="book"></span><small id="bookBtnPct"></small><span class="dot hidden" id="bookDot">NEW</span></button>
         <button class="btn btn-ad" id="doubleBtn">🎬 <span data-s="double"></span></button>
         <button class="btn btn-go" id="diveBtn"></button>
@@ -363,6 +440,17 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
       <div id="bookMain"><div id="tabs"></div><div id="bookGrid"></div></div>
       <div id="bookSide"><div id="detail"></div></div>
     </div>
+  </div>
+
+  <div id="base" class="overlay hidden">
+    <div id="basePanel" class="panel">
+      <div id="baseHead"><h2><i data-icon="base"></i><span data-s="base"></span></h2><div id="baseMats"></div><button id="baseClose">✕</button></div>
+      <div id="baseTabs"></div>
+      <div id="baseBody"></div>
+    </div>
+  </div>
+  <div id="choice" class="overlay modal hidden">
+    <div class="panel"><h2 id="chTitle"></h2><p id="chDesc"></p><div id="chHave"></div><div id="chOpts"></div></div>
   </div>
 
   <div id="lanternPrompt" class="overlay modal hidden">

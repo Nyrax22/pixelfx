@@ -2,13 +2,14 @@
 
 import { createFrame, clearFrame, createFx, painterFor } from "../../../src/core/index.js";
 import * as confettiFx from "../../../src/fx/ui/confetti.js";
-import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS, SURVIVE } from "./data.js";
-import { loadSave, writeSave, wipeSave, storageOk, stats, applyRun, applyMissions, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
+import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS, SURVIVE, MATS, FACILITIES, GEAR, RESEARCH, BEASTS, CHALLENGES, EVENTS } from "./data.js";
+import { loadSave, writeSave, wipeSave, storageOk, saveWasCorrupt, stats, applyRun, applyMissions, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
 import { Run } from "./world.js";
 import { compositeLit, setBackdrop } from "./bg.js";
 import villageArt from "../art/bg_village.png";
 import mineArt from "../art/bg_mine.png";
-import { itemIcon, icon } from "./sprites.js";
+import { itemIcon, icon, spriteURL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, GOLD_SLIME_PAL, SKULL, SKULL_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL } from "./sprites.js";
+import { applyMeta, facState, upgradeFacility, gearState, craftGear, toggleEquip, gearSlots, researchState, doResearch, challengeState, claimChallenge, claimable, relicsOwned, beastsSeen } from "./meta.js";
 import { audio } from "./audio.js";
 import { poki } from "./poki.js";
 
@@ -109,7 +110,8 @@ const hold = (id, on, off) => {
 hold("jumpBtn", () => { jumpEdge = true; touch.jump = true; }, () => (touch.jump = false));
 hold("ropeBtn", () => (ropeEdge = true), () => {});
 // the survival bar: eat, drink, torch, campfire (keys 1-4), tappable too
-const actEdge = { eat: false, drink: false, torch: false, campfire: false };
+const actEdge = { eat: false, drink: false, torch: false, campfire: false, look: false };
+hold("lookBtn", () => (actEdge.look = true), () => {});
 for (const b of document.querySelectorAll("#craftBar button")) hold(b.id, () => { if (b.dataset.act === "rope") ropeEdge = true; else actEdge[b.dataset.act] = true; }, () => {});
 
 window.addEventListener("keydown", (e) => {
@@ -118,6 +120,8 @@ window.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   if (mode === "ready" && !e.repeat) return startDive();
   if (k === "escape" && !e.repeat) {
+    if (mode === "base") return closeBase();
+    if (mode === "prompt" && choiceEv) return closeChoice();
     if (mode === "run") return pause();
     if (mode === "paused") return resume();
     if (mode === "book") return closeBook();
@@ -142,7 +146,7 @@ function readInput() {
   const up = kd("arrowup", "w") || touch.up, down = kd("arrowdown", "s") || touch.down;
   const dir = (kd("arrowright", "d") ? 1 : 0) - (kd("arrowleft", "a") ? 1 : 0) || touch.dir;
   // on the keyboard, up also jumps when there's no ladder to climb
-  const upJump = kd("arrowup", "w") && !run.climbable(run.p.x + 5, run.p.y + 7) && !run.climbable(run.p.x + 5, run.p.y + 2) && !run.atWinch;
+  const upJump = kd("arrowup", "w") && !run.climbable(run.p.x + 5, run.p.y + 7) && !run.climbable(run.p.x + 5, run.p.y + 2) && !run.atWinch && !run.nearEv;
   const inp = { dir, up, down, jump: kd(" ", "z", "k") || touch.jump || upJump, jumpPressed: jumpEdge || (upJump && !readInput.upWas), ropePressed: ropeEdge, ...actEdge };
   readInput.upWas = upJump;
   jumpEdge = ropeEdge = false;
@@ -193,6 +197,8 @@ function buildHud() {
   if (save.best > 4 && save.best < gaugeMax - 4) mark(save.best, "best", `★${save.best}m`);
   mark(SEAL_DEPTH, "exit", `${icon("exit")}${SEAL_DEPTH}m`);
   show("touchPad", isTouch);
+  const cc = run.craftCost("campfire");
+  $("act-campfire").querySelector(".c").innerHTML = `${cc.wood}${icon("wood")}${cc.stone}${icon("stone")}`;
   $("goalLine").textContent = S("goal", { d: SEAL_DEPTH });
   updateHud(true);
 }
@@ -231,13 +237,15 @@ function updateHud(force = false) {
     $("cnt-drink").textContent = inv.water;
     $("cnt-wood").textContent = inv.wood;
     $("cnt-stone").textContent = inv.stone;
-    const can = { eat: inv.mushroom > 0, drink: inv.water > 0, torch: inv.wood >= SURVIVE.torch.wood, campfire: inv.wood >= SURVIVE.campfire.wood && inv.stone >= SURVIVE.campfire.stone, rope: inv.wood >= SURVIVE.rope.wood };
+    const cc = run.craftCost("campfire");
+    const can = { eat: inv.mushroom > 0, drink: inv.water > 0, torch: inv.wood >= SURVIVE.torch.wood, campfire: inv.wood >= cc.wood && inv.stone >= cc.stone, rope: inv.wood >= SURVIVE.rope.wood };
     for (const [a, ok] of Object.entries(can)) $("act-" + a).classList.toggle("off", !ok);
   }
   // nudge the action you need
   $("act-eat").classList.toggle("want", run.food < 35 && inv.mushroom > 0);
   $("act-drink").classList.toggle("want", run.water < 35 && inv.water > 0);
   $("act-torch").classList.toggle("want", run.light < 25 && inv.wood >= SURVIVE.torch.wood);
+  if (isTouch) show("lookBtn", !!run.nearEv);
 }
 $("pauseBtn").addEventListener("click", () => pause());
 
@@ -266,7 +274,7 @@ async function dive() {
   startDive();
 }
 function hideScreens() {
-  for (const id of ["ready", "results", "book", "lanternPrompt", "pause", "setPop", "bossBar"]) show(id, false);
+  for (const id of ["ready", "results", "book", "base", "choice", "lanternPrompt", "pause", "setPop", "bossBar"]) show(id, false);
 }
 
 let promptAction = null;
@@ -291,6 +299,51 @@ $("lpAd").addEventListener("click", async () => {
   promptAction?.onAd(ok);
 });
 const backToRun = () => { mode = "run"; poki.gameplayStart(); };
+
+// ------------------------------------------------------------ event choices in the cave
+let choiceEv = null;
+const COST_ICON = { hp: "heart", coins: "coin", mushroom: "mushroom", water: "water", wood: "wood", stone: "stone" };
+const costHtml = (cost, have) => Object.entries(cost).map(([k, v]) => `<span class="${have && !have(k, v) ? "no" : ""}">${v}${icon(COST_ICON[k] ?? k)}</span>`).join("");
+function openChoice(ev) {
+  choiceEv = ev;
+  mode = "prompt";
+  poki.gameplayStop();
+  stick = null; touch.dir = 0; touch.up = touch.down = touch.jump = false; keys.clear();
+  show("stick", false);
+  renderChoice();
+  show("choice");
+}
+function renderChoice(msg) {
+  const ev = choiceEv, def = EVENTS[ev.type], [name, desc] = STR[lang].ev[ev.type];
+  $("chTitle").textContent = name;
+  $("chDesc").textContent = msg ?? desc;
+  $("chHave").innerHTML = ["hp", "coins", "mushroom", "water", "wood", "stone"].map((k) => `<span>${icon(COST_ICON[k])}${k === "hp" ? run.hp : k === "coins" ? run.coins : run.inv[k]}</span>`).join("");
+  const box = $("chOpts");
+  box.innerHTML = "";
+  if (!ev.done) for (const o of def.opts) {
+    const b = document.createElement("button");
+    b.innerHTML = `<span>${STR[lang].evOpt[o.id]}</span><span class="cost">${costHtml(o.cost)}</span>`;
+    b.disabled = !run.canPay(o.cost);
+    b.addEventListener("click", () => {
+      const m = run.resolveEvent(ev, o.id);
+      if (!m) return audio.play("deny");
+      handleEvents();
+      if (def.stay) { renderChoice(STR[lang].evDone[m]); updateHud(true); }
+      else { closeChoice(); toast(STR[lang].evDone[m], "#ffe06a", 2400); }
+    });
+    box.appendChild(b);
+  }
+  const leave = document.createElement("button");
+  leave.className = "leave";
+  leave.textContent = S("leave");
+  leave.addEventListener("click", closeChoice);
+  box.appendChild(leave);
+}
+function closeChoice() {
+  show("choice", false);
+  choiceEv = null;
+  if (run.state === "play") backToRun();
+}
 
 function handleEvents() {
   while (run.events.length) {
@@ -340,6 +393,15 @@ function handleEvents() {
       case "escaped":
         finishDive(false);
         break;
+      case "evFound":
+        toast(S("evFound", { name: STR[lang].ev[e.type][0] }), "#ffe06a", 2200);
+        break;
+      case "beastSeen":
+        if (!save.beasts[e.id]) toast("NEW · " + STR[lang].beastNames[e.id], "#ff9aff", 1800);
+        break;
+      case "event":
+        openChoice(e.ev);
+        break;
     }
   }
 }
@@ -367,6 +429,8 @@ function finishDive(died) {
   result.won = run.won;
   result.lost = [];
   result.time = run.alive ?? 0;
+  result.meta = applyMeta(save, { mats: run.mats, beasts: run.beasts, events: run.eventsMet, used: run.used, time: result.time, coins: Math.round(run.coins * stats(save).coinK), escaped: !died, died, torches: run.torchesPlaced, depth: run.depthMax });
+  result.total += result.meta.rewards;
   save.hintsShown = [...run.hintsShown];
   for (const it of result.items) if (!before.has(it.id)) freshInBook.add(it.id);
   setQueue.push(...result.newSets);
@@ -398,6 +462,13 @@ function showResults() {
     dr.querySelector(".lbl").textContent = r.lost.length ? S("lostBag") : S("keptCoins");
     dr.querySelector(".ic").innerHTML = r.lost.map((d) => `<img src="${itemIcon(ITEM[d.id], "color", d.variant)}" alt="">`).join("");
     dr.querySelector(".sp").textContent = r.lost.length ? S("keptCoins") : "";
+    const mt = r.meta ?? { mats: {}, newBeasts: [] }, mr = $("matsRow");
+    const bits = Object.entries(mt.mats).map(([m, n]) => `<span>${icon(m)}+${n}</span>`);
+    for (const id of mt.newBeasts) bits.push(`<span style="color:#ff9aff">NEW ${STR[lang].beastNames[id]}</span>`);
+    if (mt.allSeen) bits.push(`<span style="color:var(--gold)">${S("beastSeenAll")} +${icon("coin")}150</span>`);
+    if (mt.allKilled) bits.push(`<span style="color:var(--gold)">${S("beastKillAll")} +${icon("coin")}300</span>`);
+    mr.innerHTML = bits.length ? `<span class="lbl">${S("matsHome")}</span>` + bits.join("") : "";
+    show("matsRow", bits.length > 0);
     $("doubleBtn").disabled = r.total <= 0;
     show("doubleBtn", true);
     $("diveBtn").textContent = S("diveAgain");
@@ -415,11 +486,13 @@ function showResults() {
     hubGrid(grid);
     $("resCoins").innerHTML = "";
     show("droppedRow", false);
+    show("matsRow", false);
     show("doubleBtn", false);
     $("diveBtn").textContent = S("dive");
   }
   renderUpgrades();
   renderBookBtn();
+  renderBaseBtn();
   renderStarts();
   show("missionBox", false);
 }
@@ -621,6 +694,176 @@ function renderDetail() {
     <div class="meta"><span>${e.variant ? "★ " + S("variant") : ""}</span><span>${e.seen != null ? e.seen + "m" : ""}</span></div>` : ""}`;
 }
 
+// ------------------------------------------------------------ the base
+let baseTab = "fac", beastSel = null;
+const BEAST_SPR = {
+  bat: [BAT[0], BAT_PAL], slime: [SLIME[0], SLIME_PAL], gold_slime: [SLIME[0], GOLD_SLIME_PAL], red_slime: [SLIME[0], RED_SLIME_PAL],
+  skull: [SKULL[0], SKULL_PAL], slime_king: [SLIME_KING[0], SLIME_KING_PAL], golem: [GOLEM[0], GOLEM_PAL],
+};
+const has = (k, v) => (k === "coins" ? save.coins : save.mats[k] ?? 0) >= v;
+/** Is there something to do in each part of the base right now? */
+function baseWants() {
+  return {
+    fac: FACILITIES.some((f) => facState(save, f.id).can),
+    bench: GEAR.some((g) => gearState(save, g).can),
+    lab: RESEARCH.some((r) => researchState(save, r).can),
+    beasts: false,
+    rec: claimable(save) > 0,
+  };
+}
+function renderBaseBtn() {
+  show("baseDot", Object.values(baseWants()).some(Boolean));
+}
+function openBase() {
+  mode = "base";
+  show("base");
+  audio.play("click");
+  renderBase();
+}
+function closeBase() {
+  show("base", false);
+  mode = "results";
+  renderUpgrades();
+  renderBaseBtn();
+}
+$("baseBtn").addEventListener("click", openBase);
+$("baseClose").addEventListener("click", closeBase);
+function renderBase() {
+  $("baseMats").innerHTML = `<span>${icon("coin")}<b>${save.coins}</b></span>` + MATS.map((m) => `<span title="${STR[lang].mats[m]}">${icon(m)}<b>${save.mats[m]}</b></span>`).join("");
+  const w = baseWants();
+  $("baseTabs").innerHTML = Object.entries(STR[lang].baseTabs).map(([id, name]) => `<button class="tab${id === baseTab ? " on" : ""}" data-t="${id}">${name}${w[id] ? '<span class="dot"></span>' : ""}</button>`).join("");
+  for (const b of $("baseTabs").querySelectorAll("button")) b.addEventListener("click", () => { baseTab = b.dataset.t; audio.play("click"); renderBase(); });
+  const body = $("baseBody");
+  body.className = baseTab === "rec" ? "one" : baseTab === "beasts" ? "beasts" : "";
+  body.innerHTML = "";
+  ({ fac: baseFac, bench: baseBench, lab: baseLab, beasts: baseBeasts, rec: baseRec })[baseTab](body);
+}
+function boxEl(html, cls = "") {
+  const el = document.createElement("div");
+  el.className = "bx " + cls;
+  el.innerHTML = html;
+  return el;
+}
+const act = (el, fn) => el.querySelector(":scope > button")?.addEventListener("click", () => {
+  if (!fn()) return audio.play("deny");
+  audio.play("upgrade");
+  writeSave(save);
+  renderBase();
+});
+function baseFac(body) {
+  for (const f of FACILITIES) {
+    const st = facState(save, f.id), L = STR[lang];
+    const next = st.max ? null : L.facNext[f.id]?.[st.lv + 1];
+    const now = L.facNext[f.id]?.[st.lv];
+    const extra = f.id === "bench" ? S("slots", { a: save.equip.length, b: gearSlots(save) }) : now || "";
+    const el = boxEl(`${icon(f.id)}<div><b>${L.fac[f.id]}</b><span class="lv">${st.lv ? S("facLv", { n: st.lv }) : "—"}</span><div class="d">${L.facDesc[f.id]}${extra ? " · " + extra : ""}${next ? ` → <span style="color:#8aff8a">${next}</span>` : ""}</div>
+      ${st.max ? "" : `<div class="c">${costHtml(st.cost, has)}</div>`}</div>
+      <button class="${st.can ? "can" : ""}" ${st.max ? "disabled" : ""}>${st.max ? S("max") : st.lv ? S("upgrade") : S("build")}</button>`, st.max ? "done" : "");
+    act(el, () => upgradeFacility(save, f.id));
+    if (f.id === "museum" && st.lv > 0) {
+      const b = document.createElement("button");
+      b.innerHTML = `${icon("book")}${S("book")}`;
+      b.style.cssText = "min-width:0;padding:0.2em 0.5em;margin-top:0.25em;font-size:0.95em";
+      b.addEventListener("click", () => { show("base", false); openBook(); });
+      el.querySelector("div").appendChild(b);
+    }
+    body.appendChild(el);
+  }
+}
+function baseBench(body) {
+  for (const g of GEAR) {
+    const st = gearState(save, g), [name, desc] = STR[lang].gear[g.id];
+    const need = !st.tierOk ? `<div class="c"><span class="no">${S("needTier", { f: STR[lang].fac.bench, n: g.tier })}</span></div>` : "";
+    const label = st.owned ? (st.equipped ? S("equipped") : S("equip")) : S("craft");
+    const el = boxEl(`${icon("gear_" + g.id)}<div><b>${name}</b><div class="d">${desc}</div>${st.owned ? "" : need || `<div class="c">${costHtml(g.cost, has)}</div>`}</div>
+      <button class="${st.equipped ? "on" : st.can || st.owned ? "can" : ""}" ${!st.owned && !st.tierOk ? "disabled" : ""}>${label}</button>`, (!st.tierOk && !st.owned ? "lock" : "") + (st.equipped ? " done" : ""));
+    act(el, () => { if (st.owned) { toggleEquip(save, g.id); return true; } return craftGear(save, g.id); });
+    body.appendChild(el);
+  }
+  const n = document.createElement("div");
+  n.id = "baseNote";
+  n.textContent = S("slots", { a: save.equip.length, b: gearSlots(save) });
+  body.appendChild(n);
+}
+function baseLab(body) {
+  for (const r of RESEARCH) {
+    const st = researchState(save, r), [name, desc] = STR[lang].res[r.id];
+    const needs = [];
+    if (!st.tierOk) needs.push(S("needTier", { f: STR[lang].fac.lab, n: r.tier }));
+    if (!st.relicOk) needs.push(S("needRelics", { n: r.needRelics }) + ` (${relicsOwned(save)})`);
+    if (!st.beastOk) needs.push(S("needBeasts", { n: r.needBeasts }) + ` (${beastsSeen(save)})`);
+    const el = boxEl(`${icon("res_" + r.id)}<div><b>${name}</b><div class="d">${desc}</div>${st.done ? "" : needs.length ? `<div class="c"><span class="no">${needs.join(" · ")}</span></div>` : `<div class="c">${costHtml(r.cost, has)}</div>`}</div>
+      <button class="${st.can ? "can" : ""}" ${st.done ? "disabled" : ""}>${st.done ? S("researched") : S("research")}</button>`, st.done ? "done" : needs.length ? "lock" : "");
+    act(el, () => doResearch(save, r.id));
+    body.appendChild(el);
+  }
+}
+function baseBeasts(body) {
+  const grid = document.createElement("div");
+  grid.className = "bgrid";
+  for (const b of BEASTS) {
+    const e = save.beasts[b.id], [rows, pal] = BEAST_SPR[b.id];
+    const c = document.createElement("div");
+    c.className = "bcell" + (beastSel === b.id ? " sel" : "");
+    c.innerHTML = `<img src="${spriteURL(b.id, rows, pal, e ? "color" : "silhouette", 4)}" alt=""><div>${e ? STR[lang].beastNames[b.id] : "???"}</div><div class="k">${e ? S("beastKills", { n: e.kills }) : ""}</div>`;
+    c.addEventListener("click", () => { beastSel = b.id; audio.play("click"); renderBase(); });
+    grid.appendChild(c);
+  }
+  body.appendChild(grid);
+  const side = document.createElement("div");
+  side.id = "beastSide";
+  const id = beastSel ?? BEASTS.find((b) => save.beasts[b.id])?.id;
+  if (!id) side.innerHTML = `<p>${S("unknownBeast")}</p>`;
+  else {
+    const b = BEASTS.find((x) => x.id === id), e = save.beasts[id], [rows, pal] = BEAST_SPR[id];
+    if (!e) side.innerHTML = `<img src="${spriteURL(id, rows, pal, "silhouette", 4)}" alt=""><h4>???</h4><p>${S("unknownBeast")}</p>`;
+    else {
+      // drops: only the ones you've actually seen fall
+      const drops = Object.keys(b.drops).map((m) => (e.drops?.[m] ? `${icon(m)}${STR[lang].mats[m]}` : "???")).join(" · ");
+      side.innerHTML = `<img src="${spriteURL(id, rows, pal, "color", 4)}" alt=""><h4>${STR[lang].beastNames[id]}</h4>
+        <div class="row"><span>${STR[lang].zones[b.zone]}</span><span>${b.boss ? "BOSS" : ""}</span></div>
+        <p>${STR[lang].beastDesc[id]}</p>
+        <div class="row"><span>${S("beastKills", { n: e.kills })}</span><span>${S("beastFirst", { d: e.seen ?? "?" })}</span></div>
+        <div>${S("beastDrops")}: ${drops}</div>`;
+    }
+  }
+  body.appendChild(side);
+}
+function fmtTime(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s2 = Math.floor(sec % 60);
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s2).padStart(2, "0")}` : `${m}:${String(s2).padStart(2, "0")}`;
+}
+function baseRec(body) {
+  const r = save.rec, L = STR[lang].rec;
+  const fav = Object.entries(r.used).sort((a, b) => b[1] - a[1])[0];
+  const bosses = Object.values(save.bossKills).reduce((a, b) => a + b, 0);
+  const rows = [
+    [L.runs, save.runs], [L.best, save.best + "m"], [L.escapes, r.escapes], [L.deaths, r.deaths],
+    [L.time, fmtTime(r.time)], [L.coins, r.coins], [L.relics, Math.round(bookPercent(save) * 100) + "%"], [L.beasts, `${beastsSeen(save)}/${BEASTS.length}`],
+    [L.kills, r.kills], [L.bosses, bosses], [L.events, r.events], [L.fav, fav ? `${STR[lang].act[fav[0]] ?? fav[0]} ×${fav[1]}` : "—"],
+  ];
+  const rec = document.createElement("div");
+  rec.className = "recs";
+  rec.innerHTML = rows.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("");
+  body.appendChild(rec);
+  const h = document.createElement("div");
+  h.id = "baseNote";
+  h.innerHTML = `<b style="color:var(--gold)">${icon("star")}${S("challenges")}</b>`;
+  body.appendChild(h);
+  for (const c of CHALLENGES) {
+    const st = challengeState(save, c), el = document.createElement("div");
+    el.className = "chl" + (st.claimed ? " got" : "");
+    el.innerHTML = `<span>${STR[lang].ch[c.id]}</span><i><u style="width:${(st.v / c.n) * 100}%"></u></i><em>${icon("coin")}${c.reward}</em><button class="${st.done && !st.claimed ? "can" : ""}" ${st.done && !st.claimed ? "" : "disabled"}>${st.claimed ? S("claimed") : st.done ? S("claim") : `${st.v}/${c.n}`}</button>`;
+    el.querySelector("button").addEventListener("click", () => {
+      if (!claimChallenge(save, c.id)) return audio.play("deny");
+      audio.play("set");
+      writeSave(save);
+      renderBase();
+    });
+    body.appendChild(el);
+  }
+}
+
 // ------------------------------------------------------------ pause and settings
 function pause() {
   if (mode !== "run") return;
@@ -721,6 +964,7 @@ async function boot() {
   await poki.init((m) => audio.setAdMuted(m), adPlaceholder);
   poki.loadingFinished();
   show("noSave", !storageOk);
+  if (saveWasCorrupt) setTimeout(() => toast(S("saveCorrupt"), "#ffb0a0", 4000), 600);
   if (save.runs === 0) {
     mode = "ready";
     show("ready");

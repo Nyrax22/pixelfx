@@ -19,14 +19,14 @@ export const ZONES = [
     weights: { common: 60, uncommon: 30, rare: 10 },
     stone: 0.22, gold: 0.05, gem: 0, rooms: 5, roomTile: "brick",
     items: 14, bats: 7, slimes: 6, spikes: 0.02, enemyFrom: 14, stalactites: 0.008, skulls: 0, redSlimes: 0,
-    mushrooms: 24, pools: 8, oils: 7, roots: 30, crates: 7,
+    mushrooms: 15, pools: 6, oils: 5, roots: 30, crates: 5,
   },
   {
     id: "mine", from: 100, to: 300, coinValue: 3, valueK: 1.6, hearts: 7,
     weights: { common: 45, uncommon: 32, rare: 17, epic: 6 },
     stone: 0.5, gold: 0.06, gem: 0.03, rooms: 4, roomTile: "wood",
     items: 14, bats: 13, slimes: 11, spikes: 0.05, enemyFrom: 100, stalactites: 0.03, skulls: 5, redSlimes: 0.45,
-    mushrooms: 14, pools: 6, oils: 7, roots: 10, crates: 6,
+    mushrooms: 7, pools: 3, oils: 4, roots: 10, crates: 4,
   },
   { id: "library", from: 300, to: 600, sealed: 0.3, coming: true },
 ];
@@ -113,7 +113,7 @@ export const upgradeCost = (u, level) => Math.round(u.base * Math.pow(u.growth, 
 
 // Survival: three meters that run down, and what refills them.
 export const SURVIVE = {
-  food: 150, water: 110,         // seconds from full to empty (times the stomach upgrade)
+  food: 140, water: 105,         // seconds from full to empty (times the stomach upgrade)
   starveEvery: 5,                // seconds per heart lost while hunger or thirst is empty
   mushroom: 35, cooked: 60,      // hunger a mushroom fills, raw / eaten by a campfire
   drink: 40,                     // thirst one water fills
@@ -506,3 +506,235 @@ export const STR = {
     },
   },
 };
+
+// ================================================================ long-term systems
+// Rare materials: carried home even if you fall. Ores sit in rock (dig them out); monsters drop the rest.
+export const MATS = ["copper", "iron", "crystal", "gel", "wing", "bone"];
+export const ORES = [
+  { id: "copper", from: 15, to: 130, n: 13 },
+  { id: "iron", from: 95, to: 300, n: 13 },
+  { id: "crystal", from: 150, to: 300, n: 7 },
+];
+// Monsters: the bestiary lists them in this order. drops: material -> chance per kill.
+export const BEASTS = [
+  { id: "bat", zone: "village", drops: { wing: 0.3 } },
+  { id: "slime", zone: "village", drops: { gel: 0.35 } },
+  { id: "gold_slime", zone: "village", drops: { crystal: 1 } },
+  { id: "red_slime", zone: "mine", drops: { gel: 0.6 } },
+  { id: "skull", zone: "mine", drops: { bone: 0.45 } },
+  { id: "slime_king", zone: "village", boss: true, drops: { gel: 4 } },
+  { id: "golem", zone: "mine", boss: true, drops: { iron: 3, crystal: 3 } },
+];
+export const BEAST_REWARD = { seen: 150, killed: 300 }; // once: every monster discovered / every monster beaten
+
+// Random events: a few per zone each dive, weighted, rarer if you've met them lately.
+// opts: what you can do (cost is paid from the dive: hp, mushroom, water, wood, stone, coins).
+export const EVENTS = {
+  supply:   { zones: ["village", "mine"], w: 3, from: 14, passive: true },
+  cavein:   { zones: ["village", "mine"], w: 2, from: 25, passive: true },
+  altar:    { zones: ["village", "mine"], w: 2.2, from: 20, opts: [{ id: "blood", cost: { hp: 1 } }, { id: "offer", cost: { mushroom: 2 } }] },
+  merchant: { zones: ["village", "mine"], w: 2.2, from: 15, stay: true, opts: [
+    { id: "food", cost: { coins: 12 } }, { id: "water", cost: { coins: 12 } }, { id: "oil", cost: { coins: 15 } },
+    { id: "mats", cost: { coins: 20 } }, { id: "rare", cost: { coins: 45 } }] },
+  cursed:   { zones: ["village", "mine"], w: 1.4, from: 40, opts: [{ id: "open", cost: {} }] },
+  vault:    { zones: ["mine"], w: 2, from: 105, opts: [{ id: "break", cost: { stone: 4 } }] },
+  spring:   { zones: ["mine"], w: 1.6, from: 105, opts: [{ id: "drink", cost: {} }] },
+};
+export const EVENTS_PER_ZONE = { village: 3, mine: 4 };
+
+// The base on the surface. Each facility has levels; `up[n]` is the price of reaching level n.
+export const FACILITIES = [
+  { id: "bench", start: 1, max: 3, up: { 2: { coins: 150, copper: 4 }, 3: { coins: 420, iron: 5, crystal: 2 } } },
+  { id: "lab", start: 0, max: 3, up: { 1: { coins: 90, copper: 3 }, 2: { coins: 260, iron: 4 }, 3: { coins: 600, crystal: 4 } } },
+  { id: "store", start: 0, max: 3, up: { 1: { coins: 60 }, 2: { coins: 200, gel: 4 }, 3: { coins: 480, wing: 5 } } },
+  { id: "museum", start: 0, max: 3, up: { 1: { coins: 100 }, 2: { coins: 300, bone: 4 }, 3: { coins: 700, crystal: 3 } } },
+];
+export const STORE_KIT = [{}, { wood: 2 }, { wood: 2, water: 1 }, { wood: 3, water: 1, mushroom: 1 }]; // by store level
+export const MUSEUM_COINS = 0.05; // coin bonus per museum level
+
+// Gear: made once at the workbench (its level is the highest tier you can make), then equipped.
+// One slot, two once the workbench is level 3. fx are multipliers or additions the dive reads.
+export const GEAR = [
+  { id: "steel_pick", tier: 1, cost: { coins: 60, copper: 4 }, fx: { dig: 1.5 } },
+  { id: "canteen", tier: 1, cost: { coins: 60, copper: 2, wing: 2 }, fx: { waterK: 0.75, kit: { water: 1 } } },
+  { id: "gel_boots", tier: 1, cost: { coins: 60, gel: 4 }, fx: { jumpK: 1.12, fall: 4 } },
+  { id: "wide_lantern", tier: 2, cost: { coins: 150, copper: 3, iron: 3 }, fx: { lightK: 0.7, lamp: 1.25 } },
+  { id: "bone_mail", tier: 2, cost: { coins: 150, bone: 5, iron: 2 }, fx: { hearts: 1 } },
+  { id: "detector", tier: 3, cost: { coins: 300, crystal: 3, iron: 3 }, fx: { detect: 1 } },
+];
+// Research at the lab: permanent, always on. needRelics / needBeasts: how much you must have found first.
+export const RESEARCH = [
+  { id: "farming", tier: 1, cost: { coins: 80, gel: 2 }, fx: { kit: { mushroom: 1 } } },
+  { id: "filter", tier: 1, cost: { coins: 80, copper: 2 }, fx: { poolK: 0.6 } },
+  { id: "refine", tier: 2, cost: { coins: 180, iron: 2, wing: 2 }, needRelics: 8, fx: { oil: 15 } },
+  { id: "torchcraft", tier: 2, cost: { coins: 180, copper: 3 }, fx: { torchK: 1.3 } },
+  { id: "camping", tier: 2, cost: { coins: 200, bone: 3 }, fx: { campStone: 1 } },
+  { id: "beastlore", tier: 3, cost: { coins: 350, crystal: 2 }, needBeasts: 5, fx: { hunterK: 0.75 } },
+];
+
+// Challenges: checked against the save's records; each pays once when you claim it.
+// (ids are stable so they can map to Steam achievements later)
+export const CHALLENGES = [
+  { id: "d100", kind: "best", n: 100, reward: 60 },
+  { id: "d200", kind: "best", n: 200, reward: 120 },
+  { id: "escape1", kind: "escapes", n: 1, reward: 200 },
+  { id: "escape5", kind: "escapes", n: 5, reward: 400 },
+  { id: "king", kind: "boss", id2: "slime_king", n: 1, reward: 100 },
+  { id: "golem", kind: "boss", id2: "golem", n: 1, reward: 200 },
+  { id: "kills50", kind: "kills", n: 50, reward: 100 },
+  { id: "events10", kind: "events", n: 10, reward: 80 },
+  { id: "sets2", kind: "sets", n: 2, reward: 120 },
+  { id: "beasts", kind: "beasts", n: 7, reward: 150 },
+  { id: "gear3", kind: "gear", n: 3, reward: 120 },
+  { id: "base", kind: "base", n: 12, reward: 300 },
+  { id: "noTorch", kind: "noTorch", n: 1, reward: 250 },
+];
+
+Object.assign(STR.ko, {
+  mats: { copper: "구리", iron: "철", crystal: "빛수정", gel: "슬라임 젤", wing: "박쥐 날개", bone: "뼛조각" },
+  base: "거점",
+  baseTabs: { fac: "시설", bench: "작업대", lab: "연구실", beasts: "몬스터 도감", rec: "기록·도전" },
+  fac: { bench: "작업대", lab: "연구실", store: "보관함", museum: "전시실" },
+  facDesc: {
+    bench: "장비를 만들어요. 레벨이 오르면 더 좋은 장비와 장비 칸 2개",
+    lab: "유물과 희귀 자원을 연구해 영구 효과를 얻어요",
+    store: "탐험을 시작할 때 보급품을 챙겨 가요",
+    museum: "유물을 전시해 코인 보너스를 받아요",
+  },
+  facLv: "Lv.{n}",
+  facNext: { store: ["", "출발 시 나무 +2", "나무 +2, 물 +1", "나무 +3, 물 +1, 버섯 +1"], museum: ["", "코인 +5%", "코인 +10%", "코인 +15%"] },
+  build: "짓기", upgrade: "강화", craft: "만들기", equip: "장착", unequip: "해제", equipped: "장착 중", made: "보유",
+  research: "연구", researched: "완료",
+  needTier: "{f} Lv.{n} 필요",
+  needRelics: "유물 {n}종 필요", needBeasts: "몬스터 {n}종 발견 필요",
+  slots: "장비 칸 {a}/{b}",
+  gear: {
+    steel_pick: ["강화 곡괭이", "파는 속도 ×1.5"],
+    canteen: ["가죽 수통", "목마름 25% 천천히, 물 +1로 출발"],
+    gel_boots: ["젤 장화", "점프 높이 +12%, 낙하 피해 덜 받음"],
+    wide_lantern: ["확장 랜턴", "빛이 30% 천천히 닳고, 더 넓게 비춰요"],
+    bone_mail: ["뼈 갑옷", "하트 +1"],
+    detector: ["탐지기", "가까운 보물·이벤트·광석 방향을 알려 줘요"],
+  },
+  res: {
+    farming: ["버섯 재배", "버섯 +1개 들고 출발"],
+    filter: ["물 거르기", "웅덩이에서 물을 더 빨리 떠요"],
+    refine: ["기름 정제", "기름병이 빛을 +15 더 채워요"],
+    torchcraft: ["횃불 개량", "횃불 빛 범위 +30%"],
+    camping: ["야영술", "모닥불에 돌이 1개 덜 들어요"],
+    beastlore: ["몬스터 연구", "어둠 속 괴물이 25% 덜 나와요"],
+  },
+  beastNames: { bat: "동굴 박쥐", slime: "슬라임", gold_slime: "황금 슬라임", red_slime: "붉은 슬라임", skull: "불꽃 해골", slime_king: "슬라임 킹", golem: "고대 골렘" },
+  beastDesc: {
+    bat: "천장에 매달려 있다가 다가가면 날아와요. 빛을 싫어해요.",
+    slime: "바닥을 왔다 갔다 해요. 위에서 밟으면 끝.",
+    gold_slime: "보면 도망가요. 잡으면 코인이 쏟아져요.",
+    red_slime: "눈치채면 달려들어요. 두 번 밟아야 해요.",
+    skull: "조준한 뒤 일직선으로 돌진해요. 빛 속에선 돌진하지 않아요.",
+    slime_king: "뛰어올랐다 내려찍으며 충격파를 보내요. 공중에 있으세요.",
+    golem: "바닥을 내려치고 바위를 던져요. 빨간 선이 보이면 점프!",
+  },
+  unknownBeast: "아직 만나지 못한 몬스터",
+  beastKills: "처치 {n}", beastFirst: "처음 본 곳 {d}m", beastDrops: "드롭",
+  beastSeenAll: "모든 몬스터 발견", beastKillAll: "모든 몬스터 처치",
+  rec: { runs: "탐험", best: "최고 깊이", time: "총 생존 시간", coins: "총 획득 코인", relics: "유물 수집률", beasts: "발견한 몬스터", kills: "처치한 몬스터", bosses: "쓰러뜨린 보스", escapes: "탈출 성공", deaths: "쓰러짐", fav: "가장 많이 쓴 것", events: "만난 이벤트" },
+  ch: {
+    d100: "100m 도달", d200: "200m 도달", escape1: "처음으로 탈출", escape5: "탈출 5번", king: "슬라임 킹 처치", golem: "고대 골렘 처치",
+    kills50: "몬스터 50마리 처치", events10: "이벤트 10번 만나기", sets2: "유물 세트 2개 완성", beasts: "몬스터 7종 모두 발견",
+    gear3: "장비 3개 만들기", base: "거점 시설 모두 최대 레벨", noTorch: "횃불 없이 100m 도달",
+  },
+  claim: "받기", claimed: "받음", challenges: "도전 과제",
+  ev: {
+    supply: ["버려진 보급실", "상자가 잔뜩 쌓인 방이에요."],
+    cavein: ["무너진 통로", "통로가 무너졌어요! 파서 뚫거나 돌아가요."],
+    altar: ["고대 제단", "무언가를 바치면 보답이 있을지도…"],
+    merchant: ["떠돌이 상인", "\"어둠 속에선 뭐든 비싸지. 코인 있나?\""],
+    cursed: ["저주받은 상자", "검은 기운이 새어 나와요. 열면 큰 보상이 있지만…"],
+    vault: ["잠긴 보물상자", "무거운 자물쇠. 돌로 내려치면 부서질 것 같아요."],
+    spring: ["맑은 샘", "차갑고 깨끗한 물이 솟아요."],
+  },
+  evOpt: {
+    blood: "하트 1개 바치기 → 희귀 유물", offer: "버섯 2개 바치기 → 희귀 자원 2개",
+    food: "버섯 2개", water: "물 2개", oil: "랜턴 기름 가득", mats: "나무 3 + 돌 3", rare: "희귀 자원 1개",
+    open: "열어 본다 (어둠과 괴물이 몰려와요)", break: "돌 4개로 부수기", drink: "마신다 (목마름 가득, 하트 +1)",
+  },
+  leave: "떠나기", evFound: "발견: {name}", pressUp: "▲ 조사", look: "조사",
+  evDone: { blood: "제단이 빛나며 유물을 내놓았어요!", offer: "제단 위에 희귀 자원이 나타났어요!", open: "저주가 풀려나요! 괴물이 몰려와요!", break: "자물쇠가 부서졌어요!", drink: "기운이 나요!", bought: "거래 완료" },
+  gotMat: "+{n} {name}",
+  matsHome: "가져온 희귀 자원",
+  saveCorrupt: "저장 데이터가 손상돼 새로 시작해요 (백업 보관됨)",
+});
+Object.assign(STR.en, {
+  mats: { copper: "Copper", iron: "Iron", crystal: "Glowcrystal", gel: "Slime Gel", wing: "Bat Wing", bone: "Bone Shard" },
+  base: "Base",
+  baseTabs: { fac: "Facilities", bench: "Workbench", lab: "Lab", beasts: "Bestiary", rec: "Records" },
+  fac: { bench: "Workbench", lab: "Lab", store: "Storehouse", museum: "Museum" },
+  facDesc: {
+    bench: "Make gear. Higher levels unlock better gear and a second slot",
+    lab: "Study relics and rare materials for permanent perks",
+    store: "Take supplies with you at the start of a dive",
+    museum: "Display relics for a coin bonus",
+  },
+  facLv: "Lv.{n}",
+  facNext: { store: ["", "Start with +2 wood", "+2 wood, +1 water", "+3 wood, +1 water, +1 mushroom"], museum: ["", "Coins +5%", "Coins +10%", "Coins +15%"] },
+  build: "Build", upgrade: "Upgrade", craft: "Make", equip: "Equip", unequip: "Unequip", equipped: "Equipped", made: "Owned",
+  research: "Study", researched: "Done",
+  needTier: "Needs {f} Lv.{n}",
+  needRelics: "Needs {n} relics", needBeasts: "Needs {n} monsters seen",
+  slots: "Gear slots {a}/{b}",
+  gear: {
+    steel_pick: ["Steel Pickaxe", "Dig ×1.5 faster"],
+    canteen: ["Leather Canteen", "Thirst 25% slower, start with +1 water"],
+    gel_boots: ["Gel Boots", "Jump +12%, falls hurt less"],
+    wide_lantern: ["Wide Lantern", "Light lasts 30% longer and reaches further"],
+    bone_mail: ["Bone Mail", "+1 heart"],
+    detector: ["Detector", "Points to nearby treasure, events and ore"],
+  },
+  res: {
+    farming: ["Mushroom Farming", "Start with +1 mushroom"],
+    filter: ["Water Filter", "Fill water faster at pools"],
+    refine: ["Oil Refining", "Oil flasks fill +15 more light"],
+    torchcraft: ["Better Torches", "Torch light +30%"],
+    camping: ["Campcraft", "Campfires need 1 less stone"],
+    beastlore: ["Monster Studies", "25% fewer creatures in the dark"],
+  },
+  beastNames: { bat: "Cave Bat", slime: "Slime", gold_slime: "Golden Slime", red_slime: "Red Slime", skull: "Flame Skull", slime_king: "Slime King", golem: "Ancient Golem" },
+  beastDesc: {
+    bat: "Hangs from the ceiling and swoops when you come near. Hates light.",
+    slime: "Patrols the floor. Stomp it from above.",
+    gold_slime: "Runs when it sees you. Catch it for a shower of coins.",
+    red_slime: "Charges once it notices you. Takes two stomps.",
+    skull: "Aims, then dashes straight at you. Won't dash into light.",
+    slime_king: "Leaps and slams, sending a shockwave. Be in the air.",
+    golem: "Slams the floor and throws boulders. Jump when the red line shows!",
+  },
+  unknownBeast: "Not met yet",
+  beastKills: "Beaten {n}", beastFirst: "First seen {d}m", beastDrops: "Drops",
+  beastSeenAll: "Every monster seen", beastKillAll: "Every monster beaten",
+  rec: { runs: "Dives", best: "Deepest", time: "Time survived", coins: "Coins earned", relics: "Relics", beasts: "Monsters seen", kills: "Monsters beaten", bosses: "Bosses beaten", escapes: "Escapes", deaths: "Fallen", fav: "Most used", events: "Events met" },
+  ch: {
+    d100: "Reach 100m", d200: "Reach 200m", escape1: "First escape", escape5: "Escape 5 times", king: "Beat the Slime King", golem: "Beat the Ancient Golem",
+    kills50: "Beat 50 monsters", events10: "Meet 10 events", sets2: "Complete 2 relic sets", beasts: "See all 7 monsters",
+    gear3: "Make 3 pieces of gear", base: "Max out every facility", noTorch: "Reach 100m without a torch",
+  },
+  claim: "Claim", claimed: "Claimed", challenges: "Challenges",
+  ev: {
+    supply: ["Abandoned Supply Room", "A room stacked with crates."],
+    cavein: ["Cave-in", "The passage collapsed! Dig through or go around."],
+    altar: ["Ancient Altar", "Offer something, and it may answer…"],
+    merchant: ["Wandering Merchant", "\"Everything costs more in the dark. Got coins?\""],
+    cursed: ["Cursed Chest", "Dark smoke seeps out. A big reward inside, but…"],
+    vault: ["Locked Strongbox", "A heavy lock. A few stones might break it."],
+    spring: ["Clear Spring", "Cold, clean water wells up."],
+  },
+  evOpt: {
+    blood: "Offer 1 heart → a rare relic", offer: "Offer 2 mushrooms → 2 rare materials",
+    food: "2 mushrooms", water: "2 water", oil: "Fill the lantern", mats: "3 wood + 3 stone", rare: "1 rare material",
+    open: "Open it (darkness and monsters come)", break: "Smash it with 4 stones", drink: "Drink (thirst full, +1 heart)",
+  },
+  leave: "Leave", evFound: "Found: {name}", pressUp: "▲ Look", look: "Look",
+  evDone: { blood: "The altar glows and gives up a relic!", offer: "Rare materials appear on the altar!", open: "The curse breaks loose! Here they come!", break: "The lock breaks!", drink: "You feel better!", bought: "Deal" },
+  gotMat: "+{n} {name}",
+  matsHome: "Rare materials",
+  saveCorrupt: "Save data was damaged, starting fresh (a backup was kept)",
+});

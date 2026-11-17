@@ -656,3 +656,88 @@ export const ROOT_SPR = ["owwo", ".oa.", ".oao", "..ao", ".oa.", "oa..", ".a..",
 export const ROOT_PAL = { o: "#2a1608", w: "#7a5030", a: "#a07040" };
 export const CRATE = ["oooooooooooo", "owwwwwwwwwwo", "owdddddddwwo", "owdwwwwwdwwo", "owdwdwwdwdwo", "owdwwddwwdwo", "owdwdwwdwdwo", "owdwwwwwdwwo", "owdddddddwwo", "owwwwwwwwwwo", "oooooooooooo"];
 export const CRATE_PAL = { o: "#1e1006", w: "#a07040", d: "#6a4220" };
+
+// ---------------------------------------------------------------- random events in the cave
+export const ALTAR = [
+  "......oo......",
+  ".....owwo.....",
+  "....owppwo....",
+  "....oppppo....",
+  ".....oppo.....",
+  "..oooooooooo..",
+  "..obbbbbbbbo..",
+  "...oaaaaaao...",
+  "...oabaabao...",
+  "...oaaaaaao...",
+  "...oabaabao...",
+  "..oddddddddo..",
+  ".oddddddddddo.",
+  ".oooooooooooo.",
+];
+export const ALTAR_PAL = { o: "#120c18", b: "#9a90a8", a: "#6a6078", d: "#463e52", p: "#ff5ac8", w: "#ffd0f0" };
+export const MERCHANT = [
+  "....oooo....",
+  "...ohhhho...",
+  "..ohhhhhho..",
+  "..ohffffho..",
+  "..ohfefeho..",
+  "...offffo...",
+  "..occcccco.o",
+  ".occcccccoyo",
+  ".ocbbcccco.o",
+  ".ocbbcccco..",
+  ".ocbbcccco..",
+  "..occcccco..",
+  "..occoocco..",
+  "..odo..odo..",
+  "..oo....oo..",
+];
+export const MERCHANT_PAL = { o: "#120a0c", h: "#5a3a6a", f: "#e8b890", e: "#1a0c0c", c: "#7a4a8a", b: "#a07040", y: "#ffd04a", d: "#3a2a1a" };
+export const CURSED_PAL = { o: "#0a0612", a: "#4a2a5a", b: "#6a3a7a", d: "#2a1636", y: "#c040ff", w: "#ff9aff" };
+export const VAULT_PAL = { o: "#0a0a10", a: "#5a5e6e", b: "#7e8496", d: "#3a3e4a", y: "#b0b8c8", w: "#e8f0ff" };
+
+// ---------------------------------------------------------------- materials and monsters for the DOM
+ICONS.copper = [["...ooo...", "..oyyyo..", ".oyywyyo.", "oyyyyyyao", "oayyyyaao", ".oaaaaao.", "..ooooo.."], { o: "#2a1406", y: "#e08a3a", w: "#ffd0a0", a: "#a0582a" }];
+ICONS.iron = [["..oooo...", ".obbbbo..", "obwbbbbo.", "obbbbaao.", "oabbaaado", ".oaaaddo.", "..ooooo.."], { o: "#14141c", b: "#a0b0c0", w: "#f0f8ff", a: "#707e8e", d: "#4a5262" }];
+ICONS.crystal = [["....o....", "...oco...", "..occwo..", "..occco..", ".occccco.", ".odcccdo.", "..odddo..", "...ooo..."], { o: "#2a2006", c: "#ffe04a", w: "#ffffc0", d: "#c0a020" }];
+ICONS.gel = [["...ooo...", "..oggwo..", ".ogggggo.", "ogggggggo", "ogdddddgo", ".ooooooo."], { o: "#06221a", g: "#47c752", w: "#d0ffb0", d: "#1f8f4f" }];
+ICONS.wing = [["o.......o", "oo.....oo", "oaoo.ooao", "oaaaoaaao", ".oaaaaao.", "..oo.oo.."], { o: "#0c0912", a: "#6a4a78" }];
+ICONS.bone = [[".oo...oo.", "owwo.owwo", ".owwwwwo.", "..owwwo..", ".owwwwwo.", "owwo.owwo", ".oo...oo."], { o: "#2a2420", w: "#e8e0d0" }];
+ICONS.bench = [["ooooooooo", "obbbbbbbo", "ooooooooo", ".oo...oo.", ".oo...oo.", ".oo...oo."], { o: "#1e1006", b: "#a07040" }];
+ICONS.lab = [["...ooo...", "...ogo...", "...ogo...", "..ogggo..", ".ogwgggo.", "oggggggo.", "ooooooooo"], { o: "#0a1a14", g: "#4ad0a0", w: "#d0fff0" }];
+ICONS.store = [["ooooooooo", "obbbbbbbo", "obyyyyybo", "ooooooooo", "obbbbbbbo", "obbbbbbbo", "ooooooooo"], { o: "#1e1006", b: "#8a5a30", y: "#f0c040" }];
+ICONS.museum = [["....o....", "...ooo...", "..ooooo..", ".ooooooo.", ".o.o.o.o.", ".o.o.o.o.", "ooooooooo"], { o: "#c8b8a0" }];
+ICONS.base = [["....o....", "...ooo...", "..obbbo..", ".obbbbbo.", "oooooooooo", ".obboyyo.", ".obboyyo.", ".ooooooo."], { o: "#1e1006", b: "#a07040", y: "#ffd04a" }];
+ICONS.star = [["....o....", "...oyo...", "ooooyoooo", ".oyyyyyo.", "..oyyyo..", ".oyo.oyo.", ".oo...oo."], { o: "#3a2204", y: "#ffd04a" }];
+ICONS.gear_steel_pick = ICONS.pick;
+ICONS.gear_canteen = [["...oo....", "..owwo...", ".oooooo..", "obbbbbbo.", "obwbbbbo.", "obbbbbbo.", "obbbbbbo.", ".oooooo.."], { o: "#1e1006", b: "#a06a3a", w: "#e0b070" }];
+ICONS.gear_gel_boots = [["..oooo...", "..oggo...", "..oggo...", "..oggoo..", ".ogggggo.", "oggggggo.", "ooooooooo"], { o: "#06221a", g: "#47c752" }];
+ICONS.gear_wide_lantern = ICONS.lantern;
+ICONS.gear_bone_mail = [[".oo...oo.", "owwoooowo", "owwwwwwwo", ".owowowo.", ".owwwwwo.", ".owowowo.", "..ooooo.."], { o: "#2a2420", w: "#e8e0d0" }];
+ICONS.gear_detector = [["..ooooo..", ".oggggo..", "oggwggo..", "oggggggo.", ".oggggoo.", "..oooo.oo", ".......oo"], { o: "#0a2a14", g: "#6aff9a", w: "#e0ffe8" }];
+ICONS.res_farming = ICONS.mushroom;
+ICONS.res_filter = ICONS.water;
+ICONS.res_refine = [[".oo...", ".oo...", "oyyo..", "oyyyo.", "oywyo.", "oyyyo.", ".ooo.."], { o: "#1a1206", y: "#e8a830", w: "#fff4b0" }];
+ICONS.res_torchcraft = ICONS.torch;
+ICONS.res_camping = ICONS.campfire;
+ICONS.res_beastlore = ICONS.skull;
+
+const spriteCache = new Map();
+/** Any sprite as a data URL; mode "silhouette" for the unknown. */
+export function spriteURL(key, rows, pal, mode = "color", scale = 4) {
+  const k = key + mode + scale;
+  if (spriteCache.has(k)) return spriteCache.get(k);
+  const h = rows.length, w = Math.max(...rows.map((r) => r.length));
+  const cv = document.createElement("canvas");
+  cv.width = w * scale; cv.height = h * scale;
+  const g = cv.getContext("2d");
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const ch = rows[y][x];
+    if (!ch || ch === "." || ch === " " || !pal[ch]) continue;
+    g.fillStyle = mode === "silhouette" ? (ch === "o" ? "#3a3448" : "#1c1826") : pal[ch];
+    g.fillRect(x * scale, y * scale, scale, scale);
+  }
+  const url = cv.toDataURL();
+  spriteCache.set(k, url);
+  return url;
+}
