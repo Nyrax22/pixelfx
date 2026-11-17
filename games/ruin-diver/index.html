@@ -243,6 +243,19 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
 #starts span { color: var(--dim); margin-right: 0.2em; }
 #starts button { padding: 0.3em 0.5em; background: #241c38; color: var(--dim); border: var(--px) solid var(--edge); }
 #starts button.on { background: #4a8aff; color: #fff; }
+#missionBox { margin-top: 0.4em; font-size: 0.72em; background: #120e20; border: var(--px) solid var(--edge); padding: 0.35em 0.55em; display: flex; flex-direction: column; gap: 0.25em; }
+#missionBox h4 { margin: 0; font-size: 1em; color: var(--gold); }
+.mr { display: grid; grid-template-columns: 1fr 5em 2.6em 3.4em; gap: 0.5em; align-items: center; white-space: nowrap; }
+.mr span { overflow: hidden; text-overflow: ellipsis; }
+.mr i { height: 0.6em; background: #2a2240; border: 0.12em solid var(--edge); }
+.mr u { display: block; height: 100%; background: #6fd36a; }
+.mr em { font-style: normal; color: var(--dim); text-align: right; }
+.mr b { color: var(--gold); text-align: right; }
+.mr b .pi { height: 0.9em; margin-right: 0.15em; }
+.mr.done { color: #8aff8a; grid-template-columns: 1fr auto; }
+.card { padding: 0.2em 0.15em 0.15em; }
+.card img { width: 58%; }
+#lootGrid { grid-template-columns: repeat(7, 1fr); }
 </style>
 </head>
 <body>
@@ -282,6 +295,7 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
         <div id="lootGrid"></div>
         <div id="resEmpty" class="hidden"></div>
         <div id="resCoins"></div>
+        <div id="missionBox"></div>
         <div id="starts" class="hidden"></div>
         <div id="droppedRow" class="hidden"><span class="lbl"></span><span class="ic"></span><span class="sp"></span></div>
       </div>

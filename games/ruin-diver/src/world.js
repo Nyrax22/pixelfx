@@ -6,11 +6,11 @@ import * as sparkFx from "../../../src/fx/impacts/hit-spark.js";
 import * as poofFx from "../../../src/fx/spawn/poof.js";
 import * as torchFx from "../../../src/fx/fire/torch.js";
 import * as beamFx from "../../../src/fx/pickups/loot-beam.js";
-import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE } from "./data.js";
-import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL } from "./sprites.js";
+import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME } from "./data.js";
+import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL, CHEST, CHEST_PAL, GOLD_SLIME_PAL } from "./sprites.js";
 import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE } from "./cave.js";
 import { drawCave, fillAmbient, addLight } from "./bg.js";
-import { zoneAt } from "./logic.js";
+import { zoneAt, missionProgress } from "./logic.js";
 import { audio } from "./audio.js";
 
 export const BURST = {
@@ -31,7 +31,8 @@ const PW = 10, PH = 15; // the explorer's box
 export class Run {
   constructor(save, st, first = false, start = null) {
     this.save = save;
-    this.st = st;
+    // the first expedition gets room for everything it shows you
+    this.st = first ? { ...st, bag: Math.max(st.bag, 5) } : st;
     this.first = first;
     const seed = ((Date.now() & 0xffffff) ^ (save.runs * 7919)) >>> 0;
     this.rng = new Rng(seed);
@@ -74,6 +75,13 @@ export class Run {
     this.items = this.cave.items.map((it) => ({ ...it, x: it.tx * T + 8, y: it.ty * T + 9 }));
     this.coinList = this.cave.coins.map((c) => ({ ...c, x: c.tx * T + 8, y: c.ty * T + 11 }));
     this.heartList = this.cave.hearts.map((h) => ({ x: h.tx * T + 8, y: h.ty * T + 10 }));
+    this.chests = this.cave.chests.map((c) => ({ ...c, x: c.tx * T + 8, y: (c.ty + 1) * T, open: false, t: 0 }));
+    this.hints = this.cave.hints.map((h) => ({ ...h, shown: false }));
+    // what this expedition did, for missions
+    this.tally = { slimes: 0, bats: 0, skulls: 0, gold: 0, chests: 0, hearts: 0, goldSlime: 0, combo: 0, depth: 0, winch: 0, escapeWith: 0, boss_slime_king: 0, boss_golem: 0 };
+    this.missionsDone = new Set();
+    this.combo = 0;
+    this.freeze = 0;
     this.enemies = this.cave.enemies.map((en) => en.kind === "slime"
       ? { ...en, x: en.tx * T + 8, y: (en.ty + 1) * T, vx: (en.seed & 1 ? 1 : -1) * (en.red ? 34 : 22), alive: true, hp: en.red ? 2 : 1, t: 0 }
       : { ...en, x: en.tx * T + 8, y: en.ty * T + 4, state: "hang", vx: 0, vy: 0, alive: true, hp: 1, t: 0, cd: 1 });
@@ -89,6 +97,7 @@ export class Run {
       for (let i = 0; i <= bi; i++) {
         const b = this.bosses[i];
         b.state = "dead";
+    this.tally["boss_" + b.id] = 1;
         for (const y of [b.floor, b.floor + 1]) { this.tile[y * MW + b.gx] = AIR; this.deco[y * MW + b.gx] = LADDER; }
       }
       const b = this.bosses[bi], wx = b.gx + 3;
@@ -151,6 +160,7 @@ export class Run {
     this.shake = Math.max(0, this.shake - dt);
     const p = this.p;
 
+    if (this.freeze > 0) { this.freeze -= dt; return; }
     if (this.state === "play") {
       this.updateLantern(dt);
       this.updatePlayer(dt, input);
@@ -161,6 +171,10 @@ export class Run {
         this.updateBosses(dt);
       }
       this.depthMax = Math.max(this.depthMax, this.depth);
+      this.tally.depth = this.depthMax;
+      if (this.p.ground || this.p.climb) this.combo = 0;
+      this.updateChests(dt);
+      this.checkMissions();
       const z = zoneAt(this.depth);
       if (!this.zonesSeen.has(z.id) && !z.coming) {
         this.zonesSeen.add(z.id);
@@ -232,7 +246,12 @@ export class Run {
       p.vx = 0;
       p.vy = 0;
     }
-    if (p.climb && !onLadder && !ladderBelow) p.climb = false;
+    if (p.climb && !onLadder && !ladderBelow) {
+      // over the top rung: step up onto it rather than hanging off the end
+      const fy = Math.floor((p.y + PH - 0.01) / T);
+      if (input.up && this.ladderTop(Math.floor(cx / T), fy)) { p.y = fy * T - PH; p.vy = 0; p.ground = true; }
+      p.climb = false;
+    }
     if (p.climb && p.buf > 0 && !input.up) {
       p.climb = false;
       p.buf = 0;
@@ -283,11 +302,12 @@ export class Run {
       this.dust(p.x + PW / 2, p.y + PH, 4);
     }
     if (p.ground || p.climb) p.fallTop = p.y;
+    if (p.climb) p.offLadder = this.t; // don't dig the floor out the moment you step off a ladder
 
     // digging: push into a wall, hold down on the ground, or climb up into a ceiling
     let target = null;
     if (p.ground && input.dir && blockedX) target = [Math.floor((input.dir > 0 ? p.x + PW + 1 : p.x - 1) / T), Math.floor((p.y + PH - 2) / T)];
-    else if (p.ground && input.down && !ladderBelow && !input.dir) target = [Math.floor(cx / T), Math.floor((p.y + PH + 1) / T)];
+    else if (p.ground && input.down && !ladderBelow && !input.dir && this.t - (p.offLadder ?? -9) > 0.4) target = [Math.floor(cx / T), Math.floor((p.y + PH + 1) / T)];
     else if (p.climb && input.up && hitY < 0) target = [Math.floor(cx / T), Math.floor((p.y - 1) / T)];
     if (target) this.digAt(target[0], target[1], dt);
 
@@ -300,6 +320,7 @@ export class Run {
       if (!this.atWinch) { this.atWinch = true; this.emit("toast", { key: "winchHint" }); }
       if (input.up) {
         this.state = "winch";
+        this.tally.winch = 1;
         this.winchT = 0;
         this.winchX = wtx * T + T / 2 - PW / 2;
         audio.play("ascend");
@@ -371,7 +392,9 @@ export class Run {
     this.chips(tx, ty, m, 10);
     audio.play("break");
     // ore pays out in coins that pop loose
+    if (m === GOLD) this.tally.gold++;
     if (m === GOLD || m === GEM) {
+      this.text(`+${(m === GEM ? 6 : 4) * zoneAt(ty).coinValue * (m === GEM ? 2 : 1)}`, tx * T + 8, ty * T, "#ffd23a");
       const n = m === GEM ? 6 : 4, v = zoneAt(ty).coinValue * (m === GEM ? 2 : 1);
       for (let k = 0; k < n; k++) this.popCoins.push({ x: tx * T + 8, y: ty * T + 8, vx: this.rng.range(-70, 70), vy: this.rng.range(-170, -80), v, t: 0 });
       audio.play("coin");
@@ -400,6 +423,7 @@ export class Run {
     const p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
     for (const it of this.items) {
       if (it.taken) continue;
+      if (it.pop > 0) { it.pop -= dt; it.y += 60 * dt; continue; }
       const dx = cx - it.x, dy = cy - it.y;
       if (Math.abs(dx) > 260 || Math.abs(dy) > 160) continue;
       if (this.seen[it.id] == null && Math.abs(dx) < 150 && Math.abs(dy) < 110) this.seen[it.id] = it.ty;
@@ -426,6 +450,7 @@ export class Run {
       if (h.taken || Math.abs(h.x - cx) > 10 || Math.abs(h.y - cy) > 12 || this.hp >= this.st.hearts) continue;
       h.taken = true;
       this.hp++;
+      this.tally.hearts++;
       this.text("+1", h.x, h.y - 10, "#ff7a8a", "big");
       audio.play("heal");
       this.emit("heal");
@@ -469,7 +494,7 @@ export class Run {
     } else audio.play("pickup", RARITY[r].order);
     this.emit("pickup", { id: it.id, isNew: !known });
     if (this.bag.length >= this.st.bag && slot < 0) this.emit("toast", { key: "bagFull" });
-    if (this.first && this.bag.length >= 3) this.emit("toast", { key: "exitHint" });
+    if (this.first && this.bag.length === 3 && !this.saidBelow) { this.saidBelow = true; this.emit("toast", { key: "moreBelow" }); }
   }
 
   updateEnemies(dt) {
@@ -516,8 +541,13 @@ export class Run {
           en.y += 140 * dt;
           if (this.solid(Math.floor(en.x / T), Math.floor((en.y + 1) / T))) { en.y = Math.floor((en.y + 1) / T) * T; en.falling = false; }
         } else {
-          // red slimes notice you and come at you
+          // red slimes notice you and come at you; golden ones run
           if (en.red && Math.abs(dy) < 20 && Math.abs(dx) < 120) en.vx = Math.sign(dx) * Math.abs(en.vx);
+          if (en.gold) {
+            const near = Math.abs(dy) < 40 && Math.abs(dx) < 110;
+            en.vx = (near ? -Math.sign(dx) || 1 : Math.sign(en.vx) || 1) * (near ? 62 : 18);
+            if (near && !en.seen) { en.seen = true; this.emit("toast", { key: "jackpot" }); }
+          }
           const ahead = en.x + Math.sign(en.vx) * 7;
           const wall = this.solid(Math.floor(ahead / T), Math.floor((en.y - 6) / T));
           const ledge = !this.solid(Math.floor(ahead / T), Math.floor((en.y + 2) / T));
@@ -539,20 +569,72 @@ export class Run {
   touch(en, rx, ry, oy = 0) {
     const p = this.p, ex = en.x, ey = en.y + oy;
     if (p.x + PW < ex - rx || p.x > ex + rx || p.y + PH < ey - ry || p.y > ey + ry) return;
-    if (p.vy > 30 && p.y + PH < ey) {
+    // falling with your feet above its middle counts: generous on purpose
+    if (p.vy > 0 && p.y + PH < en.y + oy + ry * 0.5) {
       p.vy = -230;
       p.fallTop = p.y;
+      this.freeze = 0.06;
       if (--en.hp > 0) { en.hurtT = 0.3; audio.play("stomp"); return; }
       en.alive = false;
+      this.combo++;
+      this.tally.combo = Math.max(this.tally.combo, this.combo);
+      if (en.kind === "slime") this.tally.slimes++;
+      if (en.kind === "bat") this.tally.bats++;
+      if (en.kind === "skull") this.tally.skulls++;
+      if (en.gold) {
+        this.tally.goldSlime++;
+        this.shake = 0.3;
+        for (let k = 0; k < GOLD_SLIME.coins; k++) this.popCoins.push({ x: ex, y: ey, vx: this.rng.range(-130, 130), vy: this.rng.range(-280, -120), v: 1, t: 0 });
+        this.fxs.push({ fx: createFx(burstFx, { palette: BURST.legendary, seed: 9, light: 1 }), x: ex, y: ey + 30 });
+        this.text("JACKPOT!", ex, ey - 18, "#ffd23a", "big");
+        audio.play("newItem");
+      }
       const pal = en.kind === "slime" ? (en.red ? ["#2a0610", "#8a1a2a", "#e04a4a", "#ff8a7a", "#ffd0c0", "#ffffff"] : ["#061412", "#12594a", "#1f8f4f", "#47c752", "#a6f06a", "#f0ffd2"]) : POOF_DARK;
       this.fxs.push({ fx: createFx(poofFx, { palette: pal, seed: en.seed }), x: ex, y: ey + 30 });
-      const n = en.kind === "skull" ? 3 : en.red ? 3 : 2;
+      const n = (en.kind === "skull" ? 3 : en.red ? 3 : 2) + (this.combo - 1) * COMBO_BONUS;
       for (let k = 0; k < n; k++) this.popCoins.push({ x: ex, y: ey, vx: this.rng.range(-60, 60), vy: this.rng.range(-160, -90), v: zoneAt(Math.floor(ey / T)).coinValue, t: 0 });
-      audio.play("stomp");
-      this.text("POW", ex, ey - 12, "#ffe06a", "big");
+      audio.play("stomp", this.combo);
+      if (this.combo > 1) this.text(`COMBO x${this.combo}`, ex, ey - 12, "#ff9a3a", "big");
+      else if (!en.gold) this.text("POW", ex, ey - 12, "#ffe06a", "big");
       return;
     }
     this.hurt(en.dmg ?? 1, en.kind, ex);
+  }
+
+  updateChests(dt) {
+    const p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
+    for (const c of this.chests) {
+      if (c.open) { c.t += dt; continue; }
+      if (Math.abs(c.x - cx) > 12 || Math.abs(c.y - 6 - cy) > 14) continue;
+      // open: coins fly, the relic pops out on top
+      c.open = true;
+      this.tally.chests++;
+      this.freeze = 0.08;
+      this.shake = 0.2;
+      for (let k = 0; k < c.coins; k++) this.popCoins.push({ x: c.x, y: c.y - 8, vx: this.rng.range(-110, 110), vy: this.rng.range(-260, -120), v: 1, t: 0 });
+      this.fxs.push({ fx: createFx(burstFx, { palette: BURST.legendary, seed: 5, light: 1 }), x: c.x, y: c.y + 18 });
+      this.items.push({ id: c.item, variant: c.variant, tx: c.tx, ty: c.ty, x: c.x, y: c.y - 22, pop: 0.35 });
+      this.emit("toast", { key: "chestOpen" });
+      audio.play("chest");
+    }
+    // first-expedition hints, once each, when you get close
+    for (const h of this.hints) {
+      if (h.shown || Math.abs(h.tx * T + 8 - cx) > 26 || Math.abs(h.ty * T + 8 - cy) > 20) continue;
+      h.shown = true;
+      this.emit("toast", { key: h.key });
+    }
+  }
+  /** Announce a mission the moment it's met (it pays out at the results). */
+  checkMissions() {
+    for (const m of this.save.missions?.active ?? []) {
+      const def = MISSIONS[m.i];
+      if (this.missionsDone.has(def.id) || def.kind === "escapeWith" || def.kind === "winch") continue;
+      if (missionProgress(m, this.tally, false) >= def.n) {
+        this.missionsDone.add(def.id);
+        this.emit("mission", { id: def.id, i: m.i });
+        audio.play("set");
+      }
+    }
   }
 
   updateHazards(dt) {
@@ -713,7 +795,7 @@ export class Run {
     if (this.state !== "play") return;
     if (this.invuln > 0 && src !== "dark") return;
     const p = this.p;
-    this.hp = Math.max(0, this.hp - n);
+    this.hp = Math.max(this.first ? 1 : 0, this.hp - n); // the first expedition can hurt but never ends you
     this.invuln = 1.2;
     this.shake = 0.3;
     if (src !== "dark") {
@@ -749,6 +831,7 @@ export class Run {
   }
   escape() {
     if (this.state === "done") return;
+    this.tally.escapeWith = this.bag.length;
     this.state = "done";
     audio.play("escape");
     this.emit("escaped");
@@ -835,6 +918,18 @@ export class Run {
     for (const c of this.coinList) if (!c.taken) coin(c);
     for (const c of this.popCoins) coin(c);
 
+    // chests
+    for (const c of this.chests) {
+      if (!onScreen(c.x, c.y)) continue;
+      const fr = CHEST[c.open ? 1 : 0];
+      P.sprite(fr, CHEST_PAL, sx(c.x) - 7, sy(c.y) - fr.length);
+      if (!c.open) {
+        P.glow(sx(c.x), sy(c.y) - 6, 12, 0xff3ad2ff, 0.35 + Math.sin(t * 4 + c.x) * 0.1);
+        const a = t * 2.5 + c.x;
+        P.light(sx(c.x) + Math.cos(a) * 9, sy(c.y) - 6 + Math.sin(a) * 5, 0xffffffff, 0.8);
+      }
+      addLight(lm, sx(c.x), sy(c.y) - 6, 20, 0.3);
+    }
     // hearts, bobbing
     for (const h of this.heartList) {
       if (h.taken || !onScreen(h.x, h.y)) continue;
@@ -886,8 +981,9 @@ export class Run {
         addLight(lm, ex, ey, 22, 0.35);
       } else {
         const fr = SLIME[Math.floor(en.t * 3 + en.seed) % 2];
-        P.sprite(fr, en.red ? RED_SLIME_PAL : SLIME_PAL, ex - 6, ey - 9, { flip: en.vx < 0, tint: flash ? 0xffffffff : undefined });
-        P.glow(ex, ey - 4, 9, en.red ? 0xff3a3aff : 0xff52c747, 0.25);
+        P.sprite(fr, en.gold ? GOLD_SLIME_PAL : en.red ? RED_SLIME_PAL : SLIME_PAL, ex - 6, ey - 9, { flip: en.vx < 0, tint: flash ? 0xffffffff : undefined });
+        P.glow(ex, ey - 4, en.gold ? 16 : 9, en.gold ? 0xff3ad2ff : en.red ? 0xff3a3aff : 0xff52c747, en.gold ? 0.7 : 0.25);
+        if (en.gold) { addLight(lm, ex, ey - 4, 26, 0.4); P.light(ex + Math.cos(t * 5) * 8, ey - 6 + Math.sin(t * 5) * 4, 0xffffffff, 0.9); }
       }
     }
     for (const f of this.falling) P.sprite(STALACTITE_SPR, STALACTITE_PAL, sx(f.x) - 4 + (f.wait > 0 ? Math.round(Math.sin(t * 70)) : 0), sy(f.y) - 2);

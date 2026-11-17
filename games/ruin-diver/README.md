@@ -7,6 +7,11 @@ Deep Mine (100-300m), 31 relics (two are boss trophies), 4 sets, 5 upgrades, and
 at 88-98m and the Ancient Golem at 189-199m. Each guards a gate down; beat one once and you can start the next
 expedition in its hall. Enemies get faster and more numerous with depth.
 
+The first minute is built by hand: grab three relics in the entrance chamber, dig through a gold wall, stomp a
+slime, dig down to a treasure chest and escape at a winch. It can't be lost, and the chest completes the first
+set. After that: treasure chests in rooms and far corners, stomp combos (x2, x3...) for bonus coins, a rare
+golden slime that runs from you, and three missions at a time with coin rewards.
+
 ```bash
 npm install
 node games/ruin-diver/build.mjs      # writes games/ruin-diver/dist/index.html (one file, ~150 KB)

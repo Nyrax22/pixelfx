@@ -1,7 +1,7 @@
 // The cave: a new one every expedition. Tiles, ladders, escape winches, treasure and things that bite.
 
 import { Rng } from "../../../src/core/index.js";
-import { MW, MH, ZONES, ITEMS, WINCH_DEPTHS, FIRST_DIVE, SEAL_DEPTH, VARIANT_CHANCE, RARITY, BOSSES } from "./data.js";
+import { MW, MH, ZONES, ITEMS, WINCH_DEPTHS, FIRST_DIVE, FIRST_CHEST_ITEM, SEAL_DEPTH, VARIANT_CHANCE, RARITY, BOSSES, CHESTS, GOLD_SLIME } from "./data.js";
 import { zoneAt } from "./logic.js";
 
 // tile materials
@@ -121,6 +121,9 @@ export function makeCave(seed, save, first) {
   for (let x = 14; x <= 33; x++) if (x !== ENTRANCE.holeX) { tile[at(x, ENTRANCE.floorY)] = DIRT; deco[at(x, ENTRANCE.floorY)] = NONE; }
   for (let x = 13; x <= 34; x++) for (let y = 10; y <= 11; y++) if (!path[at(x, y)]) tile[at(x, y)] = DIRT;
 
+  // a room wall built across a ladder gets a hole cut for it
+  for (let i = 0; i < tile.length; i++) if (deco[i] === LADDER && tile[i] !== AIR) tile[i] = AIR;
+
   // 6. materials: clusters of stone, gold and gems along exposed faces, bedrock round the edge
   const n2 = (x, y, s) => {
     const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
@@ -201,16 +204,26 @@ export function makeCave(seed, save, first) {
   }
 
   // items: more of them, and rarer, the further they are from the main way
-  const items = [];
+  const items = [], chests = [];
   const bookCount = (id) => save.book[id]?.count ?? 0;
   if (first) {
     for (const f of FIRST_DIVE) items.push({ id: f.item, tx: f.tx, ty: f.ty, variant: false });
   } else {
+    // every room keeps a chest; a few more sit far off the main way
     for (const r of rooms) {
       const cx = r.x + R.int(1, r.w - 2), cy = r.y + r.h - 1;
       if (inArena(cy) || inArena(r.y)) continue;
       const id = rollItem(R, zoneAt(cy), cy, bookCount, 1);
-      if (id) { items.push({ id, tx: cx, ty: cy, variant: R.next() < VARIANT_CHANCE * 2 }); claim(cx, cy, 1); }
+      if (id) { chests.push({ tx: cx, ty: cy, item: id, variant: R.next() < VARIANT_CHANCE * 2, coins: CHESTS.coins[zoneAt(cy).id] }); claim(cx, cy, 1); }
+    }
+    for (const z of ZONES) {
+      if (z.coming) continue;
+      const far = floors.filter(([fx, fy]) => fy >= Math.max(z.from, 14) && fy < z.to && free(fx, fy) && (dist[at(fx, fy)] < 0 || dist[at(fx, fy)] > 10));
+      for (let n = 0; n < CHESTS.remote[z.id] && far.length; n++) {
+        const [fx, fy] = far.splice(R.int(0, far.length - 1), 1)[0];
+        const id = rollItem(R, z, fy, bookCount, 1);
+        if (id) { chests.push({ tx: fx, ty: fy, item: id, variant: R.next() < VARIANT_CHANCE * 2, coins: CHESTS.coins[z.id] }); claim(fx, fy, 1); }
+      }
     }
     for (const z of ZONES) {
       if (z.coming) continue;
@@ -296,6 +309,16 @@ export function makeCave(seed, save, first) {
     }
   }
 
+  // now and then a golden slime: it runs from you, and it's worth chasing
+  if (!first && R.next() < GOLD_SLIME.chance) {
+    const fs = floors.filter(([fx, fy]) => fy >= GOLD_SLIME.from && fy < GOLD_SLIME.to && free(fx, fy) && floorAt(fx - 1, fy) && floorAt(fx + 1, fy) && dist[at(fx, fy)] >= 0);
+    if (fs.length) {
+      const [fx, fy] = fs[R.int(0, fs.length - 1)];
+      enemies.push({ kind: "slime", gold: true, tx: fx, ty: fy, seed: R.int(1, 999) });
+      claim(fx, fy, 2);
+    }
+  }
+
   // stalactites: they let go when you walk underneath
   if (!first) for (const [cx, cy] of ceilings) {
     const z = zoneAt(cy);
@@ -303,7 +326,42 @@ export function makeCave(seed, save, first) {
     if (R.next() < z.stalactites * (1 + (cy - z.from) / 100)) { deco[at(cx, cy)] = STALACTITE; claim(cx, cy, 0); }
   }
 
-  return { tile, deco, items, coins, hearts, enemies, winches, rooms, arenas, entrance: ENTRANCE, path, dist };
+  const cave = { tile, deco, items, chests, coins, hearts, enemies, winches, rooms, arenas, entrance: ENTRANCE, path, dist, hints: [] };
+  return first ? tutorial(cave) : cave;
+}
+
+/**
+ * The first expedition's cave, by hand: below the entrance chamber, a corridor walled with gold to dig through,
+ * a slime to stomp, a ladder down, a chest you dig down to, and a winch out. Everything below is solid.
+ */
+function tutorial(cave) {
+  const { tile, deco } = cave, at = (x, y) => y * MW + x;
+  const fill = (x0, y0, x1, y1, m, d = NONE) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { tile[at(x, y)] = m; deco[at(x, y)] = d; } };
+  fill(1, 10, MW - 2, MH - 1, DIRT);
+  fill(0, 34, MW - 1, MH - 1, BEDROCK);
+  // down from the chamber floor into the upper corridor
+  fill(ENTRANCE.holeX, 9, ENTRANCE.holeX, 15, AIR, LADDER);
+  fill(24, 13, 35, 15, AIR);
+  fill(36, 13, 37, 15, GOLD);            // dig through this
+  fill(38, 13, 45, 15, AIR);             // the slime's room
+  fill(45, 16, 45, 22, AIR, LADDER);     // a ladder down
+  fill(8, 20, 45, 22, AIR);              // the lower corridor
+  deco[at(45, 20)] = LADDER; deco[at(45, 21)] = LADDER; deco[at(45, 22)] = LADDER;
+  fill(17, 24, 23, 24, AIR);             // a pocket under the floor, dug into from above
+  fill(16, 25, 24, 25, STONE);           // with a floor you can't dig through yet
+  fill(16, 24, 16, 24, STONE); fill(24, 24, 24, 24, STONE);
+  fill(17, 23, 17, 24, AIR, LADDER);     // and a ladder back up (its top is a step you can walk over)
+  tile[at(26, 21)] = GOLD; tile[at(26, 22)] = GOLD; tile[at(27, 22)] = GOLD;
+  deco[at(9, 22)] = WINCH;
+  cave.winches = [{ x: 9, y: 22 }];
+  cave.chests = [{ tx: 22, ty: 24, item: FIRST_CHEST_ITEM, variant: false, coins: 15 }];
+  cave.enemies = [{ kind: "slime", tx: 42, ty: 15, seed: 11 }];
+  cave.coins = [[30, 15], [32, 15], [34, 15], [39, 15], [40, 15], [41, 13], [38, 22], [35, 22], [32, 22], [29, 22], [18, 24], [19, 24], [20, 24]].map(([tx, ty]) => ({ tx, ty, v: 2 }));
+  cave.hearts = [];
+  cave.hints = [{ tx: 34, ty: 15, key: "digHint" }, { tx: 39, ty: 15, key: "stompHint" }, { tx: 20, ty: 22, key: "digDownHint" }];
+  cave.arenas = [];
+  cave.rooms = [];
+  return cave;
 }
 
 function rollItem(R, zone, m, bookCount, bump = 0) {

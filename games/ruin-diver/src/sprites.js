@@ -631,3 +631,10 @@ export const GOLEM_PAL = { o: "#0c0a10", a: "#6e6474", b: "#9a90a0", d: "#463e50
 
 export const HEART_SPR = [".oo.oo..", "orrorro.", "orwrrro.", "orrrrro.", ".orrro..", "..oro...", "...o...."];
 export const HEART_PAL = { o: "#2a0610", r: "#ff4a5a", w: "#ffd0d8" };
+
+export const CHEST = [
+  ["..oooooooooo..", ".obbbbbbbbbbo.", "obbbbbbbbbbbbo", "oyyyyyyyyyyyyo", "oaaaaayyaaaaao", "oaaaaoyyoaaaao", "oaaaaayyaaaaao", "oaaaaaaaaaaaao", "oyyyyyyyyyyyyo", "oddddddddddddo", ".oooooooooooo."],
+  [".oooooooooooo.", "obbbbbbbbbbbbo", "oyyyyyyyyyyyyo", ".oooooooooooo.", "owwwwwwwwwwwwo", "oaaaaayyaaaaao", "oaaaaaaaaaaaao", "oaaaaaaaaaaaao", "oyyyyyyyyyyyyo", "oddddddddddddo", ".oooooooooooo."],
+];
+export const CHEST_PAL = { o: "#1a0e06", a: "#8a5228", b: "#b0743c", d: "#5a3418", y: "#f0c040", w: "#fff4a0" };
+export const GOLD_SLIME_PAL = { o: "#3a2204", g: "#ffc63a", w: "#fff6c4", d: "#c48412" };

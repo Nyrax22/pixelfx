@@ -2,8 +2,8 @@
 
 import { createFrame, clearFrame, createFx, painterFor } from "../../../src/core/index.js";
 import * as confettiFx from "../../../src/fx/ui/confetti.js";
-import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS } from "./data.js";
-import { loadSave, writeSave, wipeSave, storageOk, stats, applyRun, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
+import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS } from "./data.js";
+import { loadSave, writeSave, wipeSave, storageOk, stats, applyRun, applyMissions, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
 import { Run } from "./world.js";
 import { compositeLit } from "./bg.js";
 import { itemIcon, icon } from "./sprites.js";
@@ -308,6 +308,9 @@ function handleEvents() {
             (ok) => { if (ok) { run.revive(); backToRun(); } else finishDive(true); });
         }, 900);
         break;
+      case "mission":
+        toast(`${S("missionDone")} ${missionText(MISSIONS[e.i])}`, "#ffd23a");
+        break;
       case "bossWake":
         banner(STR[lang].bosses[e.id], S("bossHint"));
         bossBar(e.id, e.hp, e.hp);
@@ -345,6 +348,9 @@ function finishDive(died) {
   const lost = died ? run.bag.slice() : [];
   const coins = died ? Math.floor(run.coins * DEATH_COIN_KEEP) : run.coins;
   result = applyRun(save, { bag: died ? [] : run.bag, dropped: lost, seen: run.seen, coins, depth: run.depthMax });
+  result.missions = applyMissions(save, run.tally, !died);
+  result.missionCoins = result.missions.reduce((a, m) => a + m.reward, 0);
+  result.total += result.missionCoins;
   result.died = died;
   result.lost = lost;
   for (const it of result.items) if (!before.has(it.id)) freshInBook.add(it.id);
@@ -399,6 +405,7 @@ function showResults() {
   renderUpgrades();
   renderBookBtn();
   renderStarts();
+  renderMissions(r?.missions ?? []);
 }
 /** Duplicates on one card with a count. */
 function stack(items) {
@@ -432,11 +439,23 @@ function hubGrid(grid) {
     grid.appendChild(el);
   }
 }
+const missionText = (def) => STR[lang].mission[def.kind].replace("{n}", def.n);
+function renderMissions(done = []) {
+  const box = $("missionBox");
+  const rows = done.map((def) => `<div class="mr done">✓ ${missionText(def)}<b>${icon("coin")}${def.reward}</b></div>`);
+  for (const m of save.missions.active) {
+    const def = MISSIONS[m.i], k = Math.min(1, m.p / def.n);
+    rows.push(`<div class="mr"><span>${missionText(def)}</span><i><u style="width:${k * 100}%"></u></i><em>${Math.min(m.p, def.n)}/${def.n}</em><b>${icon("coin")}${def.reward}</b></div>`);
+  }
+  if (!rows.length) rows.push(`<div class="mr done">${S("allMissions")}</div>`);
+  box.innerHTML = `<h4>${S("missions")}</h4>` + rows.slice(0, 4).join("");
+}
 function renderCoins(r) {
   const parts = [];
   if (r.itemCoins) parts.push(`${S("loot")} <b>+${r.itemCoins}</b>`);
   if (r.newCoins) parts.push(`${S("newBonus")} <b>+${r.newCoins}</b>`);
   if (r.looseCoins) parts.push(`${S("looseCoins")} <b>+${r.looseCoins}</b>`);
+  if (r.missionCoins) parts.push(`${S("missionReward")} <b>+${r.missionCoins}</b>`);
   $("resCoins").innerHTML = `<span id="resTotal">${icon("coin")} +${r.total * (r.doubled ? 2 : 1)}</span>${parts.map((p) => `<span>${p}</span>`).join("")}${r.doubled ? `<span><b>×2</b></span>` : ""}`;
 }
 function renderUpgrades() {

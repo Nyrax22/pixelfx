@@ -1,6 +1,6 @@
 // Rules that turn a save into numbers: stats, the collection, and what a finished dive is worth.
 
-import { ITEMS, ITEM, RARITY, SETS, STARS, STAR3_COIN_BONUS, UPGRADES, UPGRADE, ZONES, upgradeCost } from "./data.js";
+import { ITEMS, ITEM, RARITY, SETS, STARS, STAR3_COIN_BONUS, UPGRADES, UPGRADE, ZONES, MISSIONS, MISSION_BEST, upgradeCost } from "./data.js";
 
 const SAVE_KEY = "ruindiver.v1";
 export let storageOk = true;
@@ -13,6 +13,7 @@ export function defaultSave() {
     sets: {},   // id -> true once completed
     bossKills: {}, // id -> times beaten
     start: "top",  // where the next expedition starts
+    missions: { next: 3, active: [{ i: 0, p: 0 }, { i: 1, p: 0 }, { i: 2, p: 0 }] },
   };
 }
 export function loadSave() {
@@ -20,7 +21,7 @@ export function loadSave() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return defaultSave();
     const s = JSON.parse(raw), d = defaultSave();
-    return { ...d, ...s, up: { ...d.up, ...s.up }, bossKills: { ...(s.bossKills ?? {}) } };
+    return { ...d, ...s, up: { ...d.up, ...s.up }, bossKills: { ...(s.bossKills ?? {}) }, missions: s.missions ?? d.missions };
   } catch {
     storageOk = false;
     return defaultSave();
@@ -140,4 +141,31 @@ export function applyRun(save, run, bonus = false) {
   // the rarest things first on the results screen
   out.items.sort((a, b) => RARITY[ITEM[b.id].rarity].order - RARITY[ITEM[a.id].rarity].order || b.isNew - a.isNew);
   return out;
+}
+
+// ------------------------------------------------------------ missions
+
+/** What an expedition counts toward a mission kind. tally: the run's counters; escaped: whether it got out. */
+export function missionValue(kind, tally, escaped) {
+  if (kind === "escapeWith") return escaped ? tally.escapeWith ?? 0 : 0;
+  if (kind === "winch") return escaped && tally.winch ? 1 : 0;
+  return tally[kind] ?? 0;
+}
+/** Progress a mission would have with this expedition's tally added. */
+export function missionProgress(m, tally, escaped) {
+  const def = MISSIONS[m.i], v = missionValue(def.kind, tally, escaped);
+  return MISSION_BEST.has(def.kind) || def.kind === "escapeWith" ? Math.max(m.p, v) : m.p + v;
+}
+/** Fold an expedition into the missions: returns the ones completed (with rewards), refilling from the list. */
+export function applyMissions(save, tally, escaped) {
+  const done = [];
+  const ms = save.missions;
+  ms.active = ms.active.map((m) => {
+    const p = missionProgress(m, tally, escaped), def = MISSIONS[m.i];
+    if (p < def.n) return { ...m, p };
+    done.push(def);
+    save.coins += def.reward;
+    return ms.next < MISSIONS.length ? { i: ms.next++, p: 0 } : null;
+  }).filter(Boolean);
+  return done;
 }

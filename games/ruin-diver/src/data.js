@@ -121,16 +121,58 @@ export const ROPE_LEN = 8;             // tiles a thrown rope reaches
 export const LANTERN_AD_SECONDS = 30;
 export const DEATH_COIN_KEEP = 0.5;
 
-// The scripted first dive: three things in the entrance chamber, the last one rare, nothing to fight.
+// The scripted first dive: three things in the entrance chamber, then a short cave below that shows off
+// everything once (dig, stomp, a chest, a winch) and ends with a set completed.
 export const FIRST_DIVE = [
   { tx: 26, ty: 8, item: "rusty_key" },
   { tx: 31, ty: 8, item: "teacup" },
   { tx: 16, ty: 8, item: "brooch" },
 ];
+export const FIRST_CHEST_ITEM = "rag_doll";
+
+// Chests: a relic plus a shower of coins. Rooms hold one each; a few more hide far off the main way.
+export const CHESTS = { remote: { village: 3, mine: 4 }, coins: { village: 8, mine: 14 } };
+export const GOLD_SLIME = { chance: 0.4, coins: 25, from: 18, to: 85 };
+export const COMBO_BONUS = 2; // extra coins per stomp for each step of a combo
+
+// Missions: three at a time, in this order. Counts carry across expeditions; depth and combo are a best.
+export const MISSIONS = [
+  { id: "m1", kind: "slimes", n: 3, reward: 30 },
+  { id: "m2", kind: "gold", n: 5, reward: 30 },
+  { id: "m3", kind: "depth", n: 25, reward: 25 },
+  { id: "m4", kind: "chests", n: 2, reward: 40 },
+  { id: "m5", kind: "bats", n: 3, reward: 40 },
+  { id: "m6", kind: "escapeWith", n: 3, reward: 40 },
+  { id: "m7", kind: "combo", n: 2, reward: 40 },
+  { id: "m8", kind: "depth", n: 50, reward: 50 },
+  { id: "m9", kind: "winch", n: 1, reward: 40 },
+  { id: "m10", kind: "goldSlime", n: 1, reward: 60 },
+  { id: "m11", kind: "hearts", n: 2, reward: 30 },
+  { id: "m12", kind: "depth", n: 80, reward: 70 },
+  { id: "m13", kind: "boss_slime_king", n: 1, reward: 150 },
+  { id: "m14", kind: "combo", n: 3, reward: 80 },
+  { id: "m15", kind: "skulls", n: 3, reward: 90 },
+  { id: "m16", kind: "depth", n: 150, reward: 120 },
+  { id: "m17", kind: "chests", n: 8, reward: 120 },
+  { id: "m18", kind: "boss_golem", n: 1, reward: 300 },
+  { id: "m19", kind: "depth", n: 250, reward: 200 },
+];
+export const MISSION_BEST = new Set(["depth", "combo"]); // a best within one expedition, not a running total
 
 // ---------------------------------------------------------------- text
 export const STR = {
   ko: {
+    missions: "미션",
+    missionDone: "미션 완료!",
+    missionReward: "미션 보상",
+    allMissions: "모든 미션 완료!",
+    mission: { slimes: "슬라임 {n}마리 밟기", gold: "금광석 {n}개 캐기", depth: "{n}m까지 내려가기", chests: "보물 상자 {n}개 열기", bats: "박쥐 {n}마리 밟기", escapeWith: "유물 {n}개 들고 탈출", combo: "연속 밟기 x{n}", winch: "탈출 윈치로 탈출", goldSlime: "황금 슬라임 밟기", hearts: "하트 {n}개 줍기", boss_slime_king: "슬라임 킹 쓰러뜨리기", boss_golem: "고대 골렘 쓰러뜨리기", skulls: "해골 {n}개 부수기" },
+    digHint: "벽으로 계속 밀면 파져요!",
+    stompHint: "위에서 밟으면 잡혀요!",
+    digDownHint: "아래를 누르면 밑으로 파요!",
+    moreBelow: "아래에 더 있어요! 구멍으로 내려가 보세요",
+    chestOpen: "보물 상자!",
+    jackpot: "황금 슬라임! 잡아라!",
     bosses: { slime_king: "슬라임 킹", golem: "고대 골렘" },
     bossWake: "보스 등장!",
     bossDown: "보스 처치! 아래로 가는 문이 열렸어요",
@@ -259,6 +301,17 @@ export const STR = {
     },
   },
   en: {
+    missions: "Missions",
+    missionDone: "Mission complete!",
+    missionReward: "Mission rewards",
+    allMissions: "All missions done!",
+    mission: { slimes: "Stomp {n} slimes", gold: "Dig {n} gold ore", depth: "Reach {n}m", chests: "Open {n} chests", bats: "Stomp {n} bats", escapeWith: "Escape with {n} relics", combo: "Stomp combo x{n}", winch: "Escape by winch", goldSlime: "Stomp a golden slime", hearts: "Pick up {n} hearts", boss_slime_king: "Beat the Slime King", boss_golem: "Beat the Ancient Golem", skulls: "Smash {n} skulls" },
+    digHint: "Keep pushing into the wall to dig!",
+    stompHint: "Jump on it to squash it!",
+    digDownHint: "Hold down to dig below you!",
+    moreBelow: "There's more below! Try the hole",
+    chestOpen: "Treasure chest!",
+    jackpot: "A golden slime! Get it!",
     bosses: { slime_king: "Slime King", golem: "Ancient Golem" },
     bossWake: "Boss!",
     bossDown: "Boss defeated! The gate below is open",
