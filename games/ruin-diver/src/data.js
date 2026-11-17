@@ -125,12 +125,13 @@ export const SURVIVE = {
   hunters: { dark: 8, lit: 16, cap: 7 }, // seconds between creatures that come looking for you
   exitDepth: 296,
 };
+// The collapse only starts if you take the sealed relic from its pedestal deep in the mine (see EVENTS.seal).
 // The cave comes down behind you: a rockfall front that chases you to the exit. Speeds in meters (tiles) per second.
 // It waits `grace` seconds, speeds up from `start` to `max` over `ramp` seconds, and hurries to stay within `catchup`
 // meters of you; it holds still while a boss fight is on.
-export const COLLAPSE = { grace: 18, start: 0.32, max: 0.66, ramp: 300, catchup: 26, catchK: 0.08, hurtEvery: 0.7, warn: 9 };
+export const COLLAPSE = { grace: 0, start: 0.5, max: 0.78, ramp: 300, catchup: 26, catchK: 0.08, hurtEvery: 0.7, warn: 9 };
 // The pickaxe wears out: each block costs durability (by material), crates and the merchant mend it.
-export const PICK = { base: 30, perLevel: 9, cost: { dirt: 1, gold: 1, wood: 1, brick: 2, stone: 2, gem: 2 }, crate: 5, chest: 8 };
+export const PICK = { base: 30, perLevel: 9, cost: { crack: 0, dirt: 1, gold: 1, wood: 1, brick: 2, stone: 2, gem: 2 }, crate: 5, chest: 8 };
 // A swing of the pickaxe: reach in pixels in front of you, how long it lasts and the wait before the next.
 export const SWING = { reach: 22, time: 0.18, cooldown: 0.34 };
 export const WALL = { slide: 55, jumpX: 150, jumpK: 0.92 }; // wall slide speed cap, wall jump push and height
@@ -141,7 +142,7 @@ export const PHYS = {
   gravity: 1100, maxFall: 420, walk: 92, accel: 900, jump: 300, climb: 72,
   coyote: 0.1, jumpBuffer: 0.12, fallHurt: 7, fallHurt2: 12, // tiles fallen before landing hurts (1, then 2 hearts)
 };
-export const DIG = { dirt: 0.32, gold: 0.45, brick: 0.7, wood: 0.4, stone: 0.75, gem: 0.9 };
+export const DIG = { crack: 0.18, dirt: 0.32, gold: 0.45, brick: 0.7, wood: 0.4, stone: 0.75, gem: 0.9 };
 export const STONE_PICK = 0;           // (stone can always be dug; a better pick just digs faster)
 export const DARK_DRAIN = 6;           // seconds per heart lost once the lantern is out
 export const ROPE_LEN = 8;             // tiles a thrown rope reaches
@@ -193,7 +194,7 @@ export const STR = {
     toExit: "출구까지 {d}m",
     rules1: "배고픔·목마름·빛이 계속 줄어요",
     rules2: "버섯·물·기름을 찾아 채우고, 나무·돌로 횃불과 모닥불을 만들어요",
-    rules3: "동굴이 위에서부터 무너져요! 300m 아래 출구까지 도망치세요",
+    rules3: "숨겨진 방과 고대의 석판을 찾아 300m 아래 출구까지 내려가요",
     food: "배고픔", waterM: "목마름", light: "빛",
     inv: { mushroom: "버섯", water: "물", wood: "나무", stone: "돌" },
     act: { eat: "먹기", drink: "마시기", torch: "횃불", campfire: "모닥불", rope: "로프" },
@@ -356,7 +357,7 @@ export const STR = {
     toExit: "Exit in {d}m",
     rules1: "Hunger, thirst and light keep running down",
     rules2: "Find mushrooms, water and oil; build torches and campfires from wood and stone",
-    rules3: "The cave is collapsing from the top! Run for the exit 300m below",
+    rules3: "Find hidden rooms and ancient tablets on your way to the exit 300m below",
     food: "Hunger", waterM: "Thirst", light: "Light",
     inv: { mushroom: "Mushroom", water: "Water", wood: "Wood", stone: "Stone" },
     act: { eat: "Eat", drink: "Drink", torch: "Torch", campfire: "Campfire", rope: "Rope" },
@@ -548,7 +549,30 @@ export const EVENTS = {
   cursed:   { zones: ["village", "mine"], w: 1.4, from: 40, opts: [{ id: "open", cost: {} }] },
   vault:    { zones: ["mine"], w: 2, from: 105, opts: [{ id: "break", cost: { stone: 4 } }] },
   spring:   { zones: ["mine"], w: 1.6, from: 105, opts: [{ id: "drink", cost: {} }] },
+  // not random: one sealed relic in every cave, and the stone tablets you read
+  seal:     { zones: [], w: 0, from: 215, opts: [{ id: "take", cost: {} }] },
+  tablet:   { zones: [], w: 0, opts: [] },
 };
+// What makes the cave feel lived in. Props stand on floors (pots break when you swing at them), critters wander,
+// glowing things light their surroundings in their own colour.
+export const PROPS = {
+  village: { floor: ["pot", "pot", "pot_broken", "prop_skull", "glow_mush", "frame", "coin_bag", "pot"], ceil: ["vines", "spider_hang", "vines"], n: 46, ceilN: 16 },
+  mine: { floor: ["pot", "pot_broken", "prop_skull", "purple_mush", "crystal_blue", "crystal_red", "stalagmite", "minecart", "helmet", "prop_pick", "fossil"], ceil: ["spider_hang", "vines"], n: 56, ceilN: 14 },
+};
+export const GLOW = { glow_mush: [0xffffc04a, 30], purple_mush: [0xffff5ac8, 26], crystal_blue: [0xffffb04a, 34], crystal_red: [0xff4a4aff, 30], ore_crystal: [0xff4ae0ff, 20] };
+export const POT_LOOT = [["coins", 0.5], ["mushroom", 0.14], ["water", 0.1], ["oil", 0.08], ["pick", 0.08]];
+export const CRITTERS = { village: ["beetle", "snail", "crab"], mine: ["beetle", "lizard", "crab", "spider"], n: 7 };
+// Landmarks: one special place per zone, built from props in a big open cavern.
+export const LANDMARKS = {
+  village: [{ id: "grotto", props: ["glow_mush", "glow_mush", "purple_mush", "crystal_blue", "glow_mush", "purple_mush", "glow_mush"], mushrooms: 4 },
+            { id: "graveyard", props: ["prop_skull", "pot_broken", "frame", "prop_skull", "pot", "coin_bag", "prop_skull"], relic: true }],
+  mine: [{ id: "camp", props: ["minecart_coal", "helmet", "prop_lantern", "prop_shovel", "minecart", "prop_pick", "crate"], crates: 2 },
+         { id: "bones", props: ["fossil", "prop_skull", "gold_pile", "fossil", "prop_skull", "crystal_red", "fossil"], relic: true },
+         { id: "crystals", props: ["crystal_blue", "crystal_red", "crystal_blue", "crystal_blue", "crystal_red", "crystal_blue"], ore: 3 }],
+};
+export const SECRETS = { village: 2, mine: 3 }; // sealed rooms behind cracked walls
+export const TABLETS = { village: 2, mine: 3 }; // stone tablets out in the cave (secret rooms hold more)
+export const LORE_N = 12;
 export const EVENTS_PER_ZONE = { village: 3, mine: 4 };
 
 // The base on the surface. Each facility has levels; `up[n]` is the price of reaching level n.
@@ -600,9 +624,32 @@ export const CHALLENGES = [
 ];
 
 Object.assign(STR.ko, {
+  secretFound: "비밀의 방을 발견했어요!", crackHint: "벽 틈으로 바람이 새어 나와요… 뭔가 있을지도?",
+  landmarks: { grotto: "빛나는 버섯 동굴", graveyard: "잊힌 묘지", camp: "버려진 광부 야영지", bones: "거대한 뼈 무덤", crystals: "수정 동굴" },
+  lmFound: "발견: {name}",
+  tabletTitle: "고대의 석판 · {n}/{m}", tabletAgain: "이미 읽은 이야기예요", close2: "닫기", lore: "이야기",
+  sealHint: "봉인된 유물이 빛나고 있어요. 꺼내면 동굴이 무너질 거예요",
+  evSeal: ["봉인된 유물", "받침대 위에서 심장처럼 맥동하는 돌. 꺼내는 순간 동굴이 무너질 거예요."],
+  takeOpt: "꺼낸다 (보상 ×2, 대신 동굴이 무너져요!)", tookSeal: "동굴이 무너진다! 출구까지 달려!",
+  sealBonus: "봉인된 유물 보너스 ×2",
+  recSecrets: "비밀의 방", recLore: "읽은 석판",
+  loreText: [
+    "하람 마을은 빛수정 덕분에 번성했다. 땅을 파면 팔수록, 마을은 밝아졌다.",
+    "광부들은 300척 아래에서 문을 발견했다. 손잡이도, 열쇠 구멍도 없는 돌문이었다.",
+    "문 앞에는 글이 새겨져 있었다. '빛을 먹는 것이 잠들어 있다. 깨우지 마라.'",
+    "촌장은 문을 다시 묻자고 했다. 하지만 문틈에서 새어 나오는 빛은 너무 아름다웠다.",
+    "그날 밤, 누군가 문 옆의 심장석을 꺼냈다. 땅이 처음으로 울었다.",
+    "다음 날 우물이 말랐다. 그다음 날엔 종탑이 기울었다. 마을이 가라앉고 있었다.",
+    "광산의 대장장이는 돌로 수호자를 빚었다. 문을 지키라고. 다시는 아무도 내려가지 못하게.",
+    "슬라임들은 무너진 마을의 잔해를 먹고 자랐다. 그중 하나는 왕관을 주워 썼다.",
+    "남은 사람들은 심장석을 다시 받침대에 올려 봉인했다. 땅의 울음이 멎었다.",
+    "하지만 마을은 이미 땅속에 있었다. 하늘은 이제 아주 먼 곳의 구멍일 뿐이었다.",
+    "가장 깊은 곳의 문은 아직 닫혀 있다. 그 너머엔 가라앉은 도서관이 있다고 한다.",
+    "이 석판을 읽는 너에게. 우리도 너처럼 빛을 따라 내려왔다. 문은 아래에 있다.",
+  ],
   mats: { copper: "구리", iron: "철", crystal: "빛수정", gel: "슬라임 젤", wing: "박쥐 날개", bone: "뼛조각" },
   base: "거점",
-  baseTabs: { fac: "시설", bench: "작업대", lab: "연구실", beasts: "몬스터 도감", rec: "기록·도전" },
+  baseTabs: { fac: "시설", bench: "작업대", lab: "연구실", beasts: "몬스터 도감", lore: "이야기", rec: "기록·도전" },
   fac: { bench: "작업대", lab: "연구실", store: "보관함", museum: "전시실" },
   facDesc: {
     bench: "장비를 만들어요. 레벨이 오르면 더 좋은 장비와 장비 칸 2개",
@@ -678,9 +725,32 @@ Object.assign(STR.ko, {
   saveCorrupt: "저장 데이터가 손상돼 새로 시작해요 (백업 보관됨)",
 });
 Object.assign(STR.en, {
+  secretFound: "You found a secret room!", crackHint: "Air seeps through a crack in the wall… something's behind it?",
+  landmarks: { grotto: "Glowing Grotto", graveyard: "Forgotten Graveyard", camp: "Abandoned Miners' Camp", bones: "Great Bone Pit", crystals: "Crystal Cavern" },
+  lmFound: "Found: {name}",
+  tabletTitle: "Ancient Tablet · {n}/{m}", tabletAgain: "You've read this one", close2: "Close", lore: "Story",
+  sealHint: "A sealed relic glows here. Take it and the cave will come down",
+  evSeal: ["Sealed Relic", "A stone that pulses like a heart on its pedestal. Take it, and the cave will fall."],
+  takeOpt: "Take it (rewards ×2, but the cave collapses!)", tookSeal: "The cave is collapsing! Run for the exit!",
+  sealBonus: "Sealed relic bonus ×2",
+  recSecrets: "Secret rooms", recLore: "Tablets read",
+  loreText: [
+    "Haram prospered on glowcrystal. The deeper it dug, the brighter the village grew.",
+    "Three hundred feet down, the miners found a door: stone, with no handle and no keyhole.",
+    "Words were carved before it. 'The light-eater sleeps here. Do not wake it.'",
+    "The elder said to bury it again. But the light seeping through the seam was so beautiful.",
+    "That night someone took the heart-stone from beside the door. The earth wept for the first time.",
+    "The next day the well ran dry. The day after, the bell tower leaned. The village was sinking.",
+    "The mine's smith shaped a guardian from stone, to keep the door, so no one would go down again.",
+    "Slimes grew fat on the ruins. One of them found a crown and put it on.",
+    "The survivors set the heart-stone back on its pedestal. The earth stopped weeping.",
+    "But the village was already underground. The sky was now only a hole, very far away.",
+    "The door at the bottom is still shut. Beyond it, they say, lies a sunken library.",
+    "To you who reads this: we too followed the light down. The door is below.",
+  ],
   mats: { copper: "Copper", iron: "Iron", crystal: "Glowcrystal", gel: "Slime Gel", wing: "Bat Wing", bone: "Bone Shard" },
   base: "Base",
-  baseTabs: { fac: "Facilities", bench: "Workbench", lab: "Lab", beasts: "Bestiary", rec: "Records" },
+  baseTabs: { fac: "Facilities", bench: "Workbench", lab: "Lab", beasts: "Bestiary", lore: "Story", rec: "Records" },
   fac: { bench: "Workbench", lab: "Lab", store: "Storehouse", museum: "Museum" },
   facDesc: {
     bench: "Make gear. Higher levels unlock better gear and a second slot",
@@ -755,3 +825,8 @@ Object.assign(STR.en, {
   matsHome: "Rare materials",
   saveCorrupt: "Save data was damaged, starting fresh (a backup was kept)",
 });
+
+STR.ko.ev.seal = STR.ko.evSeal; STR.en.ev.seal = STR.en.evSeal;
+STR.ko.ev.tablet = ["고대의 석판", ""]; STR.en.ev.tablet = ["Ancient Tablet", ""];
+STR.ko.evOpt.take = STR.ko.takeOpt; STR.en.evOpt.take = STR.en.takeOpt;
+STR.ko.evDone.take = STR.ko.tookSeal; STR.en.evDone.take = STR.en.tookSeal;

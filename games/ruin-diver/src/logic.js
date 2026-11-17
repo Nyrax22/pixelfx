@@ -25,6 +25,7 @@ export function defaultSave() {
     rec: { escapes: 0, deaths: 0, time: 0, coins: 0, kills: 0, events: 0, used: {} },
     claimed: {},  // challenge id -> true
     eventLog: [], // the last few dives' events, so they don't repeat too often
+    lore: [],     // story fragments read (indices)
   };
 }
 const isObj = (o) => o && typeof o === "object" && !Array.isArray(o);
@@ -46,6 +47,7 @@ export function migrate(s) {
   out.equip = Array.isArray(s.equip) ? s.equip.filter((id) => out.gear[id]) : [];
   out.eventLog = Array.isArray(s.eventLog) ? s.eventLog.slice(-16) : [];
   out.hintsShown = Array.isArray(s.hintsShown) ? s.hintsShown : [];
+  out.lore = Array.isArray(s.lore) ? s.lore.filter((n) => Number.isInteger(n)) : [];
   out.missions = isObj(s.missions) ? s.missions : d.missions;
   for (const u of UPGRADES) out.up[u.id] = Math.max(0, Math.min(u.levels.length - 1, num(out.up[u.id])));
   return out;

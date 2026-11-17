@@ -2,7 +2,7 @@
 
 import { createFrame, clearFrame, createFx, painterFor } from "../../../src/core/index.js";
 import * as confettiFx from "../../../src/fx/ui/confetti.js";
-import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS, SURVIVE, MATS, FACILITIES, GEAR, RESEARCH, BEASTS, CHALLENGES, EVENTS } from "./data.js";
+import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS, SURVIVE, LORE_N, MATS, FACILITIES, GEAR, RESEARCH, BEASTS, CHALLENGES, EVENTS } from "./data.js";
 import { loadSave, writeSave, wipeSave, storageOk, saveWasCorrupt, stats, applyRun, applyMissions, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
 import { Run } from "./world.js";
 import { compositeLit, setBackdrop } from "./bg.js";
@@ -134,6 +134,7 @@ window.addEventListener("keydown", (e) => {
   if (!e.repeat && (k === " " || k === "z" || k === "k")) jumpEdge = true;
   if (!e.repeat && (k === "c" || k === "r" || k === "5")) ropeEdge = true;
   if (!e.repeat && (k === "x" || k === "j") && mode === "run") actEdge.attack = true;
+  if (!e.repeat && (k === "arrowup" || k === "w") && mode === "run") actEdge.look = true;
   if (!e.repeat && mode === "run") {
     if (k === "1" || k === "e") actEdge.eat = true;
     if (k === "2" || k === "q") actEdge.drink = true;
@@ -235,6 +236,7 @@ function updateHud(force = false) {
   meter("mWater", run.water);
   meter("mLight", run.light);
   meter("mPick", (run.dur / run.durMax) * 100);
+  drawMini();
   // the collapse: on the gauge, and a warning when it's close
   const colM = Math.max(0, run.colY / 16);
   $("gaugeCol").style.height = Math.min(100, (colM / gaugeMax) * 100) + "%";
@@ -260,6 +262,31 @@ function updateHud(force = false) {
   if (isTouch) show("lookBtn", !!run.nearEv);
 }
 $("pauseBtn").addEventListener("click", () => pause());
+// the minimap: what you've explored around you, one pixel per tile
+const miniCtx = $("miniCv").getContext("2d"), miniImg = miniCtx.createImageData(48, 60), mini32 = new Uint32Array(miniImg.data.buffer);
+let miniT = 0;
+function drawMini() {
+  const now = performance.now();
+  if (now - miniT < 150) return;
+  miniT = now;
+  const MWm = 48, py = Math.floor((run.p.y + 8) / 16), px = Math.floor((run.p.x + 5) / 16), y0 = py - 30;
+  const tiles = run.tile, seen = run.seen, deco = run.deco, colRow = Math.floor(run.colY / 16);
+  for (let y = 0; y < 60; y++) for (let x = 0; x < MWm; x++) {
+    const ty = y0 + y, i = ty * MWm + x;
+    let c = 0xff000000;
+    if (ty >= 0 && ty < 306 && seen[i]) {
+      const t = tiles[i];
+      c = t === 0 ? (deco[i] === 1 || deco[i] === 3 ? 0xff3a7ab0 : 0xff2a1e24) : t === 9 ? 0xffa8c0d8 : t === 2 || t === 3 ? 0xff6e6a66 : t === 6 || t === 7 ? 0xff3a5a8a : t === 4 || t === 5 ? 0xff30b0e0 : 0xff3a5068;
+    }
+    if (run.colStarted && ty <= colRow) c = (x + ty) & 1 ? 0xff1a1a6a : 0xff28286a;
+    mini32[y * MWm + x] = c;
+  }
+  const dot = (tx, ty, c) => { const y = ty - y0; if (y >= 0 && y < 60 && tx >= 0 && tx < MWm && seen[ty * MWm + tx]) mini32[y * MWm + tx] = c; };
+  for (const ch of run.chests) if (!ch.open) dot(ch.tx, ch.ty, ch.crate ? 0xff4a8ac8 : 0xff3ad8ff);
+  for (const ev of run.evs) if (!ev.done) dot(ev.tx, ev.ty, ev.type === "seal" ? 0xff4a4aff : ev.type === "tablet" ? (ev.read ? 0xff6a7a8a : 0xffc0f0ff) : 0xff4ae0ff);
+  if (Math.floor(now / 300) % 2) mini32[30 * MWm + Math.max(0, Math.min(47, px))] = 0xffffffff;
+  miniCtx.putImageData(miniImg, 0, 0);
+}
 
 // ------------------------------------------------------------ the expedition
 function startDive() {
@@ -316,7 +343,38 @@ const backToRun = () => { mode = "run"; poki.gameplayStart(); };
 let choiceEv = null;
 const COST_ICON = { hp: "heart", coins: "coin", mushroom: "mushroom", water: "water", wood: "wood", stone: "stone" };
 const costHtml = (cost, have) => Object.entries(cost).map(([k, v]) => `<span class="${have && !have(k, v) ? "no" : ""}">${v}${icon(COST_ICON[k] ?? k)}</span>`).join("");
+function readTablet(ev) {
+  const known = new Set([...(save.lore ?? []), ...run.loreRead]);
+  let again = false;
+  if (ev.frag == null) {
+    let n = 0;
+    while (n < LORE_N && known.has(n)) n++;
+    if (n >= LORE_N) { n = Math.floor(Math.random() * LORE_N); again = true; }
+    ev.frag = n;
+    if (!again) { run.loreRead.push(n); known.add(n); audio.play("newItem"); }
+  } else again = true;
+  ev.read = true;
+  choiceEv = ev;
+  mode = "prompt";
+  poki.gameplayStop();
+  stick = null; touch.dir = 0; touch.up = touch.down = touch.jump = false; keys.clear();
+  show("stick", false);
+  $("chTitle").textContent = S("tabletTitle", { n: ev.frag + 1, m: LORE_N });
+  $("chDesc").className = "lore-text";
+  $("chDesc").textContent = STR[lang].loreText[ev.frag];
+  $("chHave").innerHTML = again ? `<span>${S("tabletAgain")}</span>` : `<span style="color:var(--gold)">${known.size}/${LORE_N} ${S("lore")}</span>`;
+  const box = $("chOpts");
+  box.innerHTML = "";
+  const b = document.createElement("button");
+  b.className = "leave";
+  b.textContent = S("close2");
+  b.addEventListener("click", closeChoice);
+  box.appendChild(b);
+  show("choice");
+}
 function openChoice(ev) {
+  if (ev.type === "tablet") return readTablet(ev);
+  $("chDesc").className = "";
   choiceEv = ev;
   mode = "prompt";
   poki.gameplayStop();
@@ -406,13 +464,20 @@ function handleEvents() {
         finishDive(false);
         break;
       case "evFound":
-        toast(S("evFound", { name: STR[lang].ev[e.type][0] }), "#ffe06a", 2200);
+        if (e.type === "seal") toast(S("sealHint"), "#ff8a8a", 3200);
+        else toast(S("evFound", { name: STR[lang].ev[e.type][0] }), "#ffe06a", 2200);
         break;
       case "beastSeen":
         if (!save.beasts[e.id]) toast("NEW · " + STR[lang].beastNames[e.id], "#ff9aff", 1800);
         break;
       case "event":
         openChoice(e.ev);
+        break;
+      case "secret":
+        banner(S("secretFound"), "");
+        break;
+      case "landmark":
+        banner(STR[lang].landmarks[e.id], S("lmFound", { name: "" }).replace(/[:：]\s*$/, ""));
         break;
     }
   }
@@ -441,7 +506,8 @@ function finishDive(died) {
   result.won = run.won;
   result.lost = [];
   result.time = run.alive ?? 0;
-  result.meta = applyMeta(save, { mats: run.mats, beasts: run.beasts, events: run.eventsMet, used: run.used, time: result.time, coins: Math.round(run.coins * stats(save).coinK), escaped: !died, died, torches: run.torchesPlaced, depth: run.depthMax });
+  if (run.sealTaken && !died) { save.coins += result.total; result.total *= 2; result.sealDoubled = true; }
+  result.meta = applyMeta(save, { secrets: run.secretsFound, lore: run.loreRead, mats: run.mats, beasts: run.beasts, events: run.eventsMet, used: run.used, time: result.time, coins: Math.round(run.coins * stats(save).coinK), escaped: !died, died, torches: run.torchesPlaced, depth: run.depthMax });
   result.total += result.meta.rewards;
   save.hintsShown = [...run.hintsShown];
   for (const it of result.items) if (!before.has(it.id)) freshInBook.add(it.id);
@@ -557,6 +623,7 @@ function renderCoins(r) {
   if (r.newCoins) parts.push(`${S("newBonus")} <b>+${r.newCoins}</b>`);
   if (r.looseCoins) parts.push(`${S("looseCoins")} <b>+${r.looseCoins}</b>`);
   if (r.missionCoins) parts.push(`${S("missionReward")} <b>+${r.missionCoins}</b>`);
+  if (r.sealDoubled) parts.push(`<b style="color:#ff8a8a">${S("sealBonus")}</b>`);
   $("resCoins").innerHTML = `<span id="resTotal">${icon("coin")} +${r.total * (r.doubled ? 2 : 1)}</span>${parts.map((p) => `<span>${p}</span>`).join("")}${r.doubled ? `<span><b>×2</b></span>` : ""}`;
 }
 function renderUpgrades() {
@@ -746,9 +813,9 @@ function renderBase() {
   $("baseTabs").innerHTML = Object.entries(STR[lang].baseTabs).map(([id, name]) => `<button class="tab${id === baseTab ? " on" : ""}" data-t="${id}">${name}${w[id] ? '<span class="dot"></span>' : ""}</button>`).join("");
   for (const b of $("baseTabs").querySelectorAll("button")) b.addEventListener("click", () => { baseTab = b.dataset.t; audio.play("click"); renderBase(); });
   const body = $("baseBody");
-  body.className = baseTab === "rec" ? "one" : baseTab === "beasts" ? "beasts" : "";
+  body.className = baseTab === "rec" || baseTab === "lore" ? "one" : baseTab === "beasts" ? "beasts" : "";
   body.innerHTML = "";
-  ({ fac: baseFac, bench: baseBench, lab: baseLab, beasts: baseBeasts, rec: baseRec })[baseTab](body);
+  ({ fac: baseFac, bench: baseBench, lab: baseLab, beasts: baseBeasts, lore: baseLore, rec: baseRec })[baseTab](body);
 }
 function boxEl(html, cls = "") {
   const el = document.createElement("div");
@@ -843,6 +910,15 @@ function baseBeasts(body) {
   }
   body.appendChild(side);
 }
+function baseLore(body) {
+  const known = new Set(save.lore ?? []);
+  for (let i = 0; i < LORE_N; i++) {
+    const el = document.createElement("div");
+    el.className = "lore-row" + (known.has(i) ? "" : " unk");
+    el.innerHTML = `<b>${i + 1}</b><span>${known.has(i) ? STR[lang].loreText[i] : "· · ·"}</span>`;
+    body.appendChild(el);
+  }
+}
 function fmtTime(sec) {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s2 = Math.floor(sec % 60);
   return h ? `${h}:${String(m).padStart(2, "0")}:${String(s2).padStart(2, "0")}` : `${m}:${String(s2).padStart(2, "0")}`;
@@ -854,7 +930,7 @@ function baseRec(body) {
   const rows = [
     [L.runs, save.runs], [L.best, save.best + "m"], [L.escapes, r.escapes], [L.deaths, r.deaths],
     [L.time, fmtTime(r.time)], [L.coins, r.coins], [L.relics, Math.round(bookPercent(save) * 100) + "%"], [L.beasts, `${beastsSeen(save)}/${BEASTS.length}`],
-    [L.kills, r.kills], [L.bosses, bosses], [L.events, r.events], [L.fav, fav ? `${STR[lang].act[fav[0]] ?? fav[0]} ×${fav[1]}` : "—"],
+    [L.kills, r.kills], [L.bosses, bosses], [L.events, r.events], [S("recSecrets"), r.secrets ?? 0], [S("recLore"), `${(save.lore ?? []).length}/${LORE_N}`], [L.fav, fav ? `${STR[lang].act[fav[0]] ?? fav[0]} ×${fav[1]}` : "—"],
   ];
   const rec = document.createElement("div");
   rec.className = "recs";

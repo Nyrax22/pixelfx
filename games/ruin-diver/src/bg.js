@@ -115,6 +115,7 @@ function bars(g) {
     put(g, x, y, band ? (x % 4 === 0 ? 4 : 3) : bar ? (x % 4 === 1 ? 3 : 1) : 0);
   }
 }
+TEX[9] = TEX[DIRT]; // a cracked wall looks like the rock around it, plus its cracks
 TEX[GATE] = [paint(["#06040a", "#3a3448", "#5a5468", "#8a84a0", "#c0b8d8"], bars), paint(["#06040a", "#3a3448", "#5a5468", "#8a84a0", "#c0b8d8"], bars)];
 const BACK = [
   paint(["#140a06", "#22140c", "#2e1c12", "#2e1c12", "#2e1c12"], backDirt),
@@ -166,7 +167,7 @@ function blitBackdrop(C, bd, ox, oy, camX, camY) {
 
 // painted Wang tiles (PixelLab) for dirt and stone, drawn on a grid offset half a tile so each one's four corners
 // are the four real tiles around it; bricks, timber, gold and gems keep their own textures on top
-const WANG_MAT = new Set([1, 2, 3]); // DIRT, STONE, BEDROCK
+const WANG_MAT = new Set([1, 2, 3, 9]); // DIRT, STONE, BEDROCK, CRACK
 const STONY = new Set([2, 3, 5, 8]);  // STONE, BEDROCK, GEM, GATE
 function blitImg(C, img, ox, oy, flip) {
   for (let y = 0; y < img.h; y++) {
@@ -228,6 +229,9 @@ export function drawCave(frame, cave, camX, camY, dig) {
     if (!WANG_MAT.has(m)) {
       const v = (h2(tx, ty, 7) * VAR) | 0, z = zoneIdx(tx * T, ty * T);
       blit(C, TEX[m][z][v], ox, oy, !solidAt(tx, ty - 1), !solidAt(tx, ty + 1), !solidAt(tx - 1, ty), !solidAt(tx + 1, ty), false, crack, z);
+    } else if (m === 9 && !crack) {
+      const pat = CRACK[2];
+      for (let y = 0; y < T; y++) { const sy = oy + y; if (sy < 0 || sy >= H) continue; for (let x = 0; x < T; x++) { const sx = ox + x; if (sx >= 0 && sx < W && pat[y * T + x]) C[sy * W + sx] = 0xff2a3a4a; } }
     } else if (crack > 0) {
       const pat = CRACK[Math.min(3, (crack * 4) | 0)];
       for (let y = 0; y < T; y++) { const sy = oy + y; if (sy < 0 || sy >= H) continue; for (let x = 0; x < T; x++) { const sx = ox + x; if (sx >= 0 && sx < W && pat[y * T + x]) C[sy * W + sx] = 0xff140c0a; } }

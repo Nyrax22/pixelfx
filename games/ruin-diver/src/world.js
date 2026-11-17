@@ -7,9 +7,9 @@ import * as poofFx from "../../../src/fx/spawn/poof.js";
 import * as torchFx from "../../../src/fx/fire/torch.js";
 import * as campfireFx from "../../../src/fx/fire/campfire.js";
 import * as beamFx from "../../../src/fx/pickups/loot-beam.js";
-import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME, SURVIVE, START_KIT, EVENTS, BEASTS, ORES, COLLAPSE, PICK, SWING, WALL } from "./data.js";
+import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME, SURVIVE, START_KIT, EVENTS, BEASTS, ORES, COLLAPSE, PICK, SWING, WALL, GLOW, POT_LOOT } from "./data.js";
 import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL, CHEST, CHEST_PAL, GOLD_SLIME_PAL, MUSHROOM, MUSHROOM_PAL, OIL, OIL_PAL, ROOT_SPR, ROOT_PAL, CRATE, CRATE_PAL, ALTAR, ALTAR_PAL, MERCHANT, MERCHANT_PAL, CURSED_PAL, VAULT_PAL } from "./sprites.js";
-import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE, POOL, ROOT, rollItem } from "./cave.js";
+import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE, POOL, ROOT, CRACK, rollItem } from "./cave.js";
 import { drawCave, fillAmbient, addLight } from "./bg.js";
 import { zoneAt, missionProgress } from "./logic.js";
 import { audio } from "./audio.js";
@@ -77,6 +77,19 @@ export class Run {
     this.crushT = 0;
     this.rockT = 0;
     this.swing = { t: 0, cd: 0, hit: new Set() };
+    // exploration: what you've seen, what's hidden, what lives here
+    this.seen = new Uint8Array(MW * MH);
+    for (let i = 0; i < MW * 4; i++) this.seen[i] = 1;
+    this.stamp = new Uint16Array(MW * MH);
+    this.stampN = 0;
+    this.revealT = 0;
+    this.secrets = (this.cave.secrets ?? []).map((q) => ({ ...q, found: false }));
+    this.landmarks = (this.cave.landmarks ?? []).map((l) => ({ ...l, found: false }));
+    this.props = (this.cave.props ?? []).map((q) => ({ ...q, x: q.tx * T + 8 + q.ox, y: q.ceil ? q.ty * T : (q.ty + 1) * T, broken: false }));
+    this.critters = (this.cave.critters ?? []).map((c, i) => ({ ...c, x: c.tx * T + 8, y: (c.ty + 1) * T, vx: (i & 1 ? 1 : -1) * (c.id === "snail" ? 3 : 10), alive: true, t: 0 }));
+    this.secretsFound = 0;
+    this.loreRead = [];
+    this.sealTaken = false;
     this.carry = st.bag;
     this.starveT = 0;
     this.spawnT = SURVIVE.hunters.lit;
@@ -213,6 +226,7 @@ export class Run {
         this.updateEvents(input);
         this.updateSwing(dt, input);
         this.updateCollapse(dt);
+        this.updateExplore(dt);
       }
       this.depthMax = Math.max(this.depthMax, this.depth);
       this.tally.depth = this.depthMax;
@@ -227,10 +241,6 @@ export class Run {
       if (!this.zonesSeen.has(z.id) && !z.coming) {
         this.zonesSeen.add(z.id);
         this.emit("zone", { zone: z.id, depth: z.from });
-      }
-      if (!this.sealSent && this.depth >= SEAL_DEPTH - 4) {
-        this.sealSent = true;
-        this.emit("seal");
       }
     } else if (this.state === "winch") {
       // hauled up and out
@@ -451,7 +461,7 @@ export class Run {
     this.nearEv = null;
     for (const ev of this.evs) {
       const dx = Math.abs(ev.x - cx), dy = Math.abs(ev.y - 8 - cy);
-      if (!ev.found && dx < 150 && dy < 90) {
+      if (!ev.found && dx < 150 && dy < 90 && this.isSeen(ev.x, ev.y - 4)) {
         ev.found = true;
         this.eventsMet.push(ev.type);
         this.emit("evFound", { type: ev.type });
@@ -494,6 +504,16 @@ export class Run {
         this.shake = 0.6; audio.play("boss");
         break;
       case "break": relic(ev.item, ev.variant); coins(10); this.addMat(this.zoneMat(ev.ty), 2, x, y); this.chips(ev.tx, ev.ty, STONE, 12); audio.play("chest"); break;
+      case "take": {
+        this.sealTaken = true;
+        this.colGrace = this.colT;
+        this.colY = this.p.y - 12 * T;
+        this.colStarted = true;
+        relic(null);
+        this.shake = 1; audio.play("boss");
+        this.emit("toast", { key: "tookSeal" });
+        break;
+      }
       case "drink": this.water = 100; this.hp = Math.min(this.st.hearts, this.hp + 1); audio.play("heal"); break;
     }
     if (msg === "bought") audio.play("coin");
@@ -506,6 +526,7 @@ export class Run {
   updateCollapse(dt) {
     const C = COLLAPSE, p = this.p;
     this.colT += dt;
+    if (!this.sealTaken) { this.colGap = 99; return; }
     const fighting = this.bosses.some((b) => b.state === "fight");
     if (this.colT > this.colGrace && !fighting && !this.won) {
       if (!this.colStarted) { this.colStarted = true; this.emit("toast", { key: "collapse" }); this.shake = 0.7; audio.play("slam"); }
@@ -529,6 +550,90 @@ export class Run {
       if (this.crushT <= 0) { this.crushT = C.hurtEvery; this.hurt(1, "crush"); }
     } else this.crushT = 0;
   }
+  // ------------------------------------------------------------ exploration
+  /** Light the way: flood out through open cave from the explorer, marking it (and the walls around it) seen. */
+  reveal() {
+    const p = this.p, sx0 = Math.floor((p.x + PW / 2) / T), sy0 = Math.floor((p.y + PH / 2) / T);
+    const R2 = 4 + Math.round(4 * Math.min(1, this.light / 60) * this.pk.lamp);
+    const st = ++this.stampN === 65535 ? (this.stamp.fill(0), (this.stampN = 1)) : this.stampN;
+    const q = [sy0 * MW + sx0];
+    this.stamp[q[0]] = st;
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h], x = i % MW, y = (i / MW) | 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const X = x + dx, Y = y + dy; if (X >= 0 && X < MW && Y >= 0 && Y < MH) this.seen[Y * MW + X] = 1; }
+      if (this.solid(x, y) && h > 0) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const X = x + dx, Y = y + dy;
+        if (X < 0 || X >= MW || Y < 0 || Y >= MH || Math.max(Math.abs(X - sx0), Math.abs(Y - sy0)) > R2) continue;
+        const j = Y * MW + X;
+        if (this.stamp[j] === st || this.solid(X, Y)) continue;
+        this.stamp[j] = st;
+        q.push(j);
+      }
+    }
+    // placed light shows its surroundings too
+    for (const l of this.lights) {
+      const lx = Math.floor(l.x / T), ly = Math.floor((l.y - 6) / T), r = Math.round(l.r / T);
+      if (Math.abs(lx - sx0) > 30 || Math.abs(ly - sy0) > 20) continue;
+      for (let y = ly - r; y <= ly + r; y++) for (let x = lx - r; x <= lx + r; x++) if (x >= 0 && x < MW && y >= 0 && y < MH && (x - lx) ** 2 + (y - ly) ** 2 <= r * r) this.seen[y * MW + x] = 1;
+    }
+  }
+  isSeen(x, y) {
+    const tx = Math.floor(x / T), ty = Math.floor(y / T);
+    return ty < 0 || tx < 0 || tx >= MW || ty >= MH || this.seen[ty * MW + tx] === 1;
+  }
+  updateExplore(dt) {
+    const p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2, ptx = Math.floor(cx / T), pty = Math.floor(cy / T);
+    this.revealT -= dt;
+    if (this.revealT <= 0) { this.revealT = 0.1; this.reveal(); }
+    for (const q of this.secrets) {
+      if (!q.found && ptx >= q.x0 && ptx <= q.x1 && pty >= q.y0 && pty <= q.y1) {
+        q.found = true; this.secretsFound++;
+        this.emit("secret"); audio.play("set"); this.shake = 0.2;
+        this.text("SECRET!", cx, p.y - 12, "#ffe06a", "big");
+      }
+      const [kx, ky] = q.crack;
+      if (!q.found && !q.hinted && this.tile[ky * MW + kx] === CRACK && Math.abs(kx * T + 8 - cx) < 70 && Math.abs(ky * T + 8 - cy) < 40 && this.seen[ky * MW + kx]) { q.hinted = true; this.hint("crackHint"); }
+    }
+    for (const l of this.landmarks) {
+      if (l.found || Math.abs(l.tx * T - cx) > 120 || Math.abs(l.ty * T - cy) > 70) continue;
+      l.found = true;
+      this.emit("landmark", { id: l.id });
+      audio.play("reveal", 3);
+    }
+    // critters potter about and scurry off when you come close
+    for (const c of this.critters) {
+      if (!c.alive || Math.abs(c.x - cx) > W || Math.abs(c.y - cy) > H) continue;
+      c.t += dt;
+      const near = Math.abs(c.x - cx) < 46 && Math.abs(c.y - cy) < 24, slow = c.id === "snail" ? 0.3 : 1;
+      const sp = (near ? 46 : 10) * slow;
+      let dir = Math.sign(c.vx) || 1;
+      if (near) dir = c.x < cx ? -1 : 1;
+      else if (this.rng.next() < dt * 0.3) dir = -dir;
+      const ahead = c.x + dir * 6, ty = Math.floor((c.y - 4) / T);
+      if (this.solid(Math.floor(ahead / T), ty) || !this.solid(Math.floor(ahead / T), Math.floor((c.y + 2) / T))) dir = -dir;
+      else c.x += dir * sp * dt;
+      c.vx = dir * sp;
+    }
+  }
+  /** A pot breaks: bits, and maybe something useful. */
+  breakPot(q) {
+    q.broken = true;
+    this.chipsAt(q.x, q.y - 6, BRICK, 10);
+    audio.play("break");
+    let r = this.rng.next();
+    for (const [what, ch] of POT_LOOT) {
+      if ((r -= ch) > 0) continue;
+      const z = zoneAt(Math.floor(q.y / T));
+      if (what === "coins") for (let k = 0; k < 3 + this.rng.int(0, 3); k++) this.popCoins.push({ x: q.x, y: q.y - 8, vx: this.rng.range(-70, 70), vy: this.rng.range(-180, -90), v: z.coinValue, t: 0 });
+      else if (what === "oil") { this.light = Math.min(100, this.light + SURVIVE.oil * 0.6); this.text("+LIGHT", q.x, q.y - 14, "#ffe06a"); }
+      else if (what === "pick") { this.dur = Math.min(this.durMax, this.dur + 4); this.text("+4 PICK", q.x, q.y - 14, "#c8d4e8"); }
+      else { this.inv[what]++; this.text("+1", q.x, q.y - 14, what === "water" ? "#6ac8ff" : "#ffb04a"); }
+      this.emit("inv");
+      break;
+    }
+  }
+
   // ------------------------------------------------------------ the pickaxe swing
   updateSwing(dt, input) {
     const s = this.swing, p = this.p;
@@ -546,6 +651,16 @@ export class Run {
       en.x += p.face * 6;
       this.fxs.push({ fx: createFx(sparkFx, { angle: p.face > 0 ? 0 : Math.PI, seed: this.rng.int(1, 99) }), x: en.x, y: ey + 24 });
       this.strike(en, en.x, en.y);
+    }
+    for (const q of this.props) {
+      if (q.broken || q.id !== "pot" || s.hit.has(q) || q.x < x0 - 6 || q.x > x1 + 6 || q.y - 8 < y0 - 6 || q.y - 8 > y1 + 6) continue;
+      s.hit.add(q);
+      this.breakPot(q);
+    }
+    for (const c of this.critters) {
+      if (!c.alive || c.x < x0 - 4 || c.x > x1 + 4 || c.y - 4 < y0 || c.y - 4 > y1 + 4) continue;
+      c.alive = false;
+      this.fxs.push({ fx: createFx(poofFx, { palette: POOF_DARK, seed: 3 }), x: c.x, y: c.y + 24 });
     }
     for (const b of this.bosses) {
       if (b.state !== "fight" || s.hit.has(b) || b.hurtT > 0) continue;
@@ -1253,7 +1368,7 @@ export class Run {
   draw(frame, lm) {
     const camX = Math.round(this.camX), camY = Math.round(this.camY), p = this.p, t = this.t;
     const sx = (x) => Math.round(x - camX), sy = (y) => Math.round(y - camY);
-    const onScreen = (x, y, pad = 24) => x > camX - pad && x < camX + W + pad && y > camY - pad && y < camY + H + pad;
+    const onScreen = (x, y, pad = 24) => x > camX - pad && x < camX + W + pad && y > camY - pad && y < camY + H + pad && this.isSeen(x, y - 4);
     drawCave(frame, this.cave, camX, camY, this.dig);
     fillAmbient(lm, camY);
     // as your light fades, so does the cave (but never the sky)
@@ -1267,7 +1382,7 @@ export class Run {
     const torchesNow = [];
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
       const d = this.deco[ty * MW + tx];
-      if (!d) continue;
+      if (!d || !this.seen[ty * MW + tx]) continue;
       const ox = tx * T - camX, oy = ty * T - camY;
       if (d === LADDER) P.sprite(LADDER_TILE, LADDER_PAL, ox, oy);
       else if (d === ROPE) P.sprite(ROPE_TILE, ROPE_PAL, ox, oy);
@@ -1336,7 +1451,7 @@ export class Run {
       P.glow(sx(o.x), sy(o.y) - 5, 9, 0xff3ac8ff, 0.4 + Math.sin(t * 4 + o.x) * 0.1);
     }
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
-      const d = this.deco[ty * MW + tx];
+      const d = this.seen[ty * MW + tx] ? this.deco[ty * MW + tx] : 0;
       if (d === POOL) {
         const q = this.pools.get(ty * MW + tx), level = q ? q.units / SURVIVE.poolUnits : 0, h = 2 + Math.round(level * 5), ox = tx * T - camX, oy = (ty + 1) * T - camY;
         P.rect(ox, oy - h, T, h, 0xffc06a2a);
@@ -1345,10 +1460,36 @@ export class Run {
         P.glow(ox + 8, oy - h, 10, 0xffff8a3a, 0.25);
       } else if (d === ROOT) { if (IMG.root) blit(frame, IMG.root, tx * T - camX + 8 - (IMG.root.w >> 1), ty * T - camY); else P.sprite(ROOT_SPR, ROOT_PAL, tx * T - camX + 5, ty * T - camY); }
     }
+    // props: pots, bones, crystals, carts, vines
+    for (const q of this.props) {
+      if (!onScreen(q.x, q.y + (q.ceil ? 8 : 0), 30)) continue;
+      const img = IMG[q.broken ? "pot_broken" : q.id];
+      if (!img) continue;
+      if (q.ceil) blit(frame, img, sx(q.x) - (img.w >> 1), sy(q.y));
+      else blitFeet(frame, img, sx(q.x), sy(q.y));
+      const g = GLOW[q.id];
+      if (g) { P.glow(sx(q.x), sy(q.y) - (img.h >> 1), g[1] * 0.5, g[0], 0.35 + Math.sin(t * 2 + q.x) * 0.08); addLight(lm, sx(q.x), sy(q.y) - (img.h >> 1), g[1], 0.45); }
+    }
+    for (const c of this.critters) {
+      if (!c.alive || !onScreen(c.x, c.y)) continue;
+      const img = IMG[c.id];
+      if (img) blitFeet(frame, img, sx(c.x), sy(c.y) + (Math.floor(c.t * 8) % 2 && Math.abs(c.vx) > 20 ? -1 : 0), { flip: c.vx > 0 });
+    }
+    // cracked walls breathe: a little dust drifting out of them
+    for (const q of this.secrets) {
+      const [kx, ky] = q.crack;
+      if (q.found || this.tile[ky * MW + kx] !== CRACK || !this.seen[ky * MW + kx]) continue;
+      const ox = kx * T - camX, oy = ky * T - camY;
+      if (ox < -20 || ox > W + 20 || oy < -20 || oy > H + 20) continue;
+      for (let k = 0; k < 4; k++) {
+        const ph = (t * 0.6 + k * 0.25) % 1, side = q.x0 > kx ? -1 : 1;
+        P.dot(ox + 8 + side * ph * 22, oy + 4 + k * 3 + Math.sin(t * 3 + k) * 2, 0xffd8c8b0, (1 - ph) * 0.7);
+      }
+    }
     // rare ore glinting in the rock
     for (const [i, id] of this.ores) {
       const tx = i % MW, ty = (i / MW) | 0, ox = tx * T - camX, oy = ty * T - camY;
-      if (ox < -16 || ox > W || oy < -16 || oy > H) continue;
+      if (ox < -16 || ox > W || oy < -16 || oy > H || !this.seen[i]) continue;
       const [c1, c2] = ORE_COL[id];
       const oimg = IMG["ore_" + id];
       if (oimg) {
@@ -1369,7 +1510,17 @@ export class Run {
     for (const ev of this.evs) {
       if (!onScreen(ev.x, ev.y, 40)) continue;
       const ex = sx(ev.x), ey = sy(ev.y);
-      if (ev.type === "altar") {
+      if (ev.type === "tablet") {
+        if (IMG.tablet) blitFeet(frame, IMG.tablet, ex, ey);
+        if (!ev.read) { P.glow(ex, ey - 10, 12, 0xffffd890, 0.35 + Math.sin(t * 3 + ev.x) * 0.15); addLight(lm, ex, ey - 10, 22, 0.35); }
+      } else if (ev.type === "seal") {
+        if (IMG.altar) blitFeet(frame, IMG.altar, ex, ey);
+        if (!ev.done) {
+          const pulse = 0.6 + Math.sin(t * 5) * 0.3;
+          if (IMG.crystal_red) blitFeet(frame, IMG.crystal_red, ex, ey - 34 + Math.round(Math.sin(t * 2) * 2));
+          P.glow(ex, ey - 42, 26, 0xff3a3aff, pulse); addLight(lm, ex, ey - 40, 70, 0.7);
+        }
+      } else if (ev.type === "altar") {
         if (IMG.altar) blitFeet(frame, IMG.altar, ex, ey); else P.sprite(ALTAR, ALTAR_PAL, ex - 8, ey - ALTAR.length);
         if (!ev.done) { P.glow(ex, ey - 14, 14, 0xffff5ac2, 0.6 + Math.sin(t * 3) * 0.2); addLight(lm, ex, ey - 12, 40, 0.5); }
       } else if (ev.type === "merchant") {
@@ -1612,6 +1763,21 @@ export class Run {
       f.fx.options.x = sx(f.x);
       f.fx.options.y = sy(f.y);
       f.fx.draw(frame);
+    }
+    // the unknown: black where you haven't been, with a dithered edge
+    {
+      const C3 = frame.color;
+      for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+        const i = ty * MW + tx, ox = tx * T - camX, oy = ty * T - camY;
+        const fill = (x0, y0, w, h, dith) => {
+          for (let y = Math.max(0, oy + y0); y < Math.min(H, oy + y0 + h); y++) for (let x = Math.max(0, ox + x0); x < Math.min(W, ox + x0 + w); x++) if (!dith || ((x + y) & 1) === 0) C3[y * W + x] = 0xff000000;
+        };
+        if (!this.seen[i]) { fill(0, 0, T, T, false); continue; }
+        if (ty > 0 && !this.seen[i - MW]) fill(0, 0, T, 3, true);
+        if (ty < MH - 1 && !this.seen[i + MW]) fill(0, T - 3, T, 3, true);
+        if (tx > 0 && !this.seen[i - 1]) fill(0, 0, 3, T, true);
+        if (tx < MW - 1 && !this.seen[i + 1]) fill(T - 3, 0, 3, T, true);
+      }
     }
     P = painterFor(frame);
     for (const tx of this.texts) {

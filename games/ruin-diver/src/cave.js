@@ -1,14 +1,14 @@
 // The cave: a new one every expedition. Tiles, ladders, escape winches, treasure and things that bite.
 
 import { Rng } from "../../../src/core/index.js";
-import { MW, MH, ZONES, ITEMS, WINCH_DEPTHS, SEAL_DEPTH, VARIANT_CHANCE, RARITY, BOSSES, CHESTS, GOLD_SLIME, ORES, EVENTS } from "./data.js";
+import { MW, MH, ZONES, ITEMS, WINCH_DEPTHS, SEAL_DEPTH, VARIANT_CHANCE, RARITY, BOSSES, CHESTS, GOLD_SLIME, ORES, EVENTS, PROPS, CRITTERS, LANDMARKS, SECRETS, TABLETS } from "./data.js";
 import { pickEvents } from "./meta.js";
 import { zoneAt } from "./logic.js";
 
 // tile materials
-export const AIR = 0, DIRT = 1, STONE = 2, BEDROCK = 3, GOLD = 4, GEM = 5, BRICK = 6, WOOD = 7, GATE = 8;
-export const SOLID = [false, true, true, true, true, true, true, true, true];
-export const MAT_NAME = ["air", "dirt", "stone", "bedrock", "gold", "gem", "brick", "wood", "gate"];
+export const AIR = 0, DIRT = 1, STONE = 2, BEDROCK = 3, GOLD = 4, GEM = 5, BRICK = 6, WOOD = 7, GATE = 8, CRACK = 9;
+export const SOLID = [false, true, true, true, true, true, true, true, true, true];
+export const MAT_NAME = ["air", "dirt", "stone", "bedrock", "gold", "gem", "brick", "wood", "gate", "crack"];
 // overlays on air tiles
 export const NONE = 0, LADDER = 1, SPIKES = 2, ROPE = 3, WINCH = 4, TORCH = 5, STALACTITE = 6, POOL = 7, ROOT = 8;
 
@@ -245,8 +245,83 @@ export function makeCave(seed, save, firstRun) {
     }
   }
 
+  let sealSpot = null;
+  // secret rooms: sealed chambers in the rock, opened through one cracked wall beside the open cave
+  const secrets = [], tablets = [];
+  for (const z of ZONES) {
+    if (z.coming) continue;
+    const cand = [];
+    for (let y = Math.max(z.from, 18); y < Math.min(z.to, SEAL_DEPTH - 6); y++) {
+      if (inArena(y) || inArena(y - 4) || inArena(y + 2)) continue;
+      for (let x = 2; x < MW - 2; x++) {
+        if (!floorAt(x, y) || dist[at(x, y)] < 0 || path[at(x, y)]) continue;
+        for (const side of [1, -1]) {
+          // the room: 5 wide, 3 high, starting two tiles off the side; everything around it solid rock
+          const x0 = side > 0 ? x + 2 : x - 6, ok = x0 >= 1 && x0 + 4 <= MW - 2;
+          if (!ok) continue;
+          let solid = true;
+          for (let yy = y - 3; yy <= y + 1 && solid; yy++) for (let xx = x0 - 1; xx <= x0 + 5 && solid; xx++) {
+            const t = tile[at(xx, yy)];
+            if (!(t === DIRT || t === STONE) || path[at(xx, yy)]) solid = false;
+          }
+          if (solid && SOLID[tile[at(x + side, y)]]) cand.push([x, y, side, x0]);
+        }
+      }
+    }
+    for (let n = 0; n < SECRETS[z.id] && cand.length; n++) {
+      const [x, y, side, x0] = cand.splice(R.int(0, cand.length - 1), 1)[0];
+      if (!free(x0 + 2, y)) { n--; continue; }
+      for (let yy = y - 2; yy <= y; yy++) for (let xx = x0; xx <= x0 + 4; xx++) tile[at(xx, yy)] = AIR;
+      // the way in: the wall tile beside the cave is cracked, the one between is plain rock
+      tile[at(x + side, y)] = CRACK;
+      const gap = side > 0 ? x + 2 : x - 2;
+      if (gap !== x0 && gap !== x0 + 4) tile[at(side > 0 ? x0 - 1 : x0 + 5, y)] = CRACK;
+      for (let xx = Math.min(x + side, x0); xx <= Math.max(x + side, x0 + 4); xx++) if (tile[at(xx, y)] !== AIR && tile[at(xx, y)] !== CRACK) tile[at(xx, y)] = CRACK;
+      const id = rollItem(R, z, y, bookCount, 2);
+      if (id) chests.push({ tx: x0 + 3, ty: y, item: id, variant: R.next() < VARIANT_CHANCE * 3, coins: CHESTS.coins[z.id] * 2 });
+      tablets.push({ tx: x0 + 1, ty: y });
+      secrets.push({ x0, x1: x0 + 4, y0: y - 2, y1: y, crack: [x + side, y] });
+      claim(x0 + 2, y, 4);
+      for (let k = 0; k < 3; k++) claim(x + side * k, y, 1);
+    }
+  }
+  // tablets out in the cave, far from the main way
+  for (const z of ZONES) {
+    if (z.coming) continue;
+    const far = floors.filter(([fx, fy]) => fy >= Math.max(z.from, 16) && fy < z.to && free(fx, fy) && dist[at(fx, fy)] > 6 && tile[at(fx, fy - 1)] === AIR);
+    for (let n = 0; n < TABLETS[z.id] && far.length; n++) { const [fx, fy] = far.splice(R.int(0, far.length - 1), 1)[0]; tablets.push({ tx: fx, ty: fy }); claim(fx, fy, 2); }
+  }
+  // the sealed relic: one per cave, deep in the mine
+  {
+    const def = EVENTS.seal;
+    const spots = floors.filter(([fx, fy]) => fy >= def.from && fy < SEAL_DEPTH - 20 && free(fx, fy) && free(fx - 1, fy) && free(fx + 1, fy) && tile[at(fx, fy - 1)] === AIR && tile[at(fx, fy - 2)] === AIR && dist[at(fx, fy)] >= 0 && dist[at(fx, fy)] < 10);
+    if (spots.length) { const [fx, fy] = spots[R.int(0, spots.length - 1)]; sealSpot = { tx: fx, ty: fy }; claim(fx, fy, 3); }
+  }
+  // landmarks: one special place per zone, in the biggest open cavern we can find
+  const landmarks = [];
+  for (const z of ZONES) {
+    if (z.coming || !LANDMARKS[z.id]) continue;
+    const def = LANDMARKS[z.id][R.int(0, LANDMARKS[z.id].length - 1)];
+    let best = null, bestN = 0;
+    for (let tries = 0; tries < 400; tries++) {
+      const fl = floors[R.int(0, floors.length - 1)];
+      if (!fl) break;
+      const [fx, fy] = fl;
+      if (fy < Math.max(z.from, 20) || fy >= z.to - 4 || inArena(fy) || dist[at(fx, fy)] < 0) continue;
+      let n = 0;
+      for (let dx = -5; dx <= 5; dx++) if (floorAt(fx + dx, fy) && free(fx + dx, fy) && tile[at(fx + dx, fy - 2)] === AIR) n++;
+      if (n > bestN) { bestN = n; best = [fx, fy]; }
+    }
+    if (!best || bestN < 5) continue;
+    const [lx, ly] = best;
+    landmarks.push({ id: def.id, tx: lx, ty: ly, def });
+    claim(lx, ly, 6);
+  }
+
   // random events: a few per zone, picked fresh every dive
   const events = [], enemiesPre = [];
+  if (sealSpot) events.push({ type: "seal", ...sealSpot });
+  for (const t of tablets) events.push({ type: "tablet", tx: t.tx, ty: t.ty });
   for (const z of ZONES) {
     if (z.coming) continue;
     for (const type of pickEvents(R, z.id, save.eventLog ?? [])) {
@@ -433,7 +508,39 @@ export function makeCave(seed, save, firstRun) {
     if (R.next() < z.stalactites * (1 + (cy - z.from) / 100)) { deco[at(cx, cy)] = STALACTITE; claim(cx, cy, 0); }
   }
 
-  return { tile, deco, items, chests, coins, hearts, mushrooms, oils, pools, enemies, winches, rooms, arenas, entrance: ENTRANCE, path, dist, hints: [], events, ores };
+  // props, critters and landmark dressing: the cave looks lived in
+  const props = [], critters = [];
+  for (const lm of landmarks) {
+    const { def } = lm, row = [];
+    for (let dx = -5; dx <= 5; dx++) if (floorAt(lm.tx + dx, lm.ty)) row.push(lm.tx + dx);
+    def.props.forEach((id, k) => { const x = row[(k * 3 + 1) % row.length]; if (x != null) props.push({ id, tx: x, ty: lm.ty, ox: R.int(-4, 4) }); });
+    for (let k = 0; k < (def.mushrooms ?? 0); k++) mushrooms.push({ tx: row[R.int(0, row.length - 1)], ty: lm.ty });
+    for (let k = 0; k < (def.crates ?? 0); k++) chests.push({ tx: row[R.int(0, row.length - 1)], ty: lm.ty, crate: true });
+    if (def.relic) { const z = zoneAt(lm.ty), id = rollItem(R, z, lm.ty, bookCount, 2); if (id) items.push({ id, tx: lm.tx, ty: lm.ty - 1, variant: false }); }
+  }
+  for (const z of ZONES) {
+    if (z.coming || !PROPS[z.id]) continue;
+    const P = PROPS[z.id];
+    const fl = floors.filter(([fx, fy]) => fy >= Math.max(z.from, 12) && fy < z.to && free(fx, fy) && !path[at(fx, fy)] && deco[at(fx, fy)] === NONE);
+    for (let n = 0; n < P.n && fl.length; n++) {
+      const [fx, fy] = fl.splice(R.int(0, fl.length - 1), 1)[0];
+      props.push({ id: P.floor[R.int(0, P.floor.length - 1)], tx: fx, ty: fy, ox: R.int(-3, 3) });
+      claim(fx, fy, 0);
+    }
+    const cl = ceilings.filter(([cx, cy]) => cy >= Math.max(z.from, 12) && cy < z.to && free(cx, cy) && deco[at(cx, cy)] === NONE);
+    for (let n = 0; n < P.ceilN && cl.length; n++) {
+      const [cx, cy] = cl.splice(R.int(0, cl.length - 1), 1)[0];
+      props.push({ id: P.ceil[R.int(0, P.ceil.length - 1)], tx: cx, ty: cy, ceil: true, ox: 0 });
+      claim(cx, cy, 0);
+    }
+    const cr = floors.filter(([fx, fy]) => fy >= Math.max(z.from, 14) && fy < z.to && floorAt(fx - 1, fy) && floorAt(fx + 1, fy));
+    for (let n = 0; n < CRITTERS.n && cr.length; n++) {
+      const [fx, fy] = cr.splice(R.int(0, cr.length - 1), 1)[0];
+      critters.push({ id: CRITTERS[z.id][R.int(0, CRITTERS[z.id].length - 1)], tx: fx, ty: fy });
+    }
+  }
+
+  return { tile, deco, items, chests, coins, hearts, mushrooms, oils, pools, enemies, winches, rooms, arenas, entrance: ENTRANCE, path, dist, hints: [], events, ores, secrets, landmarks, props, critters };
 }
 
 export function rollItem(R, zone, m, bookCount, bump = 0) {

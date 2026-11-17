@@ -91,6 +91,8 @@ export function applyMeta(save, d) {
   if (d.died) r.deaths++;
   for (const [k, v] of Object.entries(d.used)) r.used[k] = (r.used[k] ?? 0) + v;
   if (!d.torches && d.depth >= 100) r.noTorch = 1;
+  r.secrets = (r.secrets ?? 0) + (d.secrets ?? 0);
+  save.lore = [...new Set([...(save.lore ?? []), ...(d.lore ?? [])])];
   save.eventLog = [...save.eventLog, ...d.events].slice(-16);
   return out;
 }
