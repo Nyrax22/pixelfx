@@ -3,3 +3,4 @@ dist/
 records/
 sheets/
 .DS_Store
+*.zip
