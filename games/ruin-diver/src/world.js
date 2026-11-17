@@ -7,7 +7,7 @@ import * as poofFx from "../../../src/fx/spawn/poof.js";
 import * as torchFx from "../../../src/fx/fire/torch.js";
 import * as campfireFx from "../../../src/fx/fire/campfire.js";
 import * as beamFx from "../../../src/fx/pickups/loot-beam.js";
-import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME, SURVIVE, START_KIT, EVENTS, BEASTS, ORES } from "./data.js";
+import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME, SURVIVE, START_KIT, EVENTS, BEASTS, ORES, COLLAPSE, PICK, SWING, WALL } from "./data.js";
 import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL, CHEST, CHEST_PAL, GOLD_SLIME_PAL, MUSHROOM, MUSHROOM_PAL, OIL, OIL_PAL, ROOT_SPR, ROOT_PAL, CRATE, CRATE_PAL, ALTAR, ALTAR_PAL, MERCHANT, MERCHANT_PAL, CURSED_PAL, VAULT_PAL } from "./sprites.js";
 import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE, POOL, ROOT, rollItem } from "./cave.js";
 import { drawCave, fillAmbient, addLight } from "./bg.js";
@@ -67,6 +67,16 @@ export class Run {
     this.torchesPlaced = 0;
     this.eventsMet = [];
     this.ores = this.cave.ores ?? new Map();
+    // the pickaxe wears out; the cave comes down behind you; a swing hits what's in front
+    this.durMax = PICK.base + Math.round((st.pick - 1) * PICK.perLevel * 2);
+    this.dur = this.durMax;
+    this.colY = -14 * T;       // the bottom edge of the collapse, in world pixels (starts up in the sky)
+    this.colGrace = COLLAPSE.grace + (save.runs < 3 ? 15 : 0); // a little longer while you're learning
+    this.colT = 0;
+    this.colGap = 99;
+    this.crushT = 0;
+    this.rockT = 0;
+    this.swing = { t: 0, cd: 0, hit: new Set() };
     this.carry = st.bag;
     this.starveT = 0;
     this.spawnT = SURVIVE.hunters.lit;
@@ -135,6 +145,7 @@ export class Run {
       this.p.y = b.floor * T - PH;
       this.p.fallTop = this.p.y;
       this.depthStart = b.floor;
+      this.colY = (b.floor - 24) * T;
       this.zonesSeen.add("mine");
       this.snapCamera();
     }
@@ -200,6 +211,8 @@ export class Run {
         this.updateResources(dt);
         this.spawnHunters(dt);
         this.updateEvents(input);
+        this.updateSwing(dt, input);
+        this.updateCollapse(dt);
       }
       this.depthMax = Math.max(this.depthMax, this.depth);
       this.tally.depth = this.depthMax;
@@ -413,6 +426,7 @@ export class Run {
   }
   spot(id, y) {
     if (!this.beasts[id]) { this.beasts[id] = { seen: Math.max(0, Math.floor(y / T)), kills: 0, drops: {} }; this.emit("beastSeen", { id }); }
+    this.hint("hintSwing");
   }
   killed(id, x, y) {
     this.spot(id, y);
@@ -471,6 +485,7 @@ export class Run {
       case "water": this.inv.water += 2; msg = "bought"; break;
       case "oil": this.light = 100; msg = "bought"; break;
       case "mats": this.inv.wood += 3; this.inv.stone += 3; msg = "bought"; break;
+      case "mend": this.dur = Math.min(this.durMax, this.dur + 12); msg = "bought"; break;
       case "rare": this.addMat(this.zoneMat(ev.ty), 1, x, y); msg = "bought"; break;
       case "open":
         relic(ev.item, ev.variant); coins(14); this.addMat(this.zoneMat(ev.ty), 2, x, y);
@@ -485,6 +500,65 @@ export class Run {
     if (!def.stay) ev.done = true;
     this.emit("inv");
     return msg;
+  }
+
+  // ------------------------------------------------------------ the collapse behind you
+  updateCollapse(dt) {
+    const C = COLLAPSE, p = this.p;
+    this.colT += dt;
+    const fighting = this.bosses.some((b) => b.state === "fight");
+    if (this.colT > this.colGrace && !fighting && !this.won) {
+      if (!this.colStarted) { this.colStarted = true; this.emit("toast", { key: "collapse" }); this.shake = 0.7; audio.play("slam"); }
+      const base = C.start + (C.max - C.start) * Math.min(1, (this.colT - this.colGrace) / C.ramp);
+      const gap = (p.y - this.colY) / T;
+      this.colY += (base + Math.max(0, gap - C.catchup) * C.catchK) * T * dt;
+    }
+    this.colGap = (p.y - this.colY) / T;
+    if (this.colStarted && this.colGap < C.warn) {
+      this.shake = Math.max(this.shake, 0.08);
+      if (this.t - (this.nearWarnT ?? -9) > 6) { this.nearWarnT = this.t; this.emit("toast", { key: "collapseNear" }); }
+      // loose rocks rain down ahead of it
+      this.rockT -= dt;
+      if (this.rockT <= 0) {
+        this.rockT = 0.5 + this.rng.next() * 0.5;
+        this.shots.push({ x: p.x + PW / 2 + this.rng.range(-90, 90), y: this.colY + 4, vx: 0, vy: 40, g: 600, dmg: 1, rock: true });
+      }
+    }
+    if (p.y < this.colY) {
+      this.crushT -= dt;
+      if (this.crushT <= 0) { this.crushT = C.hurtEvery; this.hurt(1, "crush"); }
+    } else this.crushT = 0;
+  }
+  // ------------------------------------------------------------ the pickaxe swing
+  updateSwing(dt, input) {
+    const s = this.swing, p = this.p;
+    s.cd -= dt;
+    s.t -= dt;
+    if (input.attack && s.cd <= 0) { s.t = SWING.time; s.cd = SWING.cooldown; s.hit.clear(); audio.play("throw"); }
+    if (s.t <= 0) return;
+    const cx = p.x + PW / 2, x0 = p.face > 0 ? cx - 2 : cx - SWING.reach, x1 = x0 + SWING.reach + 2, y0 = p.y - 8, y1 = p.y + PH + 2;
+    for (const en of this.enemies) {
+      if (!en.alive || s.hit.has(en)) continue;
+      const ey = en.kind === "slime" ? en.y - 6 : en.y;
+      if (en.x < x0 - 5 || en.x > x1 + 5 || ey < y0 - 5 || ey > y1 + 5) continue;
+      s.hit.add(en);
+      this.freeze = 0.05;
+      en.x += p.face * 6;
+      this.fxs.push({ fx: createFx(sparkFx, { angle: p.face > 0 ? 0 : Math.PI, seed: this.rng.int(1, 99) }), x: en.x, y: ey + 24 });
+      this.strike(en, en.x, en.y);
+    }
+    for (const b of this.bosses) {
+      if (b.state !== "fight" || s.hit.has(b) || b.hurtT > 0) continue;
+      const w = b.id === "golem" ? 15 : 19, h = b.id === "golem" ? 40 : 32;
+      if (b.x + w < x0 || b.x - w > x1 || b.y - h > y1 || b.y < y0) continue;
+      s.hit.add(b);
+      this.hitBoss(b, false);
+    }
+  }
+  /** Is there wall right beside the explorer on this side, high and low? */
+  wallAt(dir) {
+    const p = this.p, tx = Math.floor((dir > 0 ? p.x + PW + 1 : p.x - 1) / T);
+    return this.solid(tx, Math.floor((p.y + 2) / T)) && this.solid(tx, Math.floor((p.y + PH - 3) / T));
   }
 
   updatePlayer(dt, input) {
@@ -525,10 +599,30 @@ export class Run {
       p.walk += Math.abs(p.vy) * dt;
       p.fallTop = p.y;
     } else {
-      const target = input.dir * P.walk;
+      p.wallLock = Math.max(0, (p.wallLock ?? 0) - dt);
+      const target = p.wallLock > 0 ? p.vx : input.dir * P.walk;
       const a = P.accel * (p.ground ? 1 : 0.7) * dt;
       p.vx = p.vx < target ? Math.min(target, p.vx + a) : Math.max(target, p.vx - a);
       p.vy = Math.min(P.maxFall, p.vy + P.gravity * dt);
+      // against a wall in the air: slide down it slowly, and jump off it
+      const wallDir = !p.ground && input.dir && this.wallAt(input.dir) ? input.dir : 0;
+      p.wall = wallDir;
+      if (wallDir) {
+        if (p.vy > WALL.slide) p.vy = WALL.slide;
+        p.fallTop = p.y;
+        if (this.depth > 12) this.hint("hintWall");
+        if (Math.random() < 0.3) this.dust(p.x + (wallDir > 0 ? PW : 0), p.y + PH - 4, 1);
+        if (p.buf > 0 && p.coyote <= 0) {
+          p.vy = -P.jump * WALL.jumpK * this.pk.jumpK;
+          p.vx = -wallDir * WALL.jumpX;
+          p.face = -wallDir;
+          p.buf = 0;
+          p.wallLock = 0.16;
+          p.wall = 0;
+          audio.play("jump");
+          this.dust(p.x + (wallDir > 0 ? PW : 0), p.y + PH / 2, 4);
+        }
+      }
       if (p.buf > 0 && p.coyote > 0) {
         p.vy = -P.jump * this.pk.jumpK;
         p.buf = 0;
@@ -541,7 +635,7 @@ export class Run {
       if (p.ground) p.walk += Math.abs(p.vx) * dt;
     }
     p.jumpHeld = input.jump;
-    if (input.dir) p.face = input.dir;
+    if (input.dir && !(p.wallLock > 0)) p.face = input.dir;
 
     // move and collide, one axis at a time
     const wasGround = p.ground;
@@ -636,6 +730,10 @@ export class Run {
       }
       return;
     }
+    if (this.dur <= 0) {
+      if (this.t - (this.brokeT ?? -9) > 2.5) { this.brokeT = this.t; this.emit("toast", { key: "pickBroken" }); audio.play("clang"); }
+      return;
+    }
     const prog = (this.dig.get(i) ?? 0) + (dt * this.st.pick) / DIG[MAT_NAME[m]];
     this.digTick -= dt;
     if (this.digTick <= 0) {
@@ -646,6 +744,9 @@ export class Run {
     if (prog < 1) { this.dig.set(i, prog); return; }
     this.dig.delete(i);
     this.tile[i] = AIR;
+    this.dur = Math.max(0, this.dur - (PICK.cost[MAT_NAME[m]] ?? 1));
+    if (this.dur <= 8 && this.dur > 0) this.hint("hintPickLow");
+    this.emit("inv");
     this.chips(tx, ty, m, 10);
     audio.play("break");
     // what the rock gives back
@@ -841,32 +942,37 @@ export class Run {
       p.vy = -230;
       p.fallTop = p.y;
       this.freeze = 0.06;
-      if (--en.hp > 0) { en.hurtT = 0.3; audio.play("stomp"); return; }
-      en.alive = false;
-      this.killed(beastOf(en), ex, ey);
-      this.combo++;
-      this.tally.combo = Math.max(this.tally.combo, this.combo);
-      if (en.kind === "slime") this.tally.slimes++;
-      if (en.kind === "bat") this.tally.bats++;
-      if (en.kind === "skull") this.tally.skulls++;
-      if (en.gold) {
-        this.tally.goldSlime++;
-        this.shake = 0.3;
-        for (let k = 0; k < GOLD_SLIME.coins; k++) this.popCoins.push({ x: ex, y: ey, vx: this.rng.range(-130, 130), vy: this.rng.range(-280, -120), v: 1, t: 0 });
-        this.fxs.push({ fx: createFx(burstFx, { palette: BURST.legendary, seed: 9, light: 1 }), x: ex, y: ey + 30 });
-        this.text("JACKPOT!", ex, ey - 18, "#ffd23a", "big");
-        audio.play("newItem");
-      }
-      const pal = en.kind === "slime" ? (en.red ? ["#2a0610", "#8a1a2a", "#e04a4a", "#ff8a7a", "#ffd0c0", "#ffffff"] : ["#061412", "#12594a", "#1f8f4f", "#47c752", "#a6f06a", "#f0ffd2"]) : POOF_DARK;
-      this.fxs.push({ fx: createFx(poofFx, { palette: pal, seed: en.seed }), x: ex, y: ey + 30 });
-      const n = (en.kind === "skull" ? 3 : en.red ? 3 : 2) + (this.combo - 1) * COMBO_BONUS;
-      for (let k = 0; k < n; k++) this.popCoins.push({ x: ex, y: ey, vx: this.rng.range(-60, 60), vy: this.rng.range(-160, -90), v: zoneAt(Math.floor(ey / T)).coinValue, t: 0 });
-      audio.play("stomp", this.combo);
-      if (this.combo > 1) this.text(`COMBO x${this.combo}`, ex, ey - 12, "#ff9a3a", "big");
-      else if (!en.gold) this.text("POW", ex, ey - 12, "#ffe06a", "big");
+      this.strike(en, ex, ey);
       return;
     }
     this.hurt(en.dmg ?? 1, en.kind, ex);
+  }
+
+  /** One hit on an enemy (a stomp or a swing): hurt it, or finish it off with coins and a flourish. */
+  strike(en, ex, ey) {
+    if (--en.hp > 0) { en.hurtT = 0.3; audio.play("stomp"); return; }
+    en.alive = false;
+    this.killed(beastOf(en), ex, ey);
+    this.combo++;
+    this.tally.combo = Math.max(this.tally.combo, this.combo);
+    if (en.kind === "slime") this.tally.slimes++;
+    if (en.kind === "bat") this.tally.bats++;
+    if (en.kind === "skull") this.tally.skulls++;
+    if (en.gold) {
+      this.tally.goldSlime++;
+      this.shake = 0.3;
+      for (let k = 0; k < GOLD_SLIME.coins; k++) this.popCoins.push({ x: ex, y: ey, vx: this.rng.range(-130, 130), vy: this.rng.range(-280, -120), v: 1, t: 0 });
+      this.fxs.push({ fx: createFx(burstFx, { palette: BURST.legendary, seed: 9, light: 1 }), x: ex, y: ey + 30 });
+      this.text("JACKPOT!", ex, ey - 18, "#ffd23a", "big");
+      audio.play("newItem");
+    }
+    const pal = en.kind === "slime" ? (en.red ? ["#2a0610", "#8a1a2a", "#e04a4a", "#ff8a7a", "#ffd0c0", "#ffffff"] : ["#061412", "#12594a", "#1f8f4f", "#47c752", "#a6f06a", "#f0ffd2"]) : POOF_DARK;
+    this.fxs.push({ fx: createFx(poofFx, { palette: pal, seed: en.seed }), x: ex, y: ey + 30 });
+    const n = (en.kind === "skull" ? 3 : en.red ? 3 : 2) + (this.combo - 1) * COMBO_BONUS;
+    for (let k = 0; k < n; k++) this.popCoins.push({ x: ex, y: ey, vx: this.rng.range(-60, 60), vy: this.rng.range(-160, -90), v: zoneAt(Math.floor(ey / T)).coinValue, t: 0 });
+    audio.play("stomp", this.combo);
+    if (this.combo > 1) this.text(`COMBO x${this.combo}`, ex, ey - 12, "#ff9a3a", "big");
+    else if (!en.gold) this.text("POW", ex, ey - 12, "#ffe06a", "big");
   }
 
   updateChests(dt) {
@@ -884,6 +990,7 @@ export class Run {
         const got = [];
         const add = (k, n) => { const room = (k === "wood" || k === "stone" ? this.carry + 4 : this.carry) - this.inv[k]; const g = Math.max(0, Math.min(n, room)); this.inv[k] += g; if (g) got.push(`+${g} ${k.toUpperCase()}`); };
         add("wood", this.rng.int(2, 3));
+        if (this.dur < this.durMax) { const g = Math.min(PICK.crate, this.durMax - this.dur); this.dur += g; got.push(`+${g} PICK`); }
         if (this.rng.next() < 0.6) add("mushroom", 1);
         if (this.rng.next() < 0.5) add("water", 1);
         if (this.rng.next() < 0.35) add("stone", 2);
@@ -899,6 +1006,7 @@ export class Run {
       this.items.push({ id: c.item, variant: c.variant, tx: c.tx, ty: c.ty, x: c.x, y: c.y - 22, pop: 0.35 });
       this.inv.mushroom = Math.min(this.carry, this.inv.mushroom + 1);
       this.inv.water = Math.min(this.carry, this.inv.water + 1);
+      this.dur = Math.min(this.durMax, this.dur + PICK.chest);
       this.emit("inv");
       this.emit("toast", { key: "chestOpen" });
       audio.play("chest");
@@ -1056,12 +1164,11 @@ export class Run {
       else { b.act = "throw"; b.actT = 0.5; }
     }
   }
-  hitBoss(b) {
+  hitBoss(b, bounce = true) {
     const p = this.p;
     b.hp--;
     b.hurtT = 0.8;
-    p.vy = -330;
-    p.fallTop = p.y;
+    if (bounce) { p.vy = -330; p.fallTop = p.y; }
     this.shake = 0.3;
     this.fxs.push({ fx: createFx(sparkFx, { angle: Math.PI / 2, seed: this.rng.int(1, 99) }), x: b.x, y: b.y - 10 });
     audio.play("stomp");
@@ -1082,12 +1189,12 @@ export class Run {
 
   hurt(n, src, fromX) {
     if (this.state !== "play") return;
-    if (this.invuln > 0 && src !== "dark") return;
+    if (this.invuln > 0 && src !== "dark" && src !== "crush") return;
     const p = this.p;
     this.hp = Math.max(0, this.hp - n);
     this.invuln = 1.2;
     this.shake = 0.3;
-    if (src !== "dark") {
+    if (src !== "dark" && src !== "crush") {
       const away = fromX != null ? Math.sign(p.x + PW / 2 - fromX) || -p.face : -p.face;
       p.vx = away * 140;
       if (src !== "fall") p.vy = Math.min(p.vy, -170);
@@ -1464,6 +1571,42 @@ export class Run {
     addLight(lm, lampX, lampY + 6, dark ? 30 : (50 + 80 * lr) * flick * this.pk.lamp, dark ? 0.5 : 0.95);
     if (!dark) P.glow(lampX, lampY, 9, 0xff60c0ff, 0.5);
 
+    // the swing: a quick arc of the pickaxe
+    if (this.swing.t > 0 && this.state === "play") {
+      const k = 1 - this.swing.t / SWING.time, f = p.face, hx = px + 5 + f * 3, hy = py + 4;
+      for (let j = 0; j < 3; j++) {
+        const ang = -1.7 + (k - j * 0.12) * 2.6, r = 15;
+        const tx2 = hx + Math.cos(ang) * r * f, ty2 = hy + Math.sin(ang) * r;
+        if (j === 0) { P.line(hx, hy, tx2, ty2, 0xff6a4a2a); P.rect(tx2 - 1, ty2 - 1, 3, 3, 0xffe0e8f0); }
+        else P.dot(tx2, ty2, 0xffffffff, 0.7 - j * 0.25);
+      }
+      P.glow(hx + f * 10, hy, 12, 0xffffffff, 0.25);
+    }
+    // the collapse: a wall of falling rock and dust coming down from above
+    const cy = Math.round(this.colY - camY);
+    if (cy > -12) {
+      const C2 = frame.color, top = Math.min(H, cy + 10);
+      for (let y = 0; y < top; y++) {
+        for (let x = 0; x < W; x++) {
+          const wx = x + camX, edge = cy + ((((wx * 13) ^ (wx >> 2) * 7) & 7) - 3) + Math.round(Math.sin(wx * 0.15 + t * 6) * 2);
+          if (y > edge) continue;
+          const n = ((wx * 73856093) ^ ((y + camY) * 19349663)) >>> 0;
+          // chunks of rock: lighter tops, dark cracks between them
+          const bx = ((wx + ((y + camY) >> 3) * 5) & 15), by = (y + camY) & 7, crack = bx === 0 || by === 0;
+          const v = crack ? 22 : 62 + (n % 22) - by * 3, red = y > edge - 3 ? 60 : 0;
+          C2[y * W + x] = (0xff << 24) | ((v - 10) << 16) | ((v - 4) << 8) | Math.min(255, v + red);
+        }
+      }
+      for (let k = 0; k < 18; k++) {
+        const rx = (k * 53 + Math.floor(t * 7) * 31) % W, ry = cy + ((t * 120 + k * 17) % 40);
+        P.rect(rx, ry, 2, 2, 0xff3a3044, 0.9);
+      }
+      for (let x = 10; x < W; x += 36) addLight(lm, x, cy - 6, 34, 0.55);
+      // a shadow of dust hanging under it, redder as it gets close
+      const near = Math.max(0, 1 - this.colGap / 14);
+      for (let j = 0; j < 36; j++) P.rect(0, cy + 4 + j, W, 1, near > 0.3 ? 0xff1a0c3a : 0xff100a14, (1 - j / 36) * (0.55 + near * 0.3));
+      if (this.colGap < COLLAPSE.warn) for (let x = 0; x < W; x += 3) P.dot(x, Math.max(0, cy + 1), 0xff3a3aff, 0.6);
+    }
     for (const d of this.debris) P.dot(sx(d.x), sy(d.y), d.c, Math.min(1, d.life * 3));
     for (const f of this.fxs) {
       f.fx.options.x = sx(f.x);

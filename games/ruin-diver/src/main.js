@@ -113,7 +113,8 @@ const hold = (id, on, off) => {
 hold("jumpBtn", () => { jumpEdge = true; touch.jump = true; }, () => (touch.jump = false));
 hold("ropeBtn", () => (ropeEdge = true), () => {});
 // the survival bar: eat, drink, torch, campfire (keys 1-4), tappable too
-const actEdge = { eat: false, drink: false, torch: false, campfire: false, look: false };
+const actEdge = { eat: false, drink: false, torch: false, campfire: false, look: false, attack: false };
+hold("attackBtn", () => (actEdge.attack = true), () => {});
 hold("lookBtn", () => (actEdge.look = true), () => {});
 for (const b of document.querySelectorAll("#craftBar button")) hold(b.id, () => { if (b.dataset.act === "rope") ropeEdge = true; else actEdge[b.dataset.act] = true; }, () => {});
 
@@ -131,7 +132,8 @@ window.addEventListener("keydown", (e) => {
   }
   if (mode === "results" && k === "enter" && !e.repeat) return dive();
   if (!e.repeat && (k === " " || k === "z" || k === "k")) jumpEdge = true;
-  if (!e.repeat && (k === "x" || k === "c" || k === "r" || k === "5")) ropeEdge = true;
+  if (!e.repeat && (k === "c" || k === "r" || k === "5")) ropeEdge = true;
+  if (!e.repeat && (k === "x" || k === "j") && mode === "run") actEdge.attack = true;
   if (!e.repeat && mode === "run") {
     if (k === "1" || k === "e") actEdge.eat = true;
     if (k === "2" || k === "q") actEdge.drink = true;
@@ -232,6 +234,13 @@ function updateHud(force = false) {
   meter("mFood", run.food);
   meter("mWater", run.water);
   meter("mLight", run.light);
+  meter("mPick", (run.dur / run.durMax) * 100);
+  // the collapse: on the gauge, and a warning when it's close
+  const colM = Math.max(0, run.colY / 16);
+  $("gaugeCol").style.height = Math.min(100, (colM / gaugeMax) * 100) + "%";
+  const cw = $("colWarn"), gap = Math.max(0, Math.floor(run.colGap));
+  show("colWarn", !!run.colStarted && gap < 30);
+  if (run.colStarted && gap < 30) { cw.textContent = S("collapseGap", { d: gap }); cw.classList.toggle("near", gap < 9); }
   // the survival bar: counts, and whether each action can be done now
   const inv = run.inv, key = JSON.stringify(inv);
   if (force || lastHud.inv !== key) {
@@ -360,7 +369,7 @@ function handleEvents() {
         break;
       }
       case "hint":
-        toast(S(e.key), "#ffe06a", 3200);
+        toast(S(isTouch && e.key === "hintSwing" ? "hintSwingTouch" : e.key), "#ffe06a", 3200);
         save.hintsShown = [...run.hintsShown];
         break;
       case "zone":

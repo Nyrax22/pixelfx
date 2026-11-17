@@ -357,6 +357,12 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
 #resBottom .btn { white-space: nowrap; font-size: 0.95em; }
 #doubleBtn { flex: 0 0 auto !important; }
 #diveBtn { font-size: 1.25em !important; }
+#mPick b i { background: #b8c4d8; }
+#mPick.low span { color: #ff9a6a; }
+#gaugeCol { position: absolute; left: 0; right: 0; top: 0; height: 0; background: repeating-linear-gradient(#5a1a24 0 0.3em, #2a0c14 0.3em 0.5em); }
+#colWarn { left: 50%; top: 2.6em; transform: translateX(-50%); font-size: 0.85em; color: #ff8a8a; text-shadow: 0.1em 0.1em 0 #000; white-space: nowrap; }
+#colWarn.near { color: #ff4a4a; animation: blink 0.4s steps(2) infinite; font-size: 1em; }
+#attackBtn { width: 4.4em; height: 4.4em; background: rgba(200, 210, 230, 0.6); color: #1a1428; margin-bottom: 1.4em; font-size: 0.9em; }
 #lookBtn { width: 4.4em; height: 4.4em; background: rgba(255, 224, 106, 0.7); color: #2a1004; margin-bottom: 2em; font-size: 0.85em; }
 #matsRow { margin-top: 0.4em; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3em 0.7em; font-size: 0.8em; background: #14202a; border: var(--px) solid var(--edge); padding: 0.3em 0.5em; }
 #matsRow span { display: flex; align-items: center; gap: 0.15em; }
@@ -373,28 +379,31 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
       <div id="hCoinsBox" class="hud-box"><i data-icon="coin"></i><span id="hCoins">0</span></div>
       <div id="hDepthBox" class="hud-box"><div id="hDepth">0<small>m</small></div><div id="hZone"></div><div id="hExit"></div></div>
     </div>
-    <div id="gauge"><div id="gaugeBar"><div id="gaugeFill"></div></div><div id="gaugeMarks"></div><div id="gaugeMe"></div></div>
+    <div id="gauge"><div id="gaugeBar"><div id="gaugeFill"></div><div id="gaugeCol"></div></div><div id="gaugeMarks"></div><div id="gaugeMe"></div></div>
     <div id="rightCol">
       <div class="row1"><div id="hearts"></div><button id="pauseBtn" aria-label="pause">II</button></div>
       <div id="meters" class="hud-box">
         <div class="m" id="mFood"><i data-icon="mushroom"></i><span data-s="food"></span><b><i></i></b></div>
         <div class="m" id="mWater"><i data-icon="water"></i><span data-s="waterM"></span><b><i></i></b></div>
         <div class="m" id="mLight"><i data-icon="light"></i><span data-s="light"></span><b><i></i></b></div>
+        <div class="m" id="mPick"><i data-icon="pick"></i><span data-s="pickM"></span><b><i></i></b></div>
       </div>
     </div>
     <div id="goalLine"></div>
+    <div id="colWarn" class="hidden"></div>
     <div id="craftBar">
       <button id="act-eat" data-act="eat"><kbd>1</kbd><i data-icon="mushroom"></i><b id="cnt-eat">0</b><span class="t" data-s-act="eat"></span></button>
       <button id="act-drink" data-act="drink"><kbd>2</kbd><i data-icon="water"></i><b id="cnt-drink">0</b><span class="t" data-s-act="drink"></span></button>
       <div class="res"><span><i data-icon="wood"></i><b id="cnt-wood">0</b></span><span><i data-icon="stone"></i><b id="cnt-stone">0</b></span></div>
       <button id="act-torch" data-act="torch"><kbd>3</kbd><i data-icon="torch"></i><span class="c">2<i data-icon="wood"></i></span><span class="t" data-s-act="torch"></span></button>
       <button id="act-campfire" data-act="campfire"><kbd>4</kbd><i data-icon="campfire"></i><span class="c">3<i data-icon="wood"></i>3<i data-icon="stone"></i></span><span class="t" data-s-act="campfire"></span></button>
-      <button id="act-rope" data-act="rope"><kbd>X</kbd><i data-icon="ropes"></i><span class="c">2<i data-icon="wood"></i></span><span class="t" data-s-act="rope"></span></button>
+      <button id="act-rope" data-act="rope"><kbd>C</kbd><i data-icon="ropes"></i><span class="c">2<i data-icon="wood"></i></span><span class="t" data-s-act="rope"></span></button>
     </div>
     <div id="stick" class="hidden"><div id="stickKnob"></div></div>
     <div id="touchPad" class="hidden">
       <button id="lookBtn" class="hidden" data-s="look"></button>
       <button id="ropeBtn" class="hidden"><i data-icon="ropes"></i><b id="ropeBtnN">0</b></button>
+      <button id="attackBtn" data-s="attack"></button>
       <button id="jumpBtn" data-s="jump"></button>
     </div>
   </div>

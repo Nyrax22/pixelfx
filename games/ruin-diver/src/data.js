@@ -125,6 +125,15 @@ export const SURVIVE = {
   hunters: { dark: 8, lit: 16, cap: 7 }, // seconds between creatures that come looking for you
   exitDepth: 296,
 };
+// The cave comes down behind you: a rockfall front that chases you to the exit. Speeds in meters (tiles) per second.
+// It waits `grace` seconds, speeds up from `start` to `max` over `ramp` seconds, and hurries to stay within `catchup`
+// meters of you; it holds still while a boss fight is on.
+export const COLLAPSE = { grace: 18, start: 0.32, max: 0.66, ramp: 300, catchup: 26, catchK: 0.08, hurtEvery: 0.7, warn: 9 };
+// The pickaxe wears out: each block costs durability (by material), crates and the merchant mend it.
+export const PICK = { base: 30, perLevel: 9, cost: { dirt: 1, gold: 1, wood: 1, brick: 2, stone: 2, gem: 2 }, crate: 5, chest: 8 };
+// A swing of the pickaxe: reach in pixels in front of you, how long it lasts and the wait before the next.
+export const SWING = { reach: 22, time: 0.18, cooldown: 0.34 };
+export const WALL = { slide: 55, jumpX: 150, jumpK: 0.92 }; // wall slide speed cap, wall jump push and height
 export const START_KIT = { mushroom: 1, water: 1, wood: 2, stone: 0 };
 
 // Movement and danger.
@@ -184,7 +193,7 @@ export const STR = {
     toExit: "출구까지 {d}m",
     rules1: "배고픔·목마름·빛이 계속 줄어요",
     rules2: "버섯·물·기름을 찾아 채우고, 나무·돌로 횃불과 모닥불을 만들어요",
-    rules3: "300m 아래 출구까지 살아서 내려가면 탈출!",
+    rules3: "동굴이 위에서부터 무너져요! 300m 아래 출구까지 도망치세요",
     food: "배고픔", waterM: "목마름", light: "빛",
     inv: { mushroom: "버섯", water: "물", wood: "나무", stone: "돌" },
     act: { eat: "먹기", drink: "마시기", torch: "횃불", campfire: "모닥불", rope: "로프" },
@@ -237,8 +246,8 @@ export const STR = {
     atExit: "출구 바로 여기!",
     jump: "점프",
     ropeBtn: "로프",
-    ctrlKeys: "←→ 이동 · Space 점프 · ↑↓ 사다리 · 벽으로 밀어 파기 · 1 먹기 · 2 마시기 · 3 횃불 · 4 모닥불 · X 로프",
-    ctrlTouch: "왼쪽 드래그 이동 · 아래로 끌면 파기 · 오른쪽 점프 · 아래 버튼으로 먹고 마시고 만들기",
+    ctrlKeys: "←→ 이동 · Space 점프 · X 공격 · 벽으로 밀어 파기 · 벽에서 점프 = 벽차기 · 1 먹기 · 2 마시기 · 3 횃불 · 4 모닥불 · C 로프",
+    ctrlTouch: "왼쪽 드래그 이동 · 아래로 끌면 파기 · 오른쪽 점프·공격 · 벽에서 점프 = 벽차기",
     keptCoins: "코인 절반만 챙겼어요",
     tapToDive: "탭해서 탐험 시작",
     dragHint: "드래그해서 움직이기",
@@ -347,7 +356,7 @@ export const STR = {
     toExit: "Exit in {d}m",
     rules1: "Hunger, thirst and light keep running down",
     rules2: "Find mushrooms, water and oil; build torches and campfires from wood and stone",
-    rules3: "Get down to the exit 300m below alive to escape!",
+    rules3: "The cave is collapsing from the top! Run for the exit 300m below",
     food: "Hunger", waterM: "Thirst", light: "Light",
     inv: { mushroom: "Mushroom", water: "Water", wood: "Wood", stone: "Stone" },
     act: { eat: "Eat", drink: "Drink", torch: "Torch", campfire: "Campfire", rope: "Rope" },
@@ -400,8 +409,8 @@ export const STR = {
     atExit: "Exit right here!",
     jump: "Jump",
     ropeBtn: "Rope",
-    ctrlKeys: "←→ move · Space jump · ↑↓ ladders · push into walls to dig · 1 eat · 2 drink · 3 torch · 4 campfire · X rope",
-    ctrlTouch: "Drag left side to move · drag down to dig · right button jumps · bottom buttons eat, drink and build",
+    ctrlKeys: "←→ move · Space jump · X attack · push into walls to dig · jump off walls · 1 eat · 2 drink · 3 torch · 4 campfire · C rope",
+    ctrlTouch: "Drag left side to move · drag down to dig · right buttons jump and attack · jump off walls",
     keptCoins: "Kept half your coins",
     tapToDive: "Tap to explore",
     dragHint: "Drag to move",
@@ -535,7 +544,7 @@ export const EVENTS = {
   altar:    { zones: ["village", "mine"], w: 2.2, from: 20, opts: [{ id: "blood", cost: { hp: 1 } }, { id: "offer", cost: { mushroom: 2 } }] },
   merchant: { zones: ["village", "mine"], w: 2.2, from: 15, stay: true, opts: [
     { id: "food", cost: { coins: 12 } }, { id: "water", cost: { coins: 12 } }, { id: "oil", cost: { coins: 15 } },
-    { id: "mats", cost: { coins: 20 } }, { id: "rare", cost: { coins: 45 } }] },
+    { id: "mats", cost: { coins: 20 } }, { id: "mend", cost: { coins: 15 } }, { id: "rare", cost: { coins: 45 } }] },
   cursed:   { zones: ["village", "mine"], w: 1.4, from: 40, opts: [{ id: "open", cost: {} }] },
   vault:    { zones: ["mine"], w: 2, from: 105, opts: [{ id: "break", cost: { stone: 4 } }] },
   spring:   { zones: ["mine"], w: 1.6, from: 105, opts: [{ id: "drink", cost: {} }] },
@@ -655,9 +664,13 @@ Object.assign(STR.ko, {
   },
   evOpt: {
     blood: "하트 1개 바치기 → 희귀 유물", offer: "버섯 2개 바치기 → 희귀 자원 2개",
-    food: "버섯 2개", water: "물 2개", oil: "랜턴 기름 가득", mats: "나무 3 + 돌 3", rare: "희귀 자원 1개",
+    food: "버섯 2개", water: "물 2개", mend: "곡괭이 수리 +12", oil: "랜턴 기름 가득", mats: "나무 3 + 돌 3", rare: "희귀 자원 1개",
     open: "열어 본다 (어둠과 괴물이 몰려와요)", break: "돌 4개로 부수기", drink: "마신다 (목마름 가득, 하트 +1)",
   },
+  collapse: "동굴이 무너진다! 아래로 도망쳐!", collapseNear: "붕괴가 바로 위에!", collapseGap: "붕괴 ↑{d}m",
+  pickBroken: "곡괭이가 망가졌어요! 상자나 상인에게서 고쳐요", pickLow: "곡괭이가 닳고 있어요", hintPickLow: "곡괭이가 거의 닳았어요! 꼭 필요한 곳만 파세요", pickM: "곡괭이", attack: "공격",
+  hintWall: "벽에 붙어 미끄러지다가 점프하면 벽차기!", hintSwing: "X로 곡괭이를 휘둘러 공격!", hintSwingTouch: "공격 버튼으로 곡괭이를 휘둘러요!",
+  crushed: "무너진 바위에 깔렸어요",
   leave: "떠나기", evFound: "발견: {name}", pressUp: "▲ 조사", look: "조사",
   evDone: { blood: "제단이 빛나며 유물을 내놓았어요!", offer: "제단 위에 희귀 자원이 나타났어요!", open: "저주가 풀려나요! 괴물이 몰려와요!", break: "자물쇠가 부서졌어요!", drink: "기운이 나요!", bought: "거래 완료" },
   gotMat: "+{n} {name}",
@@ -729,9 +742,13 @@ Object.assign(STR.en, {
   },
   evOpt: {
     blood: "Offer 1 heart → a rare relic", offer: "Offer 2 mushrooms → 2 rare materials",
-    food: "2 mushrooms", water: "2 water", oil: "Fill the lantern", mats: "3 wood + 3 stone", rare: "1 rare material",
+    food: "2 mushrooms", water: "2 water", mend: "Mend pickaxe +12", oil: "Fill the lantern", mats: "3 wood + 3 stone", rare: "1 rare material",
     open: "Open it (darkness and monsters come)", break: "Smash it with 4 stones", drink: "Drink (thirst full, +1 heart)",
   },
+  collapse: "The cave is collapsing! Run down!", collapseNear: "The collapse is right above you!", collapseGap: "Collapse ↑{d}m",
+  pickBroken: "Your pickaxe broke! Mend it with crates or the merchant", pickLow: "Your pickaxe is wearing out", hintPickLow: "Your pickaxe is nearly worn out! Dig only where you must", pickM: "Pick", attack: "Attack",
+  hintWall: "Slide down a wall and jump to wall-jump!", hintSwing: "Press X to swing your pickaxe!", hintSwingTouch: "Tap Attack to swing your pickaxe!",
+  crushed: "Crushed by the collapse",
   leave: "Leave", evFound: "Found: {name}", pressUp: "▲ Look", look: "Look",
   evDone: { blood: "The altar glows and gives up a relic!", offer: "Rare materials appear on the altar!", open: "The curse breaks loose! Here they come!", break: "The lock breaks!", drink: "You feel better!", bought: "Deal" },
   gotMat: "+{n} {name}",
