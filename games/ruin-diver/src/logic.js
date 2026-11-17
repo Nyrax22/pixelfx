@@ -59,7 +59,8 @@ export function stats(save) {
     bag: lv("bag"),
     hearts: lv("hearts") + b.hearts,
     pick: lv("pick"),
-    ropes: lv("ropes") + b.ropes,
+    stomach: lv("stomach"),
+    ropes: b.ropes,
     coinK: 1 + b.coins + star3 * STAR3_COIN_BONUS,
   };
 }

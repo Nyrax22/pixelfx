@@ -1,16 +1,12 @@
 # Ruin Diver (prototype)
 
-A web game for Poki built on pixelfx: explore a new cave every expedition, dig, climb and fight your way to
-relics, then get out alive (back up the entrance ladder or at an escape winch) or collapse and lose your bag.
-Fill the collection book between expeditions. This is the early game: the Fallen Village (0-100m) and the
-Deep Mine (100-300m), 31 relics (two are boss trophies), 4 sets, 5 upgrades, and two bosses: the Slime King
-at 88-98m and the Ancient Golem at 189-199m. Each guards a gate down; beat one once and you can start the next
-expedition in its hall. Enemies get faster and more numerous with depth.
-
-The first minute is built by hand: grab three relics in the entrance chamber, dig through a gold wall, stomp a
-slime, dig down to a treasure chest and escape at a winch. It can't be lost, and the chest completes the first
-set. After that: treasure chests in rooms and far corners, stomp combos (x2, x3...) for bonus coins, a rare
-golden slime that runs from you, and three missions at a time with coin rewards.
+A survival web game for Poki built on pixelfx. You're trapped in a cave; the way out is 300m down. Hunger,
+thirst and light run down all the time: eat mushrooms, collect water from pools, refill your lantern with oil,
+and build torches (wood) and campfires (wood and stone) from what you dig and gather. Creatures come looking
+for you in the dark and keep out of torchlight; campfires heal you and cook your food. Two bosses guard the way
+down (the Slime King at 88-98m, the Ancient Golem at 189-199m); beating one lets you start the next run in its
+hall. Gold buys permanent upgrades (lantern, pack, health, pickaxe, an iron stomach), and relics you find go
+into the collection book.
 
 ```bash
 npm install
@@ -19,15 +15,9 @@ node games/ruin-diver/build.mjs      # writes games/ruin-diver/dist/index.html (
 
 Open `dist/index.html` in a browser (`?debug` exposes `window.__rd` for automated playtests).
 
-Controls: ←→/AD move, Space/Z jump (↑ jumps too away from ladders), ↑↓ climb ladders and ropes, X throws a
-rope, push into a wall or hold ↓ to dig, Esc pauses. On touch: drag on the left half to move (down digs, up
+Controls: ←→/AD move, Space/Z jump (↑ jumps too away from ladders), ↑↓ climb ladders and ropes, push into a
+wall or hold ↓ to dig, 1 eat, 2 drink, 3 torch, 4 campfire, X rope, Esc pauses. On touch: drag on the left half to move (down digs, up
 climbs), buttons on the right jump and throw a rope.
-
-## Pacing
-
-`node games/ruin-diver/tools/pacing.mjs 0.6 60 v` plays an hour on real generated caves with a modeled explorer
-and prints when each upgrade is bought, deaths, and when each boss falls. It's an estimate for tuning numbers in
-`src/data.js`, not a substitute for playtesting.
 
 ## Files
 
@@ -40,7 +30,6 @@ and prints when each upgrade is bought, deaths, and when each boss falls. It's a
 | `src/bg.js` | tile textures, sky, light falling off with depth |
 | `src/sprites.js` | item, explorer, coin and rock pixel sprites |
 | `src/main.js` | the loop, input, HUD, results, collection, pause |
-| `tools/pacing.mjs` | the pacing model above |
 | `art/` | painted cave backdrops (village, mine), generated with Scenario's Retro Diffusion Plus; also the title screen |
 | `fonts/` | Galmuri11 Bold by Lee Minseo (SIL OFL 1.1, see `fonts/OFL.md`); the build embeds only the characters used |
 | `src/poki.js` | Poki SDK wrapper (no-op off Poki, with a stand-in for rewarded ads) |

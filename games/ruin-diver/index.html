@@ -257,6 +257,37 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
 .card img { width: 58%; }
 #lootGrid { grid-template-columns: repeat(7, 1fr); }
 #ready { background: linear-gradient(rgba(8, 6, 14, 0.15), rgba(8, 6, 14, 0.55)), var(--title-art) center / cover no-repeat; image-rendering: pixelated; }
+#meters { display: flex; flex-direction: column; gap: 0.3em; }
+#meters .m { display: grid; grid-template-columns: 1.2em 3.2em 1fr; align-items: center; gap: 0.25em; font-size: 0.72em; }
+#meters .m .pi { height: 1.1em; margin: 0; }
+#meters .m b { height: 0.75em; background: #1a1424; border: 0.12em solid var(--edge); display: block; }
+#meters .m b i { display: block; height: 100%; width: 100%; }
+#mFood b i { background: #e86a3a; } #mWater b i { background: #4aa8ff; } #mLight b i { background: #ffc040; }
+#meters .m.low b i { animation: blink 0.5s steps(2) infinite; }
+#meters .m.empty span { color: #ff5a5a; }
+#goalLine { left: 50%; top: 0.5em; transform: translateX(-50%); font-size: 0.75em; color: #ffe0a0; background: rgba(14, 10, 22, 0.7); padding: 0.2em 0.6em; border: var(--px) solid var(--edge); white-space: nowrap; }
+#craftBar { left: 50%; bottom: 0.5em; transform: translateX(-50%); display: flex; gap: 0.3em; align-items: stretch; pointer-events: auto; }
+#craftBar button { position: relative; min-width: 4.2em; padding: 0.3em 0.35em 0.2em; background: rgba(36, 28, 56, 0.92); display: flex; flex-direction: column; align-items: center; gap: 0.1em; font-size: 0.8em; color: var(--ink); }
+#craftBar button .pi { height: 1.5em; margin: 0; }
+#craftBar button b { position: absolute; right: 0.25em; top: 0.15em; font-size: 0.95em; color: #fff; text-shadow: 0.1em 0.1em 0 #000; }
+#craftBar button .c { font-size: 0.75em; color: var(--dim); display: flex; align-items: center; }
+#craftBar button .c .pi { height: 1.1em; }
+#craftBar button .t { font-size: 0.75em; }
+#craftBar kbd { position: absolute; left: 0.25em; top: 0.1em; font: inherit; font-size: 0.75em; color: var(--dim); }
+#craftBar button.off { opacity: 0.4; }
+#craftBar button.want { box-shadow: 0 0 0 0.2em #ffe06a !important; animation: blink 0.6s steps(2) infinite; }
+#craftBar .res { display: flex; flex-direction: column; justify-content: center; gap: 0.2em; background: rgba(14, 10, 22, 0.8); border: var(--px) solid var(--edge); padding: 0.2em 0.45em; font-size: 0.8em; }
+#craftBar .res span { display: flex; align-items: center; gap: 0.2em; }
+#craftBar .res .pi { height: 1.1em; margin: 0; }
+#ready .rules { position: absolute; top: 13em; display: flex; flex-direction: column; gap: 0.45em; background: rgba(10, 8, 16, 0.78); border: var(--px) solid var(--edge); padding: 0.6em 0.9em; font-size: 0.9em; max-width: 40em; }
+#ready .rules p { margin: 0; display: flex; align-items: center; gap: 0.3em; }
+#ready .rules .pi { height: 1.3em; margin: 0; }
+#ready .tap { position: absolute; bottom: 2.2em; margin: 0; }
+@media (pointer: coarse) { #craftBar { left: 38%; } }
+#hint { bottom: 6.8em !important; width: 44em; text-align: center; font-size: 0.85em; }
+#resTitle { flex-wrap: wrap; row-gap: 0.1em; }
+#resTitle > span:first-child { white-space: nowrap; }
+#resTitle small { flex-basis: 100%; }
 </style>
 </head>
 <body>
@@ -271,13 +302,24 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
     <div id="gauge"><div id="gaugeBar"><div id="gaugeFill"></div></div><div id="gaugeMarks"></div><div id="gaugeMe"></div></div>
     <div id="rightCol">
       <div class="row1"><div id="hearts"></div><button id="pauseBtn" aria-label="pause">II</button></div>
-      <div id="lanternBox" class="hud-box"><div class="label"><span data-s="lantern"></span><span id="lanternTx"></span></div><div id="lanternBar"><div id="lanternFill"></div></div></div>
-      <div class="hud-box"><div class="label"><span data-s="bag"></span><span id="bagTx"></span></div><div id="bagSlots"></div></div>
-      <div id="ropeTx" class="hud-box"></div>
+      <div id="meters" class="hud-box">
+        <div class="m" id="mFood"><i data-icon="mushroom"></i><span data-s="food"></span><b><i></i></b></div>
+        <div class="m" id="mWater"><i data-icon="water"></i><span data-s="waterM"></span><b><i></i></b></div>
+        <div class="m" id="mLight"><i data-icon="light"></i><span data-s="light"></span><b><i></i></b></div>
+      </div>
+    </div>
+    <div id="goalLine"></div>
+    <div id="craftBar">
+      <button id="act-eat" data-act="eat"><kbd>1</kbd><i data-icon="mushroom"></i><b id="cnt-eat">0</b><span class="t" data-s-act="eat"></span></button>
+      <button id="act-drink" data-act="drink"><kbd>2</kbd><i data-icon="water"></i><b id="cnt-drink">0</b><span class="t" data-s-act="drink"></span></button>
+      <div class="res"><span><i data-icon="wood"></i><b id="cnt-wood">0</b></span><span><i data-icon="stone"></i><b id="cnt-stone">0</b></span></div>
+      <button id="act-torch" data-act="torch"><kbd>3</kbd><i data-icon="torch"></i><span class="c">2<i data-icon="wood"></i></span><span class="t" data-s-act="torch"></span></button>
+      <button id="act-campfire" data-act="campfire"><kbd>4</kbd><i data-icon="campfire"></i><span class="c">3<i data-icon="wood"></i>3<i data-icon="stone"></i></span><span class="t" data-s-act="campfire"></span></button>
+      <button id="act-rope" data-act="rope"><kbd>X</kbd><i data-icon="ropes"></i><span class="c">2<i data-icon="wood"></i></span><span class="t" data-s-act="rope"></span></button>
     </div>
     <div id="stick" class="hidden"><div id="stickKnob"></div></div>
     <div id="touchPad" class="hidden">
-      <button id="ropeBtn"><i data-icon="ropes"></i><b id="ropeBtnN">0</b></button>
+      <button id="ropeBtn" class="hidden"><i data-icon="ropes"></i><b id="ropeBtnN">0</b></button>
       <button id="jumpBtn" data-s="jump"></button>
     </div>
   </div>
@@ -286,7 +328,9 @@ body, button { font-family: "Galmuri", "Apple SD Gothic Neo", "Malgun Gothic", m
   <div id="toast"></div>
   <div id="banner"><b></b><span></span></div>
 
-  <div id="ready" class="overlay hidden"><div class="logo">RUIN DIVER</div><div class="tap" data-s="tapToDive"></div></div>
+  <div id="ready" class="overlay hidden"><div class="logo">RUIN DIVER</div>
+    <div class="rules"><p><i data-icon="mushroom"></i><i data-icon="water"></i><i data-icon="light"></i> <span data-s="rules1"></span></p><p><i data-icon="wood"></i><i data-icon="torch"></i><i data-icon="campfire"></i> <span data-s="rules2"></span></p><p><i data-icon="exit"></i> <span data-s="rules3"></span></p></div>
+    <div class="tap" data-s="tapToDive"></div></div>
   <div id="hint" class="hidden"><div class="hand"></div><div data-s="dragHint"></div></div>
 
   <div id="results" class="overlay hidden">

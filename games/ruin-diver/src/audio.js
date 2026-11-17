@@ -109,6 +109,9 @@ const SOUNDS = {
   slam: (c, t) => { noise(c, t, { dur: 0.6, vol: 0.5, f: 250 }); tone(c, t, { f: 90, f2: 40, dur: 0.4, type: "sawtooth", vol: 0.2 }); },
   throw: (c, t) => noise(c, t, { dur: 0.2, vol: 0.2, f: 1200 }),
   heal: (c, t) => [660, 880, 1100].forEach((f, i) => tone(c, t, { f, dur: 0.1, type: "triangle", vol: 0.16, delay: i * 0.06 })),
+  eat: (c, t) => [0, 0.09].forEach((d) => noise(c, t, { dur: 0.07, vol: 0.25, f: 600, delay: d })),
+  drink: (c, t) => tone(c, t, { f: 500, f2: 1000, dur: 0.12, type: "sine", vol: 0.18 }),
+  place: (c, t) => { noise(c, t, { dur: 0.3, vol: 0.25, f: 1200 }); tone(c, t, { f: 300, f2: 600, dur: 0.25, type: "triangle", vol: 0.15 }); },
   click: (c, t) => tone(c, t, { f: 900, dur: 0.04, type: "square", vol: 0.06 }),
   deny: (c, t) => tone(c, t, { f: 200, f2: 150, dur: 0.15, type: "square", vol: 0.1 }),
 };

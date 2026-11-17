@@ -539,6 +539,14 @@ const ICONS = {
   skull: [[".ooooo...", "owwwwwo..", "owoowoo..", "owoowoo..", "owwwwwo..", ".owowo...", ".ooooo..."], { o: "#140c14", w: "#e8e0d0" }],
   exit: [["...o.....", "..ogo....", ".ogggo...", "ogggggo..", "ooogooo..", "..ogo....", "..ogo....", "..ooo...."], { o: "#0a2a10", g: "#7aff8a" }],
 };
+ICONS.mushroom = [["..ooooo..", ".orrwrro.", "orwrrrrro", "orrrrwrro", "ooooooooo", "...owwo..", "...owwo..", "...oooo.."], { o: "#2a0c0c", r: "#d8463a", w: "#f4e8d0" }];
+ICONS.water = [["....o....", "...owo...", "..obwbo..", ".obbbbbo.", ".obbbbbo.", ".obbbbbo.", "..obbbo..", "...ooo..."], { o: "#0a1a3a", b: "#4aa8ff", w: "#d8f0ff" }];
+ICONS.light = [["....o....", "...oyo...", "..oyyyo..", "..oywyo..", ".oyywyyo.", ".oyyyyyo.", "..oyyyo..", "...ooo..."], { o: "#3a1206", y: "#ff9a2a", w: "#fff0a0" }];
+ICONS.wood = [["..oooooo.", ".obbbbbbo", "owwbbbbbo", "owcwbbbbo", "owwbbbbbo", ".obbbbbbo", "..oooooo."], { o: "#1e1006", b: "#a07040", w: "#d8b080", c: "#6a4220" }];
+ICONS.stone = [["..ooooo..", ".obbbbbo.", "obwbbbaao", "obbbbaaao", "oabbaaado", ".oaaaddo.", "..ooooo.."], { o: "#14141c", a: "#6a6a7c", b: "#9a9aac", w: "#d0d0e0", d: "#3e3e4c" }];
+ICONS.torch = [["...fff...", "..fyyyf..", "..fywyf..", "...fff...", "...obo...", "...obo...", "...obo...", "...obo...", "...ooo..."], { o: "#1e1006", b: "#a07040", f: "#ff6a1a", y: "#ffc040", w: "#fff4b0" }];
+ICONS.campfire = [["....f....", "...fyf...", "..fyywf..", "..fywyf..", ".ofyyyfo.", "obboobbbo", ".obbobbo.", "..ooooo.."], { o: "#1e1006", b: "#a07040", f: "#ff6a1a", y: "#ffc040", w: "#fff4b0" }];
+ICONS.stomach = [["....ooo..", "...owwwo.", "..owbbbwo", ".obbbbbbo", "obbbbbbo.", "obbbbbo..", ".oobbo...", "..owo....", "..oo....."], { o: "#2a0c06", b: "#c8743a", w: "#f0b080" }];
 ICONS.lantern_ = ICONS.lantern;
 const piCache = new Map();
 /** An <img> of a UI icon, scaled up crisply. */
@@ -638,3 +646,13 @@ export const CHEST = [
 ];
 export const CHEST_PAL = { o: "#1a0e06", a: "#8a5228", b: "#b0743c", d: "#5a3418", y: "#f0c040", w: "#fff4a0" };
 export const GOLD_SLIME_PAL = { o: "#3a2204", g: "#ffc63a", w: "#fff6c4", d: "#c48412" };
+
+// survival things
+export const MUSHROOM = ["..oooo..", ".orrwro.", "orwrrrro", "oooooooo", "..owwo..", "..owwo..", "..oooo.."];
+export const MUSHROOM_PAL = { o: "#2a0c0c", r: "#d8463a", w: "#f4e8d0" };
+export const OIL = [".oo...", ".oo...", "oyyo..", "oyyyo.", "oywyo.", "oyyyo.", "oyyyo.", ".ooo.."].map((r) => r.padEnd(6, "."));
+export const OIL_PAL = { o: "#1a1206", y: "#e8a830", w: "#fff4b0" };
+export const ROOT_SPR = ["owwo", ".oa.", ".oao", "..ao", ".oa.", "oa..", ".a..", ".o.."];
+export const ROOT_PAL = { o: "#2a1608", w: "#7a5030", a: "#a07040" };
+export const CRATE = ["oooooooooooo", "owwwwwwwwwwo", "owdddddddwwo", "owdwwwwwdwwo", "owdwdwwdwdwo", "owdwwddwwdwo", "owdwdwwdwdwo", "owdwwwwwdwwo", "owdddddddwwo", "owwwwwwwwwwo", "oooooooooooo"];
+export const CRATE_PAL = { o: "#1e1006", w: "#a07040", d: "#6a4220" };

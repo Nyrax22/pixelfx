@@ -5,10 +5,11 @@ import * as burstFx from "../../../src/fx/pickups/collect-burst.js";
 import * as sparkFx from "../../../src/fx/impacts/hit-spark.js";
 import * as poofFx from "../../../src/fx/spawn/poof.js";
 import * as torchFx from "../../../src/fx/fire/torch.js";
+import * as campfireFx from "../../../src/fx/fire/campfire.js";
 import * as beamFx from "../../../src/fx/pickups/loot-beam.js";
-import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME } from "./data.js";
-import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL, CHEST, CHEST_PAL, GOLD_SLIME_PAL } from "./sprites.js";
-import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE } from "./cave.js";
+import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME, SURVIVE, START_KIT } from "./data.js";
+import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL, CHEST, CHEST_PAL, GOLD_SLIME_PAL, MUSHROOM, MUSHROOM_PAL, OIL, OIL_PAL, ROOT_SPR, ROOT_PAL, CRATE, CRATE_PAL } from "./sprites.js";
+import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE, POOL, ROOT } from "./cave.js";
 import { drawCave, fillAmbient, addLight } from "./bg.js";
 import { zoneAt, missionProgress } from "./logic.js";
 import { audio } from "./audio.js";
@@ -31,8 +32,7 @@ const PW = 10, PH = 15; // the explorer's box
 export class Run {
   constructor(save, st, first = false, start = null) {
     this.save = save;
-    // the first expedition gets room for everything it shows you
-    this.st = first ? { ...st, bag: Math.max(st.bag, 5) } : st;
+    this.st = st;
     this.first = first;
     const seed = ((Date.now() & 0xffffff) ^ (save.runs * 7919)) >>> 0;
     this.rng = new Rng(seed);
@@ -47,8 +47,17 @@ export class Run {
     this.snapCamera();
     this.state = "play";       // play -> winch -> done, or play -> dead
     this.hp = st.hearts;
-    this.lantern = st.lantern;
-    this.ropes = st.ropes;
+    // survival: three meters (0-100) and what you carry
+    this.food = 100;
+    this.water = 100;
+    this.light = 100;
+    this.inv = { ...START_KIT, wood: START_KIT.wood + (st.ropes ?? 0) * 2 };
+    this.carry = st.bag;
+    this.starveT = 0;
+    this.spawnT = SURVIVE.hunters.lit;
+    this.lights = [];          // torches and campfires you've placed: { x, y, r, kind, fx }
+    this.hintsShown = new Set(save.hintsShown ?? []);
+    this.won = false;
     this.darkT = 0;
     this.lanternOutSent = false;
     this.bag = [];
@@ -75,6 +84,9 @@ export class Run {
     this.items = this.cave.items.map((it) => ({ ...it, x: it.tx * T + 8, y: it.ty * T + 9 }));
     this.coinList = this.cave.coins.map((c) => ({ ...c, x: c.tx * T + 8, y: c.ty * T + 11 }));
     this.heartList = this.cave.hearts.map((h) => ({ x: h.tx * T + 8, y: h.ty * T + 10 }));
+    this.mushrooms = this.cave.mushrooms.map((m) => ({ x: m.tx * T + 8, y: (m.ty + 1) * T }));
+    this.oils = this.cave.oils.map((o) => ({ x: o.tx * T + 8, y: (o.ty + 1) * T }));
+    this.pools = new Map(this.cave.pools.map((q) => [q.ty * MW + q.tx, { units: SURVIVE.poolUnits, regen: 0, sip: 0 }]));
     this.chests = this.cave.chests.map((c) => ({ ...c, x: c.tx * T + 8, y: (c.ty + 1) * T, open: false, t: 0 }));
     this.hints = this.cave.hints.map((h) => ({ ...h, shown: false }));
     // what this expedition did, for missions
@@ -100,9 +112,8 @@ export class Run {
     this.tally["boss_" + b.id] = 1;
         for (const y of [b.floor, b.floor + 1]) { this.tile[y * MW + b.gx] = AIR; this.deco[y * MW + b.gx] = LADDER; }
       }
-      const b = this.bosses[bi], wx = b.gx + 3;
-      this.deco[(b.floor - 1) * MW + wx] = WINCH;
-      this.cave.winches.push({ x: wx, y: b.floor - 1 });
+      const b = this.bosses[bi];
+      this.addLight((b.gx + 4) * T + 8, b.floor * T, "campfire");
       this.p.x = (b.gx + 1) * T + 3;
       this.p.y = b.floor * T - PH;
       this.p.fallTop = this.p.y;
@@ -162,19 +173,25 @@ export class Run {
 
     if (this.freeze > 0) { this.freeze -= dt; return; }
     if (this.state === "play") {
-      this.updateLantern(dt);
+      this.updateSurvival(dt, input);
       this.updatePlayer(dt, input);
       if (this.state === "play") {
         this.updateItems(dt);
         this.updateEnemies(dt);
         this.updateHazards(dt);
         this.updateBosses(dt);
+        this.updateResources(dt);
+        this.spawnHunters(dt);
       }
       this.depthMax = Math.max(this.depthMax, this.depth);
       this.tally.depth = this.depthMax;
       if (this.p.ground || this.p.climb) this.combo = 0;
       this.updateChests(dt);
-      this.checkMissions();
+      if (!this.won && this.depth >= SURVIVE.exitDepth) {
+        this.won = true;
+        this.emit("toast", { key: "reachedExit" });
+        this.escape();
+      }
       const z = zoneAt(this.depth);
       if (!this.zonesSeen.has(z.id) && !z.coming) {
         this.zonesSeen.add(z.id);
@@ -214,19 +231,143 @@ export class Run {
     this.camY = Math.max(-140, Math.min(MH * T - H, this.p.y - H / 2 + 20));
   }
 
-  updateLantern(dt) {
-    if (this.first) return; // the first dive is about grabbing and getting out
-    this.lantern -= dt;
-    if (this.lantern > 0) return;
-    this.lantern = 0;
-    if (!this.lanternOutSent) {
-      this.lanternOutSent = true;
-      this.emit("lanternOut", { relit: this.relit });
+  // ------------------------------------------------------------ survival
+  hint(key) {
+    if (this.hintsShown.has(key)) return;
+    this.hintsShown.add(key);
+    this.emit("hint", { key });
+  }
+  /** Is world point (x, y) inside the light of a torch or campfire? */
+  lit(x, y, pad = 0) {
+    for (const l of this.lights) if (Math.hypot(l.x - x, l.y - 6 - y) < l.r + pad) return l;
+    return null;
+  }
+  addLight(x, y, kind) {
+    const fx = createFx(kind === "campfire" ? campfireFx : torchFx, { seed: this.lights.length + 3 });
+    this.lights.push({ x, y, kind, fx, r: kind === "campfire" ? SURVIVE.campfire.radius : SURVIVE.torch.radius, healT: 0 });
+  }
+  updateSurvival(dt, input) {
+    const S = SURVIVE, st = this.st, p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
+    this.alive = (this.alive ?? 0) + dt;
+    const camp = this.lit(cx, cy);
+    // meters run down; a campfire keeps the lantern topped up
+    this.food = Math.max(0, this.food - (100 / (S.food * st.stomach)) * dt);
+    this.water = Math.max(0, this.water - (100 / (S.water * st.stomach)) * dt);
+    if (camp?.kind === "campfire") this.light = Math.min(100, this.light + 20 * dt);
+    else this.light = Math.max(0, this.light - (100 / st.lantern) * dt);
+    if (this.food < 35) this.hint("hintEat");
+    if (this.water < 35) this.hint("hintDrink");
+    if (this.light < 30) this.hint("hintLight");
+    if (this.light <= 0) this.hint("hintDark");
+    // empty hunger or thirst eats your health
+    if (this.food <= 0 || this.water <= 0) {
+      this.starveT += dt;
+      if (this.starveT >= S.starveEvery) { this.starveT = 0; this.hint("hintStarve"); this.hurt(1, "starve"); }
+    } else this.starveT = 0;
+    // a campfire mends you
+    if (camp?.kind === "campfire") {
+      this.hint("hintCamp");
+      camp.healT += dt;
+      if (camp.healT >= S.campfire.heal && this.hp < st.hearts) { camp.healT = 0; this.hp++; this.text("+1", cx, p.y - 8, "#ff7a8a", "big"); audio.play("heal"); }
     }
-    this.darkT += dt;
-    if (this.darkT >= DARK_DRAIN) {
-      this.darkT = 0;
-      this.hurt(1, "dark");
+    if (input.eat) this.eat(camp);
+    if (input.drink) this.drink();
+    if (input.torch) this.craft("torch");
+    if (input.campfire) this.craft("campfire");
+  }
+  eat(camp) {
+    if (this.inv.mushroom <= 0) return this.emit("toast", { key: "needs", what: "mushroom" });
+    if (this.food >= 99) return this.emit("toast", { key: "full" });
+    this.inv.mushroom--;
+    const cooked = camp?.kind === "campfire";
+    this.food = Math.min(100, this.food + (cooked ? SURVIVE.cooked : SURVIVE.mushroom));
+    this.text(cooked ? "YUM!" : "+FOOD", this.p.x + 5, this.p.y - 8, "#ffb04a", "big");
+    if (cooked) this.emit("toast", { key: "cooked" });
+    audio.play("eat");
+    this.emit("inv");
+  }
+  drink() {
+    if (this.inv.water <= 0) return this.emit("toast", { key: "needs", what: "water" });
+    if (this.water >= 99) return this.emit("toast", { key: "full" });
+    this.inv.water--;
+    this.water = Math.min(100, this.water + SURVIVE.drink);
+    this.text("+WATER", this.p.x + 5, this.p.y - 8, "#6ac8ff", "big");
+    audio.play("drink");
+    this.emit("inv");
+  }
+  craft(kind) {
+    const cost = SURVIVE[kind], p = this.p;
+    for (const k of ["wood", "stone"]) if ((cost[k] ?? 0) > this.inv[k]) return this.emit("toast", { key: "needs", what: k });
+    if (kind === "campfire" && !p.ground) return;
+    for (const k of ["wood", "stone"]) this.inv[k] -= cost[k] ?? 0;
+    this.addLight(p.x + PW / 2 + p.face * 8, p.y + PH, kind);
+    this.emit("toast", { key: "placed", what: kind });
+    audio.play("place");
+    this.emit("inv");
+  }
+  /** Mushrooms, oil, pools of water, roots for wood. */
+  updateResources(dt) {
+    const p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
+    for (const m of this.mushrooms) {
+      if (m.taken || Math.abs(m.x - cx) > 9 || Math.abs(m.y - 4 - cy) > 12) continue;
+      if (this.inv.mushroom >= this.carry) { if (!m.warned) { m.warned = true; this.text("FULL", m.x, m.y - 14, "#ff8a6a"); } continue; }
+      m.taken = true; this.inv.mushroom++;
+      this.text("+1", m.x, m.y - 12, "#ffb04a"); audio.play("pickup", 0); this.emit("inv");
+    }
+    for (const o of this.oils) {
+      if (o.taken || Math.abs(o.x - cx) > 9 || Math.abs(o.y - 4 - cy) > 12 || this.light > 95) continue;
+      o.taken = true; this.light = Math.min(100, this.light + SURVIVE.oil);
+      this.text("+LIGHT", o.x, o.y - 12, "#ffe06a", "big"); audio.play("heal");
+    }
+    // pools: stand in one and your flask fills, sip by sip
+    const ptx = Math.floor(cx / T), pty = Math.floor((p.y + PH - 1) / T);
+    for (const [k, q] of this.pools) {
+      q.regen += dt;
+      if (q.regen >= SURVIVE.poolRegen && q.units < SURVIVE.poolUnits) { q.regen = 0; q.units++; }
+    }
+    const pool = this.decoAt(ptx, pty) === POOL ? this.pools.get(pty * MW + ptx) : null;
+    if (pool) {
+      this.hint("hintPool");
+      pool.sip += dt;
+      if (pool.sip >= SURVIVE.poolFill && pool.units > 0 && this.inv.water < this.carry) {
+        pool.sip = 0; pool.units--; this.inv.water++;
+        this.text("+1", cx, p.y - 6, "#6ac8ff"); audio.play("drink"); this.emit("inv");
+      }
+    }
+    // roots: brush past one and pull it down
+    for (const ty of [pty - 2, pty - 1, pty]) {
+      if (this.decoAt(ptx, ty) !== ROOT) continue;
+      if (ty === pty - 2 && p.ground) continue; // the high ones need a jump
+      if (this.inv.wood >= this.carry + 4) continue;
+      this.deco[ty * MW + ptx] = NONE;
+      this.inv.wood++;
+      this.chips(ptx, ty, WOOD, 5);
+      this.text("+WOOD", ptx * T + 8, ty * T, "#c89a60"); audio.play("break"); this.emit("inv");
+      this.hint("hintRoot");
+    }
+    for (const l of this.lights) l.fx.update(dt);
+  }
+  /** In the dark, things come looking for you. Torchlight keeps them off. */
+  spawnHunters(dt) {
+    const H_ = SURVIVE.hunters, p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
+    if (this.lit(cx, cy)) return;
+    const k = this.hard(p.y);
+    this.spawnT -= dt * k * (this.light <= 0 ? 2.2 : 1);
+    if (this.spawnT > 0) return;
+    this.spawnT = this.light <= 0 ? H_.dark : H_.lit + this.rng.range(-3, 3);
+    if (this.depth < 12) return;
+    const near = this.enemies.filter((e) => e.alive && Math.abs(e.x - cx) < W && Math.abs(e.y - cy) < H).length;
+    if (near >= H_.cap) return;
+    // somewhere open just off screen
+    for (let tries = 0; tries < 20; tries++) {
+      const ang = this.rng.range(0, Math.PI * 2), d = this.rng.range(170, 230);
+      const x = cx + Math.cos(ang) * d, y = cy + Math.sin(ang) * d * 0.7;
+      const tx = Math.floor(x / T), ty = Math.floor(y / T);
+      if (ty < 1 || this.solid(tx, ty) || this.lit(x, y, 20)) continue;
+      const mine = zoneAt(ty).id === "mine";
+      const kind = mine && this.rng.next() < 0.4 ? "skull" : "bat";
+      this.enemies.push({ kind, x, y, state: kind === "bat" ? "fly" : "hang", vx: 0, vy: 0, alive: true, hp: 1, t: 0, cd: 1, seed: this.rng.int(1, 999), hunter: true });
+      return;
     }
   }
 
@@ -371,7 +512,7 @@ export class Run {
       if (!this.warnedHard.has(i)) { this.warnedHard.add(i); this.emit("toast", { key: "gateShut" }); audio.play("clang"); }
       return;
     }
-    if ((m === STONE || m === GEM) && this.st.pick < STONE_PICK) {
+    if ((m === STONE || m === GEM) && this.st.pick < STONE_PICK && false) {
       if (!this.warnedHard.has(i)) {
         this.warnedHard.add(i);
         this.emit("toast", { key: "tooHard" });
@@ -391,7 +532,9 @@ export class Run {
     this.tile[i] = AIR;
     this.chips(tx, ty, m, 10);
     audio.play("break");
-    // ore pays out in coins that pop loose
+    // what the rock gives back
+    if (m === STONE || m === GEM || m === BRICK) { this.inv.stone++; this.text("+STONE", tx * T + 8, ty * T, "#b8b8c8"); this.emit("inv"); }
+    if (m === WOOD) { this.inv.wood++; this.text("+WOOD", tx * T + 8, ty * T, "#c89a60"); this.emit("inv"); }
     if (m === GOLD) this.tally.gold++;
     if (m === GOLD || m === GEM) {
       this.text(`+${(m === GEM ? 6 : 4) * zoneAt(ty).coinValue * (m === GEM ? 2 : 1)}`, tx * T + 8, ty * T, "#ffd23a");
@@ -405,7 +548,7 @@ export class Run {
 
   throwRope() {
     const p = this.p;
-    if (this.ropes <= 0) return this.emit("toast", { key: "noRope" });
+    if (this.inv.wood < SURVIVE.rope.wood) return this.emit("toast", { key: "needs", what: "wood" });
     const tx = Math.floor((p.x + PW / 2) / T), ty = Math.floor((p.y + PH - 1) / T);
     // find the ceiling above, then hang the rope from it down to the floor
     let top = ty;
@@ -413,7 +556,8 @@ export class Run {
     let bot = ty;
     while (bot < MH - 1 && !this.solid(tx, bot + 1) && bot - top < ROPE_LEN + 4) bot++;
     if (top === ty && bot === ty) return;
-    this.ropes--;
+    this.inv.wood -= SURVIVE.rope.wood;
+    this.emit("inv");
     for (let y = top; y <= bot; y++) if (this.deco[y * MW + tx] === NONE) this.deco[y * MW + tx] = ROPE;
     audio.play("rope");
     this.emit("rope");
@@ -428,7 +572,7 @@ export class Run {
       if (Math.abs(dx) > 260 || Math.abs(dy) > 160) continue;
       if (this.seen[it.id] == null && Math.abs(dx) < 150 && Math.abs(dy) < 110) this.seen[it.id] = it.ty;
       if (Math.abs(dx) > 11 || Math.abs(dy) > 13) continue;
-      const room = this.bag.length < this.st.bag, slot = room ? -1 : this.swapSlot(it);
+      const room = true, slot = -1; // relics don't take up room: they're your score
       if (!room && slot < 0) {
         if (!it.warned) { it.warned = true; this.text("FULL", it.x, it.y - 10, "#ff8a6a"); }
         continue;
@@ -493,8 +637,7 @@ export class Run {
       audio.play("newItem");
     } else audio.play("pickup", RARITY[r].order);
     this.emit("pickup", { id: it.id, isNew: !known });
-    if (this.bag.length >= this.st.bag && slot < 0) this.emit("toast", { key: "bagFull" });
-    if (this.first && this.bag.length === 3 && !this.saidBelow) { this.saidBelow = true; this.emit("toast", { key: "moreBelow" }); }
+
   }
 
   updateEnemies(dt) {
@@ -512,7 +655,10 @@ export class Run {
         }
         const d = Math.hypot(dx, dy) || 1, sp = 50 * k;
         const wob = Math.sin(this.t * 5 + en.seed) * 30;
-        const vx = (dx / d) * sp - (dy / d) * wob * 0.3, vy = (dy / d) * sp + (dx / d) * wob * 0.3 + Math.sin(this.t * 7 + en.seed) * 20;
+        let vx = (dx / d) * sp - (dy / d) * wob * 0.3, vy = (dy / d) * sp + (dx / d) * wob * 0.3 + Math.sin(this.t * 7 + en.seed) * 20;
+        // light drives them back
+        const L = this.lit(en.x + vx * dt * 6, en.y + vy * dt * 6);
+        if (L) { const a = Math.atan2(en.y - L.y + 6, en.x - L.x); vx = Math.cos(a) * sp * 1.2; vy = Math.sin(a) * sp * 1.2; }
         this.flyMove(en, vx * dt, vy * dt);
         this.touch(en, 6, 4);
       } else if (en.kind === "skull") {
@@ -524,7 +670,8 @@ export class Run {
           en.cd -= dt;
           if (en.cd <= 0) {
             const d = Math.hypot(dx, dy) || 1, sp = 190 * k;
-            en.vx = (dx / d) * sp; en.vy = (dy / d) * sp; en.state = "dash"; en.cd = 0.75;
+            if (this.lit(px, py)) { en.state = "rest"; en.cd = 1.5; }
+            else { en.vx = (dx / d) * sp; en.vy = (dy / d) * sp; en.state = "dash"; en.cd = 0.75; }
           }
         } else if (en.state === "dash") {
           en.cd -= dt;
@@ -551,7 +698,7 @@ export class Run {
           const ahead = en.x + Math.sign(en.vx) * 7;
           const wall = this.solid(Math.floor(ahead / T), Math.floor((en.y - 6) / T));
           const ledge = !this.solid(Math.floor(ahead / T), Math.floor((en.y + 2) / T));
-          if (wall || ledge) en.vx = -en.vx;
+          if (wall || ledge || this.lit(ahead, en.y - 6)) en.vx = -en.vx;
           else en.x += en.vx * k * dt;
         }
         this.touch(en, 6, 8, -4);
@@ -611,9 +758,27 @@ export class Run {
       this.tally.chests++;
       this.freeze = 0.08;
       this.shake = 0.2;
+      if (c.crate) {
+        // a supply crate: wood, often food or water, sometimes oil
+        const got = [];
+        const add = (k, n) => { const room = (k === "wood" || k === "stone" ? this.carry + 4 : this.carry) - this.inv[k]; const g = Math.max(0, Math.min(n, room)); this.inv[k] += g; if (g) got.push(`+${g} ${k.toUpperCase()}`); };
+        add("wood", this.rng.int(2, 3));
+        if (this.rng.next() < 0.6) add("mushroom", 1);
+        if (this.rng.next() < 0.5) add("water", 1);
+        if (this.rng.next() < 0.35) add("stone", 2);
+        if (this.rng.next() < 0.3) { this.light = Math.min(100, this.light + SURVIVE.oil); got.push("+LIGHT"); }
+        got.forEach((g, i) => this.text(g, c.x, c.y - 14 - i * 8, "#ffe0a0"));
+        this.chips(c.tx, c.ty, WOOD, 10);
+        audio.play("break");
+        this.emit("inv");
+        continue;
+      }
       for (let k = 0; k < c.coins; k++) this.popCoins.push({ x: c.x, y: c.y - 8, vx: this.rng.range(-110, 110), vy: this.rng.range(-260, -120), v: 1, t: 0 });
       this.fxs.push({ fx: createFx(burstFx, { palette: BURST.legendary, seed: 5, light: 1 }), x: c.x, y: c.y + 18 });
       this.items.push({ id: c.item, variant: c.variant, tx: c.tx, ty: c.ty, x: c.x, y: c.y - 22, pop: 0.35 });
+      this.inv.mushroom = Math.min(this.carry, this.inv.mushroom + 1);
+      this.inv.water = Math.min(this.carry, this.inv.water + 1);
+      this.emit("inv");
       this.emit("toast", { key: "chestOpen" });
       audio.play("chest");
     }
@@ -795,7 +960,7 @@ export class Run {
     if (this.state !== "play") return;
     if (this.invuln > 0 && src !== "dark") return;
     const p = this.p;
-    this.hp = Math.max(this.first ? 1 : 0, this.hp - n); // the first expedition can hurt but never ends you
+    this.hp = Math.max(0, this.hp - n);
     this.invuln = 1.2;
     this.shake = 0.3;
     if (src !== "dark") {
@@ -820,11 +985,11 @@ export class Run {
     this.hp = Math.min(2, this.st.hearts);
     this.invuln = 2.5;
     this.revived = true;
-    if (this.lantern < 20) { this.lantern = 20; this.lanternOutSent = false; this.darkT = 0; }
+    this.food = Math.max(this.food, 40); this.water = Math.max(this.water, 40); this.light = Math.max(this.light, 40);
     this.state = "play";
   }
   relight(seconds) {
-    this.lantern = seconds;
+    this.light = 100;
     this.relit = true;
     this.lanternOutSent = false;
     this.darkT = 0;
@@ -860,6 +1025,9 @@ export class Run {
     const onScreen = (x, y, pad = 24) => x > camX - pad && x < camX + W + pad && y > camY - pad && y < camY + H + pad;
     drawCave(frame, this.cave, camX, camY, this.dig);
     fillAmbient(lm, camY);
+    // as your light fades, so does the cave (but never the sky)
+    const fade = 0.35 + 0.65 * Math.max(0, Math.min(1, this.light / 60));
+    if (fade < 1) for (let sy = Math.max(0, -camY); sy < H; sy++) for (let i = sy * W, e = i + W; i < e; i++) lm[i] *= fade;
     let P = painterFor(frame);
 
     // overlays on tiles: ladders, ropes, spikes, winches, torches
@@ -918,9 +1086,35 @@ export class Run {
     for (const c of this.coinList) if (!c.taken) coin(c);
     for (const c of this.popCoins) coin(c);
 
+    // placed torches and campfires, and their light
+    for (const l of this.lights) {
+      if (!onScreen(l.x, l.y, 120)) continue;
+      l.fx.options.x = sx(l.x);
+      l.fx.options.y = sy(l.y) + (l.kind === "torch" ? -2 : 0);
+      l.fx.draw(frame);
+      addLight(lm, sx(l.x), sy(l.y) - 14, l.r, l.kind === "campfire" ? 0.85 : 0.7);
+    }
+    P = painterFor(frame);
+    // mushrooms, oil flasks, water pools, roots
+    for (const m of this.mushrooms) if (!m.taken && onScreen(m.x, m.y)) P.sprite(MUSHROOM, MUSHROOM_PAL, sx(m.x) - 4, sy(m.y) - 7);
+    for (const o of this.oils) if (!o.taken && onScreen(o.x, o.y)) {
+      P.sprite(OIL, OIL_PAL, sx(o.x) - 3, sy(o.y) - 9);
+      P.glow(sx(o.x), sy(o.y) - 5, 9, 0xff3ac8ff, 0.4 + Math.sin(t * 4 + o.x) * 0.1);
+    }
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      const d = this.deco[ty * MW + tx];
+      if (d === POOL) {
+        const q = this.pools.get(ty * MW + tx), level = q ? q.units / SURVIVE.poolUnits : 0, h = 2 + Math.round(level * 5), ox = tx * T - camX, oy = (ty + 1) * T - camY;
+        P.rect(ox, oy - h, T, h, 0xffc06a2a);
+        P.rect(ox, oy - h, T, 1, 0xfff0c890);
+        for (let i = 0; i < 3; i++) P.dot(ox + ((t * 6 + i * 5 + tx * 3) % 16 | 0), oy - h, 0xffffffff, 0.8);
+        P.glow(ox + 8, oy - h, 10, 0xffff8a3a, 0.25);
+      } else if (d === ROOT) P.sprite(ROOT_SPR, ROOT_PAL, tx * T - camX + 5, ty * T - camY);
+    }
     // chests
     for (const c of this.chests) {
       if (!onScreen(c.x, c.y)) continue;
+      if (c.crate) { if (!c.open) P.sprite(CRATE, CRATE_PAL, sx(c.x) - 6, sy(c.y) - 11); continue; }
       const fr = CHEST[c.open ? 1 : 0];
       P.sprite(fr, CHEST_PAL, sx(c.x) - 7, sy(c.y) - fr.length);
       if (!c.open) {
@@ -1034,8 +1228,8 @@ export class Run {
       P.sprite(fr, EXPLORER_PAL, px - 1, py, { flip });
     }
     if (this.state === "winch") P.line(px + 5, py, px + 5, -2, 0xff6aa0d0);
-    const lr = this.first ? 1 : Math.max(0, Math.min(1, this.lantern / this.st.lantern));
-    const dark = !this.first && this.lantern <= 0;
+    const lr = Math.max(0, Math.min(1, this.light / 100));
+    const dark = this.light <= 0;
     const lampX = px + 5 + p.face * 4, lampY = py + 2;
     const flick = 1 + Math.sin(t * 13) * 0.02 + (lr < 0.2 ? Math.sin(t * 31) * 0.08 : 0);
     addLight(lm, lampX, lampY + 6, dark ? 30 : (50 + 80 * lr) * flick, dark ? 0.5 : 0.95);

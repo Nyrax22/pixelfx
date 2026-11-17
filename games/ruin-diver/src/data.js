@@ -18,18 +18,20 @@ export const ZONES = [
     id: "village", from: 0, to: 100, coinValue: 2, valueK: 1, hearts: 3,
     weights: { common: 60, uncommon: 30, rare: 10 },
     stone: 0.22, gold: 0.05, gem: 0, rooms: 5, roomTile: "brick",
-    items: 26, bats: 7, slimes: 6, spikes: 0.02, enemyFrom: 14, stalactites: 0.008, skulls: 0, redSlimes: 0,
+    items: 14, bats: 7, slimes: 6, spikes: 0.02, enemyFrom: 14, stalactites: 0.008, skulls: 0, redSlimes: 0,
+    mushrooms: 24, pools: 8, oils: 7, roots: 30, crates: 7,
   },
   {
     id: "mine", from: 100, to: 300, coinValue: 3, valueK: 1.6, hearts: 7,
     weights: { common: 45, uncommon: 32, rare: 17, epic: 6 },
     stone: 0.5, gold: 0.06, gem: 0.03, rooms: 4, roomTile: "wood",
-    items: 22, bats: 13, slimes: 11, spikes: 0.05, enemyFrom: 100, stalactites: 0.03, skulls: 5, redSlimes: 0.45,
+    items: 14, bats: 13, slimes: 11, spikes: 0.05, enemyFrom: 100, stalactites: 0.03, skulls: 5, redSlimes: 0.45,
+    mushrooms: 14, pools: 6, oils: 7, roots: 10, crates: 6,
   },
   { id: "library", from: 300, to: 600, sealed: 0.3, coming: true },
 ];
 export const SEAL_DEPTH = 300;
-export const WINCH_DEPTHS = [38, 72, 118, 165, 220, 262]; // escape winches: pull yourself out from here
+export const WINCH_DEPTHS = []; // (no winches: the way out is down)
 
 // Bosses guard the way down. Their arena spans the cave; the gate in its floor opens when they fall.
 // Each time you beat one it comes back a little tougher (up to +3 health).
@@ -39,7 +41,7 @@ export const BOSSES = [
 ];
 // How much harder things get with depth: enemy speed and numbers scale by 1 + depth / DEPTH_SCALE.
 export const DEPTH_SCALE = 220;
-// Shortcuts: once a boss is beaten you may start in its hall, by an exit winch, with the gate already open.
+// Shortcuts: once a boss is beaten you may start in its hall, by a campfire, with the gate already open.
 export const STARTS = [
   { id: "top", depth: 0 },
   { id: "mine", depth: 98, boss: "slime_king" },
@@ -87,7 +89,7 @@ export const ITEM = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
 
 // Sets: collect every item for a permanent bonus.
 export const SETS = [
-  { id: "village_memory", items: ["rag_doll", "rusty_key", "teacup"], bonus: { ropes: 1 } },
+  { id: "village_memory", items: ["rag_doll", "rusty_key", "teacup"], bonus: { lantern: 10 } },
   { id: "bell_tower", items: ["brass_bell", "candlestick", "clock_gear"], bonus: { lantern: 15 } },
   { id: "miners_day", items: ["glove", "broken_pick", "miner_lamp", "journal"], bonus: { hearts: 1 } },
   { id: "miners_treasure", items: ["gold_nugget", "amethyst", "ruby"], bonus: { coins: 0.15 } },
@@ -100,14 +102,30 @@ export const VARIANT_CHANCE = 0.015;
 
 // Upgrades: `levels` is the stat at each level (index 0 = start), cost = base * growth^level.
 export const UPGRADES = [
-  { id: "lantern", levels: [50, 70, 90, 115, 140, 170, 200, 240, 280, 320, 360], unit: "s", base: 15, growth: 1.5 },
-  { id: "bag", levels: [3, 4, 5, 6, 7, 8, 9, 10, 12, 14], unit: "", base: 20, growth: 1.55 },
-  { id: "hearts", levels: [3, 4, 5, 6, 7, 8, 9], unit: "", base: 35, growth: 1.9 },
-  { id: "pick", levels: [1, 1.4, 1.8, 2.3, 3, 4], unit: "x", base: 40, growth: 2.0 },
-  { id: "ropes", levels: [2, 3, 4, 5, 6, 7, 8, 10], unit: "", base: 15, growth: 1.6 },
+  { id: "lantern", levels: [90, 110, 130, 155, 180, 210, 240, 280], unit: "s", base: 20, growth: 1.55 },
+  { id: "bag", levels: [3, 4, 5, 6, 7, 8, 10], unit: "", base: 20, growth: 1.6 },
+  { id: "hearts", levels: [3, 4, 5, 6, 7, 8], unit: "", base: 35, growth: 1.9 },
+  { id: "pick", levels: [1, 1.4, 1.8, 2.3, 3], unit: "x", base: 30, growth: 1.9 },
+  { id: "stomach", levels: [1, 1.15, 1.3, 1.5, 1.75, 2], unit: "x", base: 25, growth: 1.8 },
 ];
 export const UPGRADE = Object.fromEntries(UPGRADES.map((u) => [u.id, u]));
 export const upgradeCost = (u, level) => Math.round(u.base * Math.pow(u.growth, level));
+
+// Survival: three meters that run down, and what refills them.
+export const SURVIVE = {
+  food: 150, water: 110,         // seconds from full to empty (times the stomach upgrade)
+  starveEvery: 5,                // seconds per heart lost while hunger or thirst is empty
+  mushroom: 35, cooked: 60,      // hunger a mushroom fills, raw / eaten by a campfire
+  drink: 40,                     // thirst one water fills
+  oil: 45,                       // light an oil flask fills (percent)
+  poolUnits: 3, poolFill: 0.45, poolRegen: 25, // water in a pool, seconds per sip, seconds to refill one
+  torch: { wood: 2, radius: 70 },
+  campfire: { wood: 3, stone: 3, radius: 96, heal: 6 },
+  rope: { wood: 2 },
+  hunters: { dark: 8, lit: 16, cap: 7 }, // seconds between creatures that come looking for you
+  exitDepth: 296,
+};
+export const START_KIT = { mushroom: 1, water: 1, wood: 2, stone: 0 };
 
 // Movement and danger.
 export const PHYS = {
@@ -115,7 +133,7 @@ export const PHYS = {
   coyote: 0.1, jumpBuffer: 0.12, fallHurt: 7, fallHurt2: 12, // tiles fallen before landing hurts (1, then 2 hearts)
 };
 export const DIG = { dirt: 0.32, gold: 0.45, brick: 0.7, wood: 0.4, stone: 0.75, gem: 0.9 };
-export const STONE_PICK = 1.8;         // pick power needed for stone and gems
+export const STONE_PICK = 0;           // (stone can always be dug; a better pick just digs faster)
 export const DARK_DRAIN = 6;           // seconds per heart lost once the lantern is out
 export const ROPE_LEN = 8;             // tiles a thrown rope reaches
 export const LANTERN_AD_SECONDS = 30;
@@ -162,6 +180,30 @@ export const MISSION_BEST = new Set(["depth", "combo"]); // a best within one ex
 // ---------------------------------------------------------------- text
 export const STR = {
   ko: {
+    goal: "목표: {d}m 아래 출구까지 살아남기",
+    toExit: "출구까지 {d}m",
+    rules1: "배고픔·목마름·빛이 계속 줄어요",
+    rules2: "버섯·물·기름을 찾아 채우고, 나무·돌로 횃불과 모닥불을 만들어요",
+    rules3: "300m 아래 출구까지 살아서 내려가면 탈출!",
+    food: "배고픔", waterM: "목마름", light: "빛",
+    inv: { mushroom: "버섯", water: "물", wood: "나무", stone: "돌" },
+    act: { eat: "먹기", drink: "마시기", torch: "횃불", campfire: "모닥불", rope: "로프" },
+    needs: "{what} 부족",
+    hintEat: "배고파요! 1번(버섯 먹기)을 누르세요",
+    hintDrink: "목말라요! 2번(물 마시기)을 누르세요. 물웅덩이에 서 있으면 물을 떠요",
+    hintLight: "빛이 꺼져가요! 기름병을 찾거나 3번으로 횃불을 세워요",
+    hintDark: "어둠 속에선 괴물이 몰려와요! 횃불 근처는 안전해요",
+    hintStarve: "굶주리고 있어요! 체력이 줄어요",
+    hintPool: "물웅덩이! 서 있으면 물을 떠요",
+    hintRoot: "뿌리를 건드리면 나무를 얻어요",
+    hintCamp: "모닥불 옆에서는 체력이 차고, 버섯을 구워 먹을 수 있어요",
+    placed: { torch: "횃불을 세웠어요", campfire: "모닥불을 피웠어요" },
+    cooked: "구운 버섯!",
+    full: "가득 찼어요",
+    won: "탈출 성공!",
+    survived: "생존 시간",
+    reachedExit: "출구에 도착했어요!",
+    relicsFound: "찾은 유물",
     missions: "미션",
     missionDone: "미션 완료!",
     missionReward: "미션 보상",
@@ -195,8 +237,8 @@ export const STR = {
     atExit: "출구 바로 여기!",
     jump: "점프",
     ropeBtn: "로프",
-    ctrlKeys: "←→ 이동 · Space 점프 · ↑↓ 사다리 · X 로프 · 벽으로 밀어서 파기",
-    ctrlTouch: "왼쪽 드래그 이동 · 아래로 끌면 파기 · 오른쪽 버튼 점프",
+    ctrlKeys: "←→ 이동 · Space 점프 · ↑↓ 사다리 · 벽으로 밀어 파기 · 1 먹기 · 2 마시기 · 3 횃불 · 4 모닥불 · X 로프",
+    ctrlTouch: "왼쪽 드래그 이동 · 아래로 끌면 파기 · 오른쪽 점프 · 아래 버튼으로 먹고 마시고 만들기",
     keptCoins: "코인 절반만 챙겼어요",
     tapToDive: "탭해서 탐험 시작",
     dragHint: "드래그해서 움직이기",
@@ -259,8 +301,8 @@ export const STR = {
     reset: "기록 초기화",
     resetConfirm: "한 번 더 누르면 모든 기록이 지워져요",
     noSave: "이 브라우저에서는 저장이 안 돼요. 창을 닫으면 기록이 사라져요.",
-    upgradeNames: { lantern: "랜턴", bag: "가방", hearts: "체력", pick: "곡괭이", ropes: "로프" },
-    upgradeDesc: { lantern: "조명 시간", bag: "담을 수 있는 수", hearts: "하트", pick: "파는 힘", ropes: "가져가는 로프" },
+    upgradeNames: { lantern: "랜턴", bag: "배낭", hearts: "체력", pick: "곡괭이", stomach: "튼튼한 위장" },
+    upgradeDesc: { lantern: "빛 지속", bag: "자원마다 들 수 있는 수", hearts: "하트", pick: "파는 속도", stomach: "배고픔·목마름 천천히" },
     zones: { village: "무너진 마을", mine: "지하 광산", library: "가라앉은 도서관" },
     rarity: { common: "일반", uncommon: "고급", rare: "희귀", epic: "영웅", legendary: "전설" },
     setNames: { village_memory: "마을의 기억", bell_tower: "종탑의 소리", miners_day: "광부의 하루", miners_treasure: "광부의 보물" },
@@ -301,6 +343,30 @@ export const STR = {
     },
   },
   en: {
+    goal: "Goal: survive down to the exit at {d}m",
+    toExit: "Exit in {d}m",
+    rules1: "Hunger, thirst and light keep running down",
+    rules2: "Find mushrooms, water and oil; build torches and campfires from wood and stone",
+    rules3: "Get down to the exit 300m below alive to escape!",
+    food: "Hunger", waterM: "Thirst", light: "Light",
+    inv: { mushroom: "Mushroom", water: "Water", wood: "Wood", stone: "Stone" },
+    act: { eat: "Eat", drink: "Drink", torch: "Torch", campfire: "Campfire", rope: "Rope" },
+    needs: "Need {what}",
+    hintEat: "Hungry! Press 1 to eat a mushroom",
+    hintDrink: "Thirsty! Press 2 to drink. Stand in a pool to fill up",
+    hintLight: "Your light is fading! Find oil, or press 3 for a torch",
+    hintDark: "Creatures swarm in the dark! Torchlight keeps them off",
+    hintStarve: "You're starving! Losing health",
+    hintPool: "A pool! Stand in it to collect water",
+    hintRoot: "Touch roots to collect wood",
+    hintCamp: "By a campfire you heal, and mushrooms cook",
+    placed: { torch: "Torch placed", campfire: "Campfire lit" },
+    cooked: "Cooked mushroom!",
+    full: "Full",
+    won: "Escaped!",
+    survived: "Survived",
+    reachedExit: "You reached the exit!",
+    relicsFound: "Relics found",
     missions: "Missions",
     missionDone: "Mission complete!",
     missionReward: "Mission rewards",
@@ -334,8 +400,8 @@ export const STR = {
     atExit: "Exit right here!",
     jump: "Jump",
     ropeBtn: "Rope",
-    ctrlKeys: "←→ move · Space jump · ↑↓ ladders · X rope · push into walls to dig",
-    ctrlTouch: "Drag left side to move · drag down to dig · right button jumps",
+    ctrlKeys: "←→ move · Space jump · ↑↓ ladders · push into walls to dig · 1 eat · 2 drink · 3 torch · 4 campfire · X rope",
+    ctrlTouch: "Drag left side to move · drag down to dig · right button jumps · bottom buttons eat, drink and build",
     keptCoins: "Kept half your coins",
     tapToDive: "Tap to explore",
     dragHint: "Drag to move",
@@ -398,8 +464,8 @@ export const STR = {
     reset: "Reset progress",
     resetConfirm: "Tap again to erase everything",
     noSave: "Saving is blocked in this browser. Progress is lost when you close it.",
-    upgradeNames: { lantern: "Lantern", bag: "Bag", hearts: "Health", pick: "Pickaxe", ropes: "Ropes" },
-    upgradeDesc: { lantern: "Light time", bag: "Slots", hearts: "Hearts", pick: "Dig power", ropes: "Ropes carried" },
+    upgradeNames: { lantern: "Lantern", bag: "Pack", hearts: "Health", pick: "Pickaxe", stomach: "Iron stomach" },
+    upgradeDesc: { lantern: "Light lasts", bag: "Carry per resource", hearts: "Hearts", pick: "Dig speed", stomach: "Hunger and thirst slower" },
     zones: { village: "Fallen Village", mine: "Deep Mine", library: "Sunken Library" },
     rarity: { common: "Common", uncommon: "Uncommon", rare: "Rare", epic: "Epic", legendary: "Legendary" },
     setNames: { village_memory: "Village Memories", bell_tower: "Bell Tower", miners_day: "A Miner's Day", miners_treasure: "Miner's Treasure" },

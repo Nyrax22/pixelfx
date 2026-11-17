@@ -2,7 +2,7 @@
 
 import { createFrame, clearFrame, createFx, painterFor } from "../../../src/core/index.js";
 import * as confettiFx from "../../../src/fx/ui/confetti.js";
-import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS } from "./data.js";
+import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS, SURVIVE } from "./data.js";
 import { loadSave, writeSave, wipeSave, storageOk, stats, applyRun, applyMissions, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
 import { Run } from "./world.js";
 import { compositeLit, setBackdrop } from "./bg.js";
@@ -38,6 +38,7 @@ const itemDesc = (id) => STR[lang].items[id][1];
 function applyStrings() {
   document.documentElement.lang = lang;
   for (const el of document.querySelectorAll("[data-s]")) el.textContent = S(el.dataset.s);
+  for (const el of document.querySelectorAll("[data-s-act]")) el.textContent = STR[lang].act[el.dataset.sAct];
   $("soundBtn").textContent = audio.muted ? "SOUND OFF" : "SOUND ON";
   for (const el of document.querySelectorAll("i[data-icon]")) el.outerHTML = icon(el.dataset.icon);
   $("langBtn").textContent = lang === "ko" ? "English" : "한국어";
@@ -107,6 +108,9 @@ const hold = (id, on, off) => {
 };
 hold("jumpBtn", () => { jumpEdge = true; touch.jump = true; }, () => (touch.jump = false));
 hold("ropeBtn", () => (ropeEdge = true), () => {});
+// the survival bar: eat, drink, torch, campfire (keys 1-4), tappable too
+const actEdge = { eat: false, drink: false, torch: false, campfire: false };
+for (const b of document.querySelectorAll("#craftBar button")) hold(b.id, () => { if (b.dataset.act === "rope") ropeEdge = true; else actEdge[b.dataset.act] = true; }, () => {});
 
 window.addEventListener("keydown", (e) => {
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
@@ -120,7 +124,13 @@ window.addEventListener("keydown", (e) => {
   }
   if (mode === "results" && k === "enter" && !e.repeat) return dive();
   if (!e.repeat && (k === " " || k === "z" || k === "k")) jumpEdge = true;
-  if (!e.repeat && (k === "x" || k === "c" || k === "r")) ropeEdge = true;
+  if (!e.repeat && (k === "x" || k === "c" || k === "r" || k === "5")) ropeEdge = true;
+  if (!e.repeat && mode === "run") {
+    if (k === "1" || k === "e") actEdge.eat = true;
+    if (k === "2" || k === "q") actEdge.drink = true;
+    if (k === "3" || k === "t") actEdge.torch = true;
+    if (k === "4" || k === "f") actEdge.campfire = true;
+  }
   keys.add(k);
 });
 window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
@@ -133,15 +143,16 @@ function readInput() {
   const dir = (kd("arrowright", "d") ? 1 : 0) - (kd("arrowleft", "a") ? 1 : 0) || touch.dir;
   // on the keyboard, up also jumps when there's no ladder to climb
   const upJump = kd("arrowup", "w") && !run.climbable(run.p.x + 5, run.p.y + 7) && !run.climbable(run.p.x + 5, run.p.y + 2) && !run.atWinch;
-  const inp = { dir, up, down, jump: kd(" ", "z", "k") || touch.jump || upJump, jumpPressed: jumpEdge || (upJump && !readInput.upWas), ropePressed: ropeEdge };
+  const inp = { dir, up, down, jump: kd(" ", "z", "k") || touch.jump || upJump, jumpPressed: jumpEdge || (upJump && !readInput.upWas), ropePressed: ropeEdge, ...actEdge };
   readInput.upWas = upJump;
   jumpEdge = ropeEdge = false;
+  for (const k in actEdge) actEdge[k] = false;
   return inp;
 }
 
 // ------------------------------------------------------------ toasts and banners
 let toastTimer = 0;
-function toast(text, color = "#fff") {
+function toast(text, color = "#fff", ms = 1900) {
   const t = $("toast");
   t.textContent = text;
   t.style.color = color;
@@ -149,7 +160,8 @@ function toast(text, color = "#fff") {
   void t.offsetWidth;
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 1900);
+  t.style.animationDuration = ms / 1000 + 0.2 + "s";
+  toastTimer = setTimeout(() => t.classList.remove("show"), ms);
 }
 function banner(title, sub) {
   const b = $("banner");
@@ -164,14 +176,9 @@ const show = (id, on = true) => $(id).classList.toggle("hidden", !on);
 // ------------------------------------------------------------ HUD
 let hudBag = -1, gaugeMax = 60, lastHud = {};
 function buildHud() {
-  const st = run.st;
-  const slots = $("bagSlots");
-  slots.innerHTML = "";
-  for (let i = 0; i < st.bag; i++) slots.appendChild(Object.assign(document.createElement("div"), { className: "slot" }));
-  hudBag = -1;
   lastHud = {};
-  // the depth gauge reaches a bit past the record, with the zone line, the winches and the seal
-  gaugeMax = Math.min(SEAL_DEPTH, Math.max(60, Math.ceil((save.best + 40) / 20) * 20));
+  // the depth gauge: from the top to the exit at the bottom, with the zone line, the bosses and your record
+  gaugeMax = SEAL_DEPTH;
   const marks = $("gaugeMarks");
   marks.innerHTML = "";
   const mark = (m, cls, label) => {
@@ -183,13 +190,18 @@ function buildHud() {
   };
   mark(0, "", "0m");
   for (const z of ZONES) if (z.from > 0 && z.from < gaugeMax) mark(z.from, "zone", `${z.from}m`);
-  for (const w of run.cave.winches) if (w.y < gaugeMax) mark(w.y, "exit", `${icon("exit")}${w.y}m`);
   if (save.best > 4 && save.best < gaugeMax - 4) mark(save.best, "best", `★${save.best}m`);
-  if (gaugeMax >= SEAL_DEPTH) mark(SEAL_DEPTH, "seal", `${icon("lock")}${SEAL_DEPTH}m`);
-  else mark(gaugeMax, "", `${gaugeMax}m`);
+  mark(SEAL_DEPTH, "exit", `${icon("exit")}${SEAL_DEPTH}m`);
   show("touchPad", isTouch);
+  $("goalLine").textContent = S("goal", { d: SEAL_DEPTH });
   updateHud(true);
 }
+const meter = (id, v) => {
+  const el = $(id);
+  el.querySelector("i").style.width = v + "%";
+  el.classList.toggle("low", v < 25);
+  el.classList.toggle("empty", v <= 0);
+};
 function updateHud(force = false) {
   const st = run.st, d = run.depth;
   if (force || lastHud.d !== d) {
@@ -197,8 +209,7 @@ function updateHud(force = false) {
     const k = Math.min(1, d / gaugeMax);
     $("gaugeFill").style.height = k * 100 + "%";
     $("gaugeMe").style.top = k * 100 + "%";
-    const ex = run.nearestExit();
-    $("hExit").textContent = ex <= 1 ? S("atExit") : S("nearestExit", { d: ex });
+    $("hExit").textContent = S("toExit", { d: Math.max(0, SURVIVE.exitDepth - d) });
     $("hZone").textContent = STR[lang].zones[zoneAt(d).id];
     lastHud.d = d;
   }
@@ -209,21 +220,24 @@ function updateHud(force = false) {
     if (lastHud.hp != null && run.hp < lastHud.hp) { $("hearts").classList.remove("hit"); void $("hearts").offsetWidth; $("hearts").classList.add("hit"); }
     lastHud.hp = run.hp;
   }
-  if (force || lastHud.ropes !== run.ropes) { $("ropeTx").innerHTML = `${icon("ropes")} ×${run.ropes}`; $("ropeBtnN").textContent = run.ropes; lastHud.ropes = run.ropes; }
-  const lr = run.first ? 1 : Math.max(0, run.lantern / st.lantern);
-  $("lanternFill").style.width = lr * 100 + "%";
-  $("lanternTx").textContent = run.first ? "∞" : Math.ceil(run.lantern) + S("sec");
-  $("lanternBox").classList.toggle("low", lr < 0.2 && run.state === "play");
-  if (force || hudBag !== run.bagVer) {
-    const slots = $("bagSlots").children;
-    for (let i = 0; i < slots.length; i++) {
-      const b = run.bag[i], el = slots[i];
-      el.className = "slot" + (b ? ` filled r-${ITEM[b.id].rarity}` : "");
-      el.innerHTML = b ? `<img src="${itemIcon(ITEM[b.id], "color", b.variant)}" alt="">` : "";
-    }
-    $("bagTx").textContent = `${run.bag.length}/${st.bag}`;
-    hudBag = run.bagVer;
+  meter("mFood", run.food);
+  meter("mWater", run.water);
+  meter("mLight", run.light);
+  // the survival bar: counts, and whether each action can be done now
+  const inv = run.inv, key = JSON.stringify(inv);
+  if (force || lastHud.inv !== key) {
+    lastHud.inv = key;
+    $("cnt-eat").textContent = inv.mushroom;
+    $("cnt-drink").textContent = inv.water;
+    $("cnt-wood").textContent = inv.wood;
+    $("cnt-stone").textContent = inv.stone;
+    const can = { eat: inv.mushroom > 0, drink: inv.water > 0, torch: inv.wood >= SURVIVE.torch.wood, campfire: inv.wood >= SURVIVE.campfire.wood && inv.stone >= SURVIVE.campfire.stone, rope: inv.wood >= SURVIVE.rope.wood };
+    for (const [a, ok] of Object.entries(can)) $("act-" + a).classList.toggle("off", !ok);
   }
+  // nudge the action you need
+  $("act-eat").classList.toggle("want", run.food < 35 && inv.mushroom > 0);
+  $("act-drink").classList.toggle("want", run.water < 35 && inv.water > 0);
+  $("act-torch").classList.toggle("want", run.light < 25 && inv.wood >= SURVIVE.torch.wood);
 }
 $("pauseBtn").addEventListener("click", () => pause());
 
@@ -282,8 +296,16 @@ function handleEvents() {
   while (run.events.length) {
     const e = run.events.shift();
     switch (e.type) {
-      case "toast":
-        toast(S(e.key), e.key === "winchHint" || e.key === "exitHint" ? "#9affb0" : e.key === "tooHard" ? "#ffb04a" : "#fff");
+      case "toast": {
+        let text = S(e.key);
+        if (e.key === "needs") text = S("needs", { what: STR[lang].inv[e.what] ?? e.what });
+        if (e.key === "placed") text = STR[lang].placed[e.what];
+        toast(text, e.key === "needs" ? "#ff9a8a" : e.key === "reachedExit" ? "#9affb0" : "#fff");
+        break;
+      }
+      case "hint":
+        toast(S(e.key), "#ffe06a", 3200);
+        save.hintsShown = [...run.hintsShown];
         break;
       case "zone":
         banner(STR[lang].zones[e.zone], `${e.depth}m`);
@@ -296,12 +318,6 @@ function handleEvents() {
         void $("hCoinsBox").offsetWidth;
         $("hCoinsBox").classList.add("bump");
         break;
-      case "lanternOut":
-        if (!e.relit) promptBox(icon("lantern") + " " + S("lanternOut"), S("keepDark"), S("relight", { s: LANTERN_AD_SECONDS }),
-          () => { backToRun(); toast(S("darkness"), "#ff8a6a"); },
-          (ok) => { backToRun(); if (ok) run.relight(LANTERN_AD_SECONDS); else toast(S("darkness"), "#ff8a6a"); });
-        else toast(S("darkness"), "#ff8a6a");
-        break;
       case "dead":
         setTimeout(() => {
           if (run.revived) return finishDive(true);
@@ -309,9 +325,6 @@ function handleEvents() {
             () => finishDive(true),
             (ok) => { if (ok) { run.revive(); backToRun(); } else finishDive(true); });
         }, 900);
-        break;
-      case "mission":
-        toast(`${S("missionDone")} ${missionText(MISSIONS[e.i])}`, "#ffd23a");
         break;
       case "bossWake":
         banner(STR[lang].bosses[e.id], S("bossHint"));
@@ -347,14 +360,14 @@ function finishDive(died) {
   show("hint", false);
   show("stick", false);
   const before = new Set(ITEMS.filter((it) => (save.book[it.id]?.count ?? 0) > 0).map((it) => it.id));
-  const lost = died ? run.bag.slice() : [];
-  const coins = died ? Math.floor(run.coins * DEATH_COIN_KEEP) : run.coins;
-  result = applyRun(save, { bag: died ? [] : run.bag, dropped: lost, seen: run.seen, coins, depth: run.depthMax });
-  result.missions = applyMissions(save, run.tally, !died);
-  result.missionCoins = result.missions.reduce((a, m) => a + m.reward, 0);
-  result.total += result.missionCoins;
+  // you keep what you found either way: the run's score is how deep and how long you lasted
+  result = applyRun(save, { bag: run.bag, dropped: [], seen: run.seen, coins: run.coins, depth: run.depthMax });
+  result.missions = [];
   result.died = died;
-  result.lost = lost;
+  result.won = run.won;
+  result.lost = [];
+  result.time = run.alive ?? 0;
+  save.hintsShown = [...run.hintsShown];
   for (const it of result.items) if (!before.has(it.id)) freshInBook.add(it.id);
   setQueue.push(...result.newSets);
   writeSave(save);
@@ -372,7 +385,8 @@ function showResults() {
   const title = $("resTitle"), grid = $("lootGrid");
   grid.innerHTML = "";
   if (r) {
-    title.innerHTML = `<span class="${r.died ? "dead" : ""}">${r.died ? S("died") : S("escaped")}</span> <small>${S("reachedDepth")} ${r.depth}m</small>${r.record ? `<span id="resRecord">★ ${S("newRecord")}</span>` : ""}`;
+    const mm = Math.floor(r.time / 60), ss = String(Math.floor(r.time % 60)).padStart(2, "0");
+    title.innerHTML = `<span class="${r.died ? "dead" : ""}">${r.won ? S("won") : r.died ? S("died") : S("escaped")}</span> <small>${S("reachedDepth")} ${r.depth}m · ${S("survived")} ${mm}:${ss}</small>${r.record ? `<span id="resRecord">★ ${S("newRecord")}</span>` : ""}`;
     show("resEmpty", !r.items.length && !r.died);
     $("resEmpty").textContent = S("nothing");
     const shown = stack(r.items);
@@ -380,7 +394,7 @@ function showResults() {
     renderCoins(r);
     // what was in the bag when you fell: it stays down there
     const dr = $("droppedRow");
-    show("droppedRow", r.died);
+    show("droppedRow", false);
     dr.querySelector(".lbl").textContent = r.lost.length ? S("lostBag") : S("keptCoins");
     dr.querySelector(".ic").innerHTML = r.lost.map((d) => `<img src="${itemIcon(ITEM[d.id], "color", d.variant)}" alt="">`).join("");
     dr.querySelector(".sp").textContent = r.lost.length ? S("keptCoins") : "";
@@ -407,7 +421,7 @@ function showResults() {
   renderUpgrades();
   renderBookBtn();
   renderStarts();
-  renderMissions(r?.missions ?? []);
+  show("missionBox", false);
 }
 /** Duplicates on one card with a count. */
 function stack(items) {
