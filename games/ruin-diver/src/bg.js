@@ -2,6 +2,7 @@
 // surface, and the light that falls off with depth.
 
 import { W, H, T, MW, MH } from "./data.js";
+import { IMG } from "./pix.js";
 import { AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID } from "./cave.js";
 
 const rgb = (r, g, b) => (255 << 24) | ((Math.max(0, Math.min(255, b)) & 255) << 16) | ((Math.max(0, Math.min(255, g)) & 255) << 8) | (Math.max(0, Math.min(255, r)) & 255);
@@ -143,7 +144,7 @@ export function setBackdrop(z, w, h, rgba) {
   const px = new Uint32Array(rgba.buffer.slice(0)), out = new Uint32Array(w * h);
   for (let i = 0; i < px.length; i++) {
     const c = px[i];
-    out[i] = rgb((c & 255) * 0.62, ((c >>> 8) & 255) * 0.62, ((c >>> 16) & 255) * 0.66);
+    out[i] = rgb((c & 255) * 0.42, ((c >>> 8) & 255) * 0.42, ((c >>> 16) & 255) * 0.5);
   }
   BACKDROP[z] = { w, h, px: out };
 }
@@ -163,6 +164,22 @@ function blitBackdrop(C, bd, ox, oy, camX, camY) {
   }
 }
 
+// painted Wang tiles (PixelLab) for dirt and stone, drawn on a grid offset half a tile so each one's four corners
+// are the four real tiles around it; bricks, timber, gold and gems keep their own textures on top
+const WANG_MAT = new Set([1, 2, 3]); // DIRT, STONE, BEDROCK
+const STONY = new Set([2, 3, 5, 8]);  // STONE, BEDROCK, GEM, GATE
+function blitImg(C, img, ox, oy, flip) {
+  for (let y = 0; y < img.h; y++) {
+    const sy = oy + y;
+    if (sy < 0 || sy >= H) continue;
+    for (let x = 0; x < img.w; x++) {
+      const sx = ox + x;
+      if (sx < 0 || sx >= W) continue;
+      const c = img.px[y * img.w + (flip ? img.w - 1 - x : x)];
+      if (c >>> 24 > 100) C[sy * W + sx] = (c | 0xff000000) >>> 0;
+    }
+  }
+}
 export function drawCave(frame, cave, camX, camY, dig) {
   const C = frame.color, { tile } = cave;
   // sky above the surface
@@ -179,16 +196,42 @@ export function drawCave(frame, cave, camX, camY, dig) {
   const tx0 = Math.floor(camX / T), ty0 = Math.max(0, Math.floor(camY / T));
   const tx1 = Math.min(MW - 1, Math.floor((camX + W - 1) / T)), ty1 = Math.min(MH - 1, Math.floor((camY + H - 1) / T));
   const solidAt = (x, y) => (x < 0 || x >= MW || y >= MH ? true : y < 0 ? false : SOLID[tile[y * MW + x]]);
+  const wangOn = !!(IMG.t_dirt_w && IMG.t_stone_w);
   for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
     const m = tile[ty * MW + tx], v = (h2(tx, ty, 7) * VAR) | 0, z = zoneIdx(tx * T, ty * T);
     const ox = tx * T - camX, oy = ty * T - camY;
-    if (m === AIR) {
+    const painted = wangOn && WANG_MAT.has(m);
+    if (m === AIR || painted) {
       if (BACKDROP[z]) blitBackdrop(C, BACKDROP[z], ox, oy, camX, camY);
       else blit(C, BACK[z][v], ox, oy, 0, 0, 0, 0, 0, 0);
       continue;
     }
     const top = !solidAt(tx, ty - 1), bot = !solidAt(tx, ty + 1), lf = !solidAt(tx - 1, ty), rt = !solidAt(tx + 1, ty);
     blit(C, TEX[m][z][v], ox, oy, top, bot, lf, rt, ty <= 1 && top && (m === DIRT || m === GOLD), dig?.get(ty * MW + tx) ?? 0, z);
+  }
+  if (!wangOn) return;
+  const matAt = (x, y) => (x < 0 || x >= MW || y >= MH ? 3 : y < 0 ? 0 : tile[y * MW + x]);
+  for (let vy = ty0; vy <= ty1 + 1; vy++) for (let vx = tx0; vx <= tx1 + 1; vx++) {
+    const nw = matAt(vx - 1, vy - 1), ne = matAt(vx, vy - 1), sw = matAt(vx - 1, vy), se = matAt(vx, vy);
+    const key = (SOLID[nw] ? 8 : 0) | (SOLID[ne] ? 4 : 0) | (SOLID[sw] ? 2 : 0) | (SOLID[se] ? 1 : 0);
+    if (!key) continue;
+    let stony = 0, n = 0;
+    for (const m of [nw, ne, sw, se]) if (SOLID[m]) { n++; if (STONY.has(m)) stony++; }
+    const set = stony * 2 > n ? IMG.t_stone_w : IMG.t_dirt_w, img = set[key];
+    if (img) blitImg(C, img, vx * T - 8 - camX, vy * T - 8 - camY, key === 15 && h2(vx, vy, 11) < 0.5);
+  }
+  // the special blocks keep their look, and digging shows its cracks
+  for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+    const m = tile[ty * MW + tx], ox = tx * T - camX, oy = ty * T - camY;
+    if (m === AIR) continue;
+    const crack = dig?.get(ty * MW + tx) ?? 0;
+    if (!WANG_MAT.has(m)) {
+      const v = (h2(tx, ty, 7) * VAR) | 0, z = zoneIdx(tx * T, ty * T);
+      blit(C, TEX[m][z][v], ox, oy, !solidAt(tx, ty - 1), !solidAt(tx, ty + 1), !solidAt(tx - 1, ty), !solidAt(tx + 1, ty), false, crack, z);
+    } else if (crack > 0) {
+      const pat = CRACK[Math.min(3, (crack * 4) | 0)];
+      for (let y = 0; y < T; y++) { const sy = oy + y; if (sy < 0 || sy >= H) continue; for (let x = 0; x < T; x++) { const sx = ox + x; if (sx >= 0 && sx < W && pat[y * T + x]) C[sy * W + sx] = 0xff140c0a; } }
+    }
   }
 }
 

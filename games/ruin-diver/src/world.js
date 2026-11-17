@@ -13,6 +13,8 @@ import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLI
 import { drawCave, fillAmbient, addLight } from "./bg.js";
 import { zoneAt, missionProgress } from "./logic.js";
 import { audio } from "./audio.js";
+import { IMG, blit, blitFeet, blitMid } from "./pix.js";
+const WHITE = 0xffffffff;
 
 export const BURST = {
   common: ["#14121a", "#2a2630", "#46404e", "#6a6470", "#9a948e", "#c8c2b8", "#ece6dc", "#ffffff"],
@@ -984,7 +986,8 @@ export class Run {
       else this.golem(b, dt, px, lo, hi);
       b.x = Math.max(lo, Math.min(hi, b.x));
       // contact: from above it's a hit, otherwise it hurts
-      const w = b.id === "golem" ? 12 : 13, h = b.id === "golem" ? 30 : 18;
+      const big = !!IMG.golem; // the painted bosses are bigger: so are their bodies
+      const w = b.id === "golem" ? (big ? 15 : 12) : big ? 19 : 13, h = b.id === "golem" ? (big ? 40 : 30) : big ? 32 : 18;
       if (p.x + PW > b.x - w && p.x < b.x + w && p.y + PH > b.y - h && p.y < b.y) {
         if (p.vy > 20 && p.y + PH < b.y - h + 8 && b.hurtT <= 0) this.hitBoss(b);
         else if (b.hurtT <= 0.4) this.hurt(1, b.id, b.x);
@@ -1161,10 +1164,10 @@ export class Run {
       const ox = tx * T - camX, oy = ty * T - camY;
       if (d === LADDER) P.sprite(LADDER_TILE, LADDER_PAL, ox, oy);
       else if (d === ROPE) P.sprite(ROPE_TILE, ROPE_PAL, ox, oy);
-      else if (d === SPIKES) P.sprite(SPIKES_TILE, SPIKES_PAL, ox, oy + 9);
+      else if (d === SPIKES) { if (IMG.spikes) blitFeet(frame, IMG.spikes, ox + 8, oy + 16); else P.sprite(SPIKES_TILE, SPIKES_PAL, ox, oy + 9); }
       else if (d === WINCH) this.drawWinch(P, lm, ox, oy, ty);
       else if (d === TORCH) torchesNow.push([tx, ty, ox, oy]);
-      else if (d === STALACTITE) P.sprite(STALACTITE_SPR, STALACTITE_PAL, ox + 4, oy);
+      else if (d === STALACTITE) { if (IMG.stalactite) blit(frame, IMG.stalactite, ox + 8 - (IMG.stalactite.w >> 1), oy); else P.sprite(STALACTITE_SPR, STALACTITE_PAL, ox + 4, oy); }
     }
     for (const [tx, ty, ox, oy] of torchesNow) {
       const key = ty * MW + tx, wallRight = this.solid(tx + 1, ty);
@@ -1182,9 +1185,12 @@ export class Run {
     // surface: the camp sign by the entrance
     if (camY < 0) {
       const ex = this.cave.entrance.ladderX * T - camX, gy = -camY;
-      P.rect(ex - 30, gy - 22, 2, 22, 0xff2a4a6a);
-      P.rect(ex - 40, gy - 26, 22, 9, 0xff3a6a9a);
-      P.text("EXIT", ex - 29, gy - 24, 0xfff0f8ff, { align: "center" });
+      if (IMG.exit_sign) blitFeet(frame, IMG.exit_sign, ex - 30, gy);
+      else {
+        P.rect(ex - 30, gy - 22, 2, 22, 0xff2a4a6a);
+        P.rect(ex - 40, gy - 26, 22, 9, 0xff3a6a9a);
+        P.text("EXIT", ex - 29, gy - 24, 0xfff0f8ff, { align: "center" });
+      }
     }
 
     // the seal at the bottom
@@ -1217,9 +1223,9 @@ export class Run {
     }
     P = painterFor(frame);
     // mushrooms, oil flasks, water pools, roots
-    for (const m of this.mushrooms) if (!m.taken && onScreen(m.x, m.y)) P.sprite(MUSHROOM, MUSHROOM_PAL, sx(m.x) - 4, sy(m.y) - 7);
+    for (const m of this.mushrooms) if (!m.taken && onScreen(m.x, m.y)) { if (IMG.mushroom) blitFeet(frame, IMG.mushroom, sx(m.x), sy(m.y)); else P.sprite(MUSHROOM, MUSHROOM_PAL, sx(m.x) - 4, sy(m.y) - 7); }
     for (const o of this.oils) if (!o.taken && onScreen(o.x, o.y)) {
-      P.sprite(OIL, OIL_PAL, sx(o.x) - 3, sy(o.y) - 9);
+      if (IMG.oil) blitFeet(frame, IMG.oil, sx(o.x), sy(o.y)); else P.sprite(OIL, OIL_PAL, sx(o.x) - 3, sy(o.y) - 9);
       P.glow(sx(o.x), sy(o.y) - 5, 9, 0xff3ac8ff, 0.4 + Math.sin(t * 4 + o.x) * 0.1);
     }
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
@@ -1230,13 +1236,22 @@ export class Run {
         P.rect(ox, oy - h, T, 1, 0xfff0c890);
         for (let i = 0; i < 3; i++) P.dot(ox + ((t * 6 + i * 5 + tx * 3) % 16 | 0), oy - h, 0xffffffff, 0.8);
         P.glow(ox + 8, oy - h, 10, 0xffff8a3a, 0.25);
-      } else if (d === ROOT) P.sprite(ROOT_SPR, ROOT_PAL, tx * T - camX + 5, ty * T - camY);
+      } else if (d === ROOT) { if (IMG.root) blit(frame, IMG.root, tx * T - camX + 8 - (IMG.root.w >> 1), ty * T - camY); else P.sprite(ROOT_SPR, ROOT_PAL, tx * T - camX + 5, ty * T - camY); }
     }
     // rare ore glinting in the rock
     for (const [i, id] of this.ores) {
       const tx = i % MW, ty = (i / MW) | 0, ox = tx * T - camX, oy = ty * T - camY;
       if (ox < -16 || ox > W || oy < -16 || oy > H) continue;
       const [c1, c2] = ORE_COL[id];
+      const oimg = IMG["ore_" + id];
+      if (oimg) {
+        blitMid(frame, oimg, ox + 8, oy + 8);
+        const s3 = Math.floor(t * 2 + i) % 7;
+        if (s3 < 2) P.dot(ox + 4 + ((i * 5) % 9), oy + 4 + ((i * 3) % 8), c2);
+        P.glow(ox + 8, oy + 8, 10, c1, 0.25 + Math.sin(t * 3 + i) * 0.1);
+        addLight(lm, ox + 8, oy + 8, 14, 0.25);
+        continue;
+      }
       for (const [ax, ay] of [[4, 5], [10, 3], [7, 10], [12, 11], [3, 12]]) P.rect(ox + ax, oy + ay, 2, 2, c1);
       const s2 = Math.floor(t * 3 + i) % 5;
       P.dot(ox + [4, 10, 7, 12, 3][s2], oy + [5, 3, 10, 11, 12][s2], c2);
@@ -1248,17 +1263,21 @@ export class Run {
       if (!onScreen(ev.x, ev.y, 40)) continue;
       const ex = sx(ev.x), ey = sy(ev.y);
       if (ev.type === "altar") {
-        P.sprite(ALTAR, ALTAR_PAL, ex - 8, ey - ALTAR.length);
+        if (IMG.altar) blitFeet(frame, IMG.altar, ex, ey); else P.sprite(ALTAR, ALTAR_PAL, ex - 8, ey - ALTAR.length);
         if (!ev.done) { P.glow(ex, ey - 14, 14, 0xffff5ac2, 0.6 + Math.sin(t * 3) * 0.2); addLight(lm, ex, ey - 12, 40, 0.5); }
       } else if (ev.type === "merchant") {
-        P.sprite(MERCHANT, MERCHANT_PAL, ex - 6, ey - MERCHANT.length, { flip: this.p.x < ev.x });
+        if (IMG.merchant) blitFeet(frame, IMG.merchant, ex, ey, { flip: this.p.x > ev.x }); else P.sprite(MERCHANT, MERCHANT_PAL, ex - 6, ey - MERCHANT.length, { flip: this.p.x < ev.x });
         P.glow(ex + 6, ey - 8, 10, 0xff40c0ff, 0.6); addLight(lm, ex + 4, ey - 8, 50, 0.6);
       } else if (ev.type === "cursed" || ev.type === "vault") {
-        const fr = CHEST[ev.done ? 1 : 0];
-        P.sprite(fr, ev.type === "cursed" ? CURSED_PAL : VAULT_PAL, ex - 7, ey - fr.length);
+        const fr = CHEST[ev.done ? 1 : 0], eimg = ev.done ? IMG.chest_open : IMG[ev.type];
+        if (eimg) blitFeet(frame, eimg, ex, ey); else P.sprite(fr, ev.type === "cursed" ? CURSED_PAL : VAULT_PAL, ex - 7, ey - fr.length);
         if (!ev.done && ev.type === "cursed") for (let k = 0; k < 3; k++) { const a = t * 1.5 + k * 2.1; P.glow(ex + Math.sin(a) * 6, ey - 14 - ((t * 10 + k * 7) % 14), 5, 0xff8a1a6a, 0.6); }
         if (!ev.done && ev.type === "vault") P.rect(ex - 1, ey - 7, 3, 3, 0xff40c0f0);
         addLight(lm, ex, ey - 6, 24, 0.3);
+      } else if (ev.type === "spring" && IMG.spring) {
+        blitFeet(frame, IMG.spring, ex, ey + 2, { a: ev.done ? 0.6 : 1 });
+        if (!ev.done) P.glow(ex, ey - 8, 18, 0xffffa040, 0.45);
+        addLight(lm, ex, ey - 10, 40, ev.done ? 0.2 : 0.5);
       } else if (ev.type === "spring") {
         P.rect(ex - 10, ey - 4, 20, 4, ev.done ? 0xff7a5a3a : 0xffffb84a);
         P.rect(ex - 10, ey - 4, 20, 1, 0xfffff0c8);
@@ -1290,9 +1309,9 @@ export class Run {
     // chests
     for (const c of this.chests) {
       if (!onScreen(c.x, c.y)) continue;
-      if (c.crate) { if (!c.open) P.sprite(CRATE, CRATE_PAL, sx(c.x) - 6, sy(c.y) - 11); continue; }
-      const fr = CHEST[c.open ? 1 : 0];
-      P.sprite(fr, CHEST_PAL, sx(c.x) - 7, sy(c.y) - fr.length);
+      if (c.crate) { if (!c.open) { if (IMG.crate) blitFeet(frame, IMG.crate, sx(c.x), sy(c.y)); else P.sprite(CRATE, CRATE_PAL, sx(c.x) - 6, sy(c.y) - 11); } continue; }
+      const fr = CHEST[c.open ? 1 : 0], cimg = c.open ? IMG.chest_open : IMG.chest;
+      if (cimg) blitFeet(frame, cimg, sx(c.x), sy(c.y)); else P.sprite(fr, CHEST_PAL, sx(c.x) - 7, sy(c.y) - fr.length);
       if (!c.open) {
         P.glow(sx(c.x), sy(c.y) - 6, 12, 0xff3ad2ff, 0.35 + Math.sin(t * 4 + c.x) * 0.1);
         const a = t * 2.5 + c.x;
@@ -1304,7 +1323,7 @@ export class Run {
     for (const h of this.heartList) {
       if (h.taken || !onScreen(h.x, h.y)) continue;
       const hy = sy(h.y + Math.sin(t * 4 + h.x) * 1.5);
-      P.sprite(HEART_SPR, HEART_PAL, sx(h.x) - 4, hy - 4);
+      if (IMG.heart) blitMid(frame, IMG.heart, sx(h.x), hy); else P.sprite(HEART_SPR, HEART_PAL, sx(h.x) - 4, hy - 4);
       P.glow(sx(h.x), hy, 9, 0xff5a4aff, 0.45);
     }
     // items glowing in their rarity's color
@@ -1323,7 +1342,8 @@ export class Run {
       const col = it.variant ? hueCol(t * 0.5 + it.x) : RCOL[def.rarity];
       P.glow(ix, iy, 14, col, GLOW_K[def.rarity] * (0.85 + Math.sin(t * 4 + it.x) * 0.15) + (it.variant ? 0.3 : 0));
       addLight(lm, ix, iy, 18, 0.3);
-      P.sprite(rows, pal, ix - (rows[0].length >> 1), iy - (rows.length >> 1));
+      const rimg = IMG["i_" + it.id];
+      if (rimg && !it.variant) blitMid(frame, rimg, ix, iy); else P.sprite(rows, pal, ix - (rows[0].length >> 1), iy - (rows.length >> 1));
       if (RARITY[def.rarity].order >= 2 || it.variant) {
         const a = t * 2 + it.x;
         P.light(ix + Math.cos(a) * 9, iy + Math.sin(a) * 9, 0xffffffff, 0.8);
@@ -1334,7 +1354,21 @@ export class Run {
     for (const en of this.enemies) {
       if (!en.alive || !onScreen(en.x, en.y, 40)) continue;
       const ex = sx(en.x), ey = sy(en.y), flash = en.hurtT > 0 && Math.floor(t * 20) % 2 === 0;
-      if (en.kind === "bat") {
+      if (en.kind === "bat" && IMG.bat) {
+        const hang = en.state === "hang", img = hang ? IMG.bat_hang : IMG.bat;
+        const bob = hang ? 0 : Math.round(Math.sin(t * 14 + en.seed) * 1.5);
+        if (hang) blit(frame, img, ex - (img.w >> 1), ey - 8); else blitMid(frame, img, ex, ey + bob, { flip: this.p.x < en.x });
+      } else if (en.kind === "skull" && IMG.skull) {
+        const shake = en.state === "aim" ? Math.round(Math.sin(t * 60)) : 0;
+        blitMid(frame, IMG.skull, ex + shake, ey - 2, { flip: this.p.x < en.x });
+        P.glow(ex, ey - 6, 10, 0xff2a6aff, en.state === "aim" ? 0.9 : 0.4);
+        addLight(lm, ex, ey, 22, 0.35);
+      } else if (en.kind === "slime" && IMG.slime) {
+        const img = en.gold ? IMG.gold_slime : en.red ? IMG.red_slime : IMG.slime;
+        const sq = Math.floor(en.t * 3 + en.seed) % 2;
+        blitFeet(frame, img, ex, ey + sq, { flip: en.vx > 0, tint: flash ? WHITE : undefined });
+        if (en.gold) { addLight(lm, ex, ey - 4, 26, 0.4); P.glow(ex, ey - 6, 16, 0xff3ad2ff, 0.5); P.light(ex + Math.cos(t * 5) * 8, ey - 6 + Math.sin(t * 5) * 4, 0xffffffff, 0.9); }
+      } else if (en.kind === "bat") {
         if (en.state === "hang") {
           P.sprite(BAT_HANG, BAT_HANG_PAL, ex - 3, ey - 4);
           P.light(ex - 1, ey - 1, 0xff3b30ff, 0.6);
@@ -1356,8 +1390,8 @@ export class Run {
         if (en.gold) { addLight(lm, ex, ey - 4, 26, 0.4); P.light(ex + Math.cos(t * 5) * 8, ey - 6 + Math.sin(t * 5) * 4, 0xffffffff, 0.9); }
       }
     }
-    for (const f of this.falling) P.sprite(STALACTITE_SPR, STALACTITE_PAL, sx(f.x) - 4 + (f.wait > 0 ? Math.round(Math.sin(t * 70)) : 0), sy(f.y) - 2);
-    for (const r of this.shots) P.sprite(BOULDER, BOULDER_PAL, sx(r.x) - 4, sy(r.y) - 4, { flip: Math.floor((r.t ?? 0) * 10) % 2 === 1 });
+    for (const f of this.falling) if (IMG.stalactite) blit(frame, IMG.stalactite, sx(f.x) - (IMG.stalactite.w >> 1) + (f.wait > 0 ? Math.round(Math.sin(t * 70)) : 0), sy(f.y) - 2); else P.sprite(STALACTITE_SPR, STALACTITE_PAL, sx(f.x) - 4 + (f.wait > 0 ? Math.round(Math.sin(t * 70)) : 0), sy(f.y) - 2);
+    for (const r of this.shots) if (IMG.boulder) blitMid(frame, IMG.boulder, sx(r.x), sy(r.y), { flip: Math.floor((r.t ?? 0) * 10) % 2 === 1 }); else P.sprite(BOULDER, BOULDER_PAL, sx(r.x) - 4, sy(r.y) - 4, { flip: Math.floor((r.t ?? 0) * 10) % 2 === 1 });
 
     // braziers light the boss halls
     for (const b of this.bosses) {
@@ -1378,7 +1412,18 @@ export class Run {
       if (b.state === "dead" || !onScreen(b.x, b.y - 20, 60)) continue;
       const bx = sx(b.x), by = sy(b.y), flash = b.hurtT > 0 && Math.floor(t * 20) % 2 === 0;
       const tint = flash ? 0xffffffff : undefined;
-      if (b.id === "slime_king") {
+      if (b.id === "slime_king" && IMG.slime_king) {
+        const img = IMG.slime_king, squash = !b.ground ? -2 : b.cd < 0.25 && b.state === "fight" ? 2 : 0;
+        blitFeet(frame, img, bx, by + squash, { flip: b.face > 0, tint });
+        P.glow(bx, by - 16, 32, b.enraged ? 0xff3a3aff : 0xff52c747, 0.3);
+        addLight(lm, bx, by - 16, 56, 0.45);
+      } else if (b.id === "golem" && IMG.golem) {
+        const bob = b.act ? (b.act === "slam" ? -3 : 0) : Math.round(Math.abs(Math.sin(b.t * 4)));
+        blitFeet(frame, IMG.golem, bx, by - bob, { flip: b.face > 0, tint });
+        P.glow(bx, by - 22, 18, 0xff2a7aff, b.act ? 0.9 : 0.5);
+        addLight(lm, bx, by - 20, 60, 0.45);
+        if (b.act === "slam" && Math.floor(t * 12) % 2) P.rect(bx - 100, by - 1, 200, 1, 0xff3a3aff);
+      } else if (b.id === "slime_king") {
         const fr = SLIME_KING[!b.ground || (b.cd < 0.25 && b.state === "fight") ? 1 : 0];
         P.sprite(fr, SLIME_KING_PAL, bx - 15, by - fr.length, { flip: b.face > 0, tint });
         P.glow(bx, by - 12, 28, b.enraged ? 0xff3a3aff : 0xff52c747, 0.3);
@@ -1396,7 +1441,15 @@ export class Run {
 
     // the explorer
     const px = sx(p.x), py = sy(p.y);
-    if (this.state !== "dead" && !(this.invuln > 0 && Math.floor(t * 20) % 2 === 0)) {
+    if (IMG.p_idle0 && this.state !== "dead" && !(this.invuln > 0 && Math.floor(t * 20) % 2 === 0)) {
+      // painted explorer: 28x28 frames, feet at y=25, centred at x=14, drawn facing right
+      let img, flip = p.face < 0;
+      if (p.climb || this.state === "winch") { img = IMG.p_climb; flip = Math.floor(p.walk / 8) % 2 === 1; }
+      else if (!p.ground) img = IMG[p.vy < -120 ? "p_jump3" : p.vy < 40 ? "p_jump4" : "p_jump6"] ?? IMG.p_idle0;
+      else if (Math.abs(p.vx) > 10) img = IMG["p_walk" + (Math.floor(p.walk / 5) % 6)];
+      else img = IMG["p_idle" + (Math.floor(t * 4) % 4)] ?? IMG.p_idle0;
+      blit(frame, img, px + 5 - 14, py + PH - 25, { flip });
+    } else if (this.state !== "dead" && !(this.invuln > 0 && Math.floor(t * 20) % 2 === 0)) {
       let fr = EXPLORER.stand, flip = p.face < 0;
       if (p.climb || this.state === "winch") { fr = EXPLORER.climb; flip = Math.floor(p.walk / 8) % 2 === 1; }
       else if (!p.ground) fr = EXPLORER.jump;
@@ -1406,7 +1459,7 @@ export class Run {
     if (this.state === "winch") P.line(px + 5, py, px + 5, -2, 0xff6aa0d0);
     const lr = Math.max(0, Math.min(1, this.light / 100));
     const dark = this.light <= 0;
-    const lampX = px + 5 + p.face * 4, lampY = py + 2;
+    const lampX = px + 5 + p.face * 4, lampY = IMG.p_idle0 ? py - 4 : py + 2;
     const flick = 1 + Math.sin(t * 13) * 0.02 + (lr < 0.2 ? Math.sin(t * 31) * 0.08 : 0);
     addLight(lm, lampX, lampY + 6, dark ? 30 : (50 + 80 * lr) * flick * this.pk.lamp, dark ? 0.5 : 0.95);
     if (!dark) P.glow(lampX, lampY, 9, 0xff60c0ff, 0.5);

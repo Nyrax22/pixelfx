@@ -497,11 +497,14 @@ export function variantPal(name) {
   return variantCache[name];
 }
 
+import { IMG, imgURL } from "./pix.js";
 const iconCache = new Map();
 /**
  * A data URL of an item's sprite for the DOM. mode: "color", "silhouette" (unknown) or "dim" (seen, not owned).
  */
 export function itemIcon(item, mode = "color", variant = false, scale = 4) {
+  const hd = IMG["i_" + item.id];
+  if (hd && !variant) return imgURL(hd, mode);
   const key = item.id + mode + variant + scale;
   if (iconCache.has(key)) return iconCache.get(key);
   const rows = shape(item.sprite), pal = variant ? variantPal(item.pal) : PALS[item.pal];
@@ -551,6 +554,8 @@ ICONS.lantern_ = ICONS.lantern;
 const piCache = new Map();
 /** An <img> of a UI icon, scaled up crisply. */
 export function icon(name, cls = "pi") {
+  const hd = IMG["m_" + name] ?? (name === "mushroom" || name === "heart" || name === "coin" ? IMG[name === "mushroom" ? "mushroom" : "i_" + name] : null);
+  if (hd) return `<img class="${cls}" src="${imgURL(hd)}" alt="">`;
   const [rows, pal] = ICONS[name] ?? ICONS.coin;
   let url = piCache.get(name);
   if (!url) {

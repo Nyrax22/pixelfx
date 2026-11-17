@@ -8,6 +8,9 @@ import { Run } from "./world.js";
 import { compositeLit, setBackdrop } from "./bg.js";
 import villageArt from "../art/bg_village.png";
 import mineArt from "../art/bg_mine.png";
+import atlasPng from "../art/px/atlas.png";
+import atlasRects from "../art/px/atlas.json";
+import { IMG, imgURL, loadAtlas } from "./pix.js";
 import { itemIcon, icon, spriteURL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, GOLD_SLIME_PAL, SKULL, SKULL_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL } from "./sprites.js";
 import { applyMeta, facState, upgradeFacility, gearState, craftGear, toggleEquip, gearSlots, researchState, doResearch, challengeState, claimChallenge, claimable, relicsOwned, beastsSeen } from "./meta.js";
 import { audio } from "./audio.js";
@@ -805,7 +808,8 @@ function baseBeasts(body) {
     const e = save.beasts[b.id], [rows, pal] = BEAST_SPR[b.id];
     const c = document.createElement("div");
     c.className = "bcell" + (beastSel === b.id ? " sel" : "");
-    c.innerHTML = `<img src="${spriteURL(b.id, rows, pal, e ? "color" : "silhouette", 4)}" alt=""><div>${e ? STR[lang].beastNames[b.id] : "???"}</div><div class="k">${e ? S("beastKills", { n: e.kills }) : ""}</div>`;
+    const hd = IMG[b.id];
+    c.innerHTML = `<img src="${hd ? imgURL(hd, e ? "color" : "silhouette") : spriteURL(b.id, rows, pal, e ? "color" : "silhouette", 4)}" alt=""><div>${e ? STR[lang].beastNames[b.id] : "???"}</div><div class="k">${e ? S("beastKills", { n: e.kills }) : ""}</div>`;
     c.addEventListener("click", () => { beastSel = b.id; audio.play("click"); renderBase(); });
     grid.appendChild(c);
   }
@@ -816,11 +820,12 @@ function baseBeasts(body) {
   if (!id) side.innerHTML = `<p>${S("unknownBeast")}</p>`;
   else {
     const b = BEASTS.find((x) => x.id === id), e = save.beasts[id], [rows, pal] = BEAST_SPR[id];
-    if (!e) side.innerHTML = `<img src="${spriteURL(id, rows, pal, "silhouette", 4)}" alt=""><h4>???</h4><p>${S("unknownBeast")}</p>`;
+    const hd = IMG[id], pic = (mode) => (hd ? imgURL(hd, mode) : spriteURL(id, rows, pal, mode, 4));
+    if (!e) side.innerHTML = `<img src="${pic("silhouette")}" alt=""><h4>???</h4><p>${S("unknownBeast")}</p>`;
     else {
       // drops: only the ones you've actually seen fall
       const drops = Object.keys(b.drops).map((m) => (e.drops?.[m] ? `${icon(m)}${STR[lang].mats[m]}` : "???")).join(" · ");
-      side.innerHTML = `<img src="${spriteURL(id, rows, pal, "color", 4)}" alt=""><h4>${STR[lang].beastNames[id]}</h4>
+      side.innerHTML = `<img src="${pic("color")}" alt=""><h4>${STR[lang].beastNames[id]}</h4>
         <div class="row"><span>${STR[lang].zones[b.zone]}</span><span>${b.boss ? "BOSS" : ""}</span></div>
         <p>${STR[lang].beastDesc[id]}</p>
         <div class="row"><span>${S("beastKills", { n: e.kills })}</span><span>${S("beastFirst", { d: e.seen ?? "?" })}</span></div>
@@ -959,6 +964,7 @@ function render() {
 
 // ------------------------------------------------------------ boot
 async function boot() {
+  await loadAtlas(atlasPng, atlasRects); // painted sprites (PixelLab); the game falls back to code sprites without them
   layout();
   applyStrings();
   await poki.init((m) => audio.setAdMuted(m), adPlaceholder);
