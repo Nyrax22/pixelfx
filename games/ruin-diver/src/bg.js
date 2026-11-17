@@ -135,6 +135,34 @@ const zoneIdx = (wx, wy) => {
  * Paint the cave for a camera whose top-left is at world (camX, camY), whole pixels. dig: Map of tile index
  * to dig progress 0..1, drawn as cracks.
  */
+// Painted backdrops behind open space (one per zone), set from the page once their images decode.
+// Each is darkened so tiles and sprites in front stay readable.
+const BACKDROP = [null, null];
+const BD_PARALLAX = 0.3;
+export function setBackdrop(z, w, h, rgba) {
+  const px = new Uint32Array(rgba.buffer.slice(0)), out = new Uint32Array(w * h);
+  for (let i = 0; i < px.length; i++) {
+    const c = px[i];
+    out[i] = rgb((c & 255) * 0.62, ((c >>> 8) & 255) * 0.62, ((c >>> 16) & 255) * 0.66);
+  }
+  BACKDROP[z] = { w, h, px: out };
+}
+// the backdrop repeats sideways and mirrors on the way down, so it never ends
+function blitBackdrop(C, bd, ox, oy, camX, camY) {
+  const x0 = Math.max(0, -ox), x1 = Math.min(T, W - ox), y0 = Math.max(0, -oy), y1 = Math.min(T, H - oy);
+  const offX = Math.floor(camX * BD_PARALLAX), offY = Math.floor(camY * BD_PARALLAX), H2 = bd.h * 2;
+  for (let y = y0; y < y1; y++) {
+    const sy = oy + y;
+    let by = (((sy + offY) % H2) + H2) % H2;
+    if (by >= bd.h) by = H2 - 1 - by;
+    const row = sy * W, brow = by * bd.w;
+    for (let x = x0; x < x1; x++) {
+      const sx = ox + x, bx = (((sx + offX) % bd.w) + bd.w) % bd.w;
+      C[row + sx] = bd.px[brow + bx];
+    }
+  }
+}
+
 export function drawCave(frame, cave, camX, camY, dig) {
   const C = frame.color, { tile } = cave;
   // sky above the surface
@@ -155,7 +183,8 @@ export function drawCave(frame, cave, camX, camY, dig) {
     const m = tile[ty * MW + tx], v = (h2(tx, ty, 7) * VAR) | 0, z = zoneIdx(tx * T, ty * T);
     const ox = tx * T - camX, oy = ty * T - camY;
     if (m === AIR) {
-      blit(C, BACK[z][v], ox, oy, 0, 0, 0, 0, 0, 0);
+      if (BACKDROP[z]) blitBackdrop(C, BACKDROP[z], ox, oy, camX, camY);
+      else blit(C, BACK[z][v], ox, oy, 0, 0, 0, 0, 0, 0);
       continue;
     }
     const top = !solidAt(tx, ty - 1), bot = !solidAt(tx, ty + 1), lf = !solidAt(tx - 1, ty), rt = !solidAt(tx + 1, ty);

@@ -5,7 +5,9 @@ import * as confettiFx from "../../../src/fx/ui/confetti.js";
 import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS } from "./data.js";
 import { loadSave, writeSave, wipeSave, storageOk, stats, applyRun, applyMissions, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
 import { Run } from "./world.js";
-import { compositeLit } from "./bg.js";
+import { compositeLit, setBackdrop } from "./bg.js";
+import villageArt from "../art/bg_village.png";
+import mineArt from "../art/bg_mine.png";
 import { itemIcon, icon } from "./sprites.js";
 import { audio } from "./audio.js";
 import { poki } from "./poki.js";
@@ -714,6 +716,22 @@ async function boot() {
   }
   requestAnimationFrame(tick);
 }
+// painted backdrops (made with Scenario's Retro Diffusion): decode once, hand the pixels to the renderer
+function loadBackdrop(z, src) {
+  const im = new Image();
+  im.onload = () => {
+    const c = document.createElement("canvas");
+    c.width = im.width; c.height = im.height;
+    const g = c.getContext("2d");
+    g.drawImage(im, 0, 0);
+    setBackdrop(z, im.width, im.height, g.getImageData(0, 0, im.width, im.height).data);
+  };
+  im.src = src;
+}
+loadBackdrop(0, villageArt);
+loadBackdrop(1, mineArt);
+document.documentElement.style.setProperty("--title-art", `url(${villageArt})`);
+
 // ?debug exposes the game for automated playtests
 if (/[?&]debug/.test(location.search)) window.__rd = { get run() { return run; }, get mode() { return mode; }, save: () => save };
 boot();

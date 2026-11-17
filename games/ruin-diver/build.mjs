@@ -16,6 +16,7 @@ const out = await build({
   target: "es2020",
   write: false,
   legalComments: "none",
+  loader: { ".png": "dataurl" },
 });
 const js = out.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 let html = readFileSync(join(here, "index.html"), "utf8").replace("<!--GAME-->", () => `<script>${js}</script>`);

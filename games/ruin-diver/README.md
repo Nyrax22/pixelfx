@@ -41,6 +41,7 @@ and prints when each upgrade is bought, deaths, and when each boss falls. It's a
 | `src/sprites.js` | item, explorer, coin and rock pixel sprites |
 | `src/main.js` | the loop, input, HUD, results, collection, pause |
 | `tools/pacing.mjs` | the pacing model above |
+| `art/` | painted cave backdrops (village, mine), generated with Scenario's Retro Diffusion Plus; also the title screen |
 | `fonts/` | Galmuri11 Bold by Lee Minseo (SIL OFL 1.1, see `fonts/OFL.md`); the build embeds only the characters used |
 | `src/poki.js` | Poki SDK wrapper (no-op off Poki, with a stand-in for rewarded ads) |
 | `src/audio.js` | synthesized sounds |
