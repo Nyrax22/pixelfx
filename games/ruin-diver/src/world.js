@@ -9,6 +9,8 @@ import * as campfireFx from "../../../src/fx/fire/campfire.js";
 import * as beamFx from "../../../src/fx/pickups/loot-beam.js";
 import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME, SURVIVE, START_KIT, EVENTS, BEASTS, ORES, COLLAPSE, PICK, SWING, WALL, GLOW, POT_LOOT, BOMB, TRAP } from "./data.js";
 import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL, CHEST, CHEST_PAL, GOLD_SLIME_PAL, MUSHROOM, MUSHROOM_PAL, OIL, OIL_PAL, ROOT_SPR, ROOT_PAL, CRATE, CRATE_PAL, ALTAR, ALTAR_PAL, MERCHANT, MERCHANT_PAL, CURSED_PAL, VAULT_PAL } from "./sprites.js";
+// the camera can slide this far past the side walls, so the HUD panels never hide the explorer at the map's edge
+const CAM_PAD = 96;
 import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE, POOL, ROOT, CRACK, ARROW, CRUMBLE, rollItem } from "./cave.js";
 import { drawCave, fillAmbient, addLight } from "./bg.js";
 import { zoneAt, missionProgress } from "./logic.js";
@@ -268,7 +270,7 @@ export class Run {
     }
 
     // camera: keep the explorer a little above center so you see what's below
-    const tx = Math.max(0, Math.min(MW * T - W, p.x + PW / 2 - W / 2));
+    const tx = Math.max(-CAM_PAD, Math.min(MW * T - W + CAM_PAD, p.x + PW / 2 - W / 2));
     const ty = Math.max(-140, Math.min(MH * T - H, p.y - H / 2 + 20));
     const k = Math.min(1, dt * 8);
     this.camX += (tx - this.camX) * k;
@@ -285,7 +287,7 @@ export class Run {
     this.debris = this.debris.filter((d) => d.life > 0);
   }
   snapCamera() {
-    this.camX = Math.max(0, Math.min(MW * T - W, this.p.x + PW / 2 - W / 2));
+    this.camX = Math.max(-CAM_PAD, Math.min(MW * T - W + CAM_PAD, this.p.x + PW / 2 - W / 2));
     this.camY = Math.max(-140, Math.min(MH * T - H, this.p.y - H / 2 + 20));
   }
 
@@ -876,8 +878,18 @@ export class Run {
     const cx = p.x + PW / 2, cy = p.y + PH / 2;
 
     // ladders and ropes: up or down on one grabs it
-    const onLadder = this.climbable(cx, cy) || this.climbable(cx, p.y + 2);
-    const ladderBelow = p.ground && this.climbable(cx, p.y + PH + 2);
+    let onLadder = this.climbable(cx, cy) || this.climbable(cx, p.y + 2);
+    let ladderBelow = p.ground && this.climbable(cx, p.y + PH + 2);
+    // forgiving grab: a ladder half a tile to either side counts, and pulls you onto it
+    let grabX = null;
+    if (!p.climb && (input.up || input.down) && !onLadder && !ladderBelow) for (const off of [-6, 6]) {
+      const x = cx + off;
+      if ((input.up && (this.climbable(x, cy) || this.climbable(x, p.y + 2))) || (input.down && p.ground && this.climbable(x, p.y + PH + 2))) {
+        const nx = Math.floor(x / T) * T + T / 2 - PW / 2;
+        if (!this.solid(Math.floor(nx / T), Math.floor(cy / T)) && !this.solid(Math.floor((nx + PW - 1) / T), Math.floor(cy / T))) { grabX = nx; break; }
+      }
+    }
+    if (grabX != null) { p.x = grabX; onLadder = this.climbable(grabX + PW / 2, cy) || this.climbable(grabX + PW / 2, p.y + 2); ladderBelow = p.ground && this.climbable(grabX + PW / 2, p.y + PH + 2); }
     if (!p.climb && ((onLadder && input.up) || (input.down && (ladderBelow || (onLadder && !p.ground))))) {
       p.climb = true;
       p.vx = 0;
@@ -898,10 +910,12 @@ export class Run {
 
     if (p.climb) {
       p.vy = ((input.down ? 1 : 0) - (input.up ? 1 : 0)) * P.climb;
-      p.vx = input.dir * 45;
+      // while going up or down, sideways input is ignored (a thumb on a stick is never perfectly vertical)
+      const vert = input.up || input.down;
+      p.vx = vert ? 0 : input.dir * 45;
       // drift onto the ladder's line
       const lx = Math.floor(cx / T) * T + T / 2 - PW / 2;
-      if (!input.dir) p.x += (lx - p.x) * Math.min(1, dt * 12);
+      if (!input.dir || vert) p.x += (lx - p.x) * Math.min(1, dt * 12);
       p.walk += Math.abs(p.vy) * dt;
       p.fallTop = p.y;
     } else {

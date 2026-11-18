@@ -110,9 +110,11 @@ function moveStick(dx, dy) {
   // dx, dy in em; the knob moves at most 2.2em from the center
   const d = Math.hypot(dx, dy), m = Math.min(1, 2.2 / (d || 1));
   $("stickKnob").style.transform = `translate(${dx * m}em, ${dy * m}em)`;
-  touch.dir = dx > 0.8 ? 1 : dx < -0.8 ? -1 : 0;
-  touch.up = dy < -1.4;
-  touch.down = dy > 1.4;
+  // eight directions by angle: a mostly-vertical push is only up/down, so climbing doesn't drift off sideways
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  touch.dir = ax > 0.8 && ax > ay * 0.5 ? Math.sign(dx) : 0;
+  touch.up = dy < -1 && ay > ax * 0.5;
+  touch.down = dy > 1 && ay > ax * 0.5;
 }
 const endStick = (e) => {
   if (stick && e.pointerId === stick.id) { stick = null; touch.dir = 0; touch.up = touch.down = false; show("stick", false); }
@@ -1117,6 +1119,8 @@ function render() {
 }
 
 // ------------------------------------------------------------ boot
+// installed as an app (Netlify): a service worker keeps it working offline. Not on file:// or inside a host's iframe.
+if ("serviceWorker" in navigator && location.protocol === "https:" && window.top === window.self) navigator.serviceWorker.register("sw.js").catch(() => {});
 async function boot() {
   await loadAtlas(atlasPng, atlasRects); // painted sprites (PixelLab); the game falls back to code sprites without them
   layout();

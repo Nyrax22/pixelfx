@@ -499,10 +499,13 @@ export function makeCave(seed, save, firstRun) {
     }
   }
   // the entrance chamber always has a little of everything, to show what's what
-  mushrooms.push({ tx: 18, ty: 8 }, { tx: 32, ty: 8 });
+  // (the free food and oil only on the first two dives: after that the entrance isn't a pantry you can come back to)
   deco[at(26, 8)] = POOL; pools.push({ tx: 26, ty: 8 });
-  chests.push({ tx: 21, ty: 8, crate: true });
-  oils.push({ tx: 15, ty: 8 });
+  if ((save.runs ?? 0) < 2) {
+    mushrooms.push({ tx: 18, ty: 8 }, { tx: 32, ty: 8 });
+    chests.push({ tx: 21, ty: 8, crate: true });
+    oils.push({ tx: 15, ty: 8 });
+  }
   // the very first dive: treasure within ten seconds
   if ((save.runs ?? 0) === 0) chests.push({ tx: 28, ty: 8, item: "rag_doll", variant: false, coins: 6 });
 

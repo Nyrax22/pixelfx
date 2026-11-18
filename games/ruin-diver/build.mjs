@@ -1,7 +1,7 @@
 // Bundles the game into one self-contained HTML file: dist/index.html.
 // node games/ruin-diver/build.mjs [--watch]
 import { build } from "esbuild";
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, mkdtempSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
@@ -39,8 +39,10 @@ html = html.replace("/*FONT*/", `@font-face { font-family: "Galmuri"; src: url(d
 mkdirSync(join(here, "dist"), { recursive: true });
 writeFileSync(join(here, "dist/index.html"), html);
 console.log(`dist/index.html  ${(html.length / 1024).toFixed(1)} KB`);
+// install-as-an-app files for a standalone host (Netlify): manifest, icons, an offline service worker
+for (const [f, from] of [["manifest.webmanifest", "pwa"], ["sw.js", "pwa"], ["icon-192.png", "art/icon"], ["icon-512.png", "art/icon"], ["apple-touch-icon.png", "art/icon"]]) copyFileSync(join(here, from, f), join(here, "dist", f));
 
 // the same game without the document skeleton, for hosts that add their own (a claude.ai artifact)
-const head = html.match(/<head>([\s\S]*?)<\/head>/)[1].replace(/<meta[^>]*>\s*/g, "");
+const head = html.match(/<head>([\s\S]*?)<\/head>/)[1].replace(/<(meta|link)[^>]*>\s*/g, "");
 const body = html.match(/<body>([\s\S]*)<\/body>/)[1];
 writeFileSync(join(here, "dist/embed.html"), head.trim() + "\n" + body.trim() + "\n");

@@ -197,11 +197,13 @@ export function drawCave(frame, cave, camX, camY, dig) {
     }
   }
   const tx0 = Math.floor(camX / T), ty0 = Math.max(0, Math.floor(camY / T));
-  const tx1 = Math.min(MW - 1, Math.floor((camX + W - 1) / T)), ty1 = Math.min(MH - 1, Math.floor((camY + H - 1) / T));
+  const tx1 = Math.floor((camX + W - 1) / T), ty1 = Math.min(MH - 1, Math.floor((camY + H - 1) / T));
   const solidAt = (x, y) => (x < 0 || x >= MW || y >= MH ? true : y < 0 ? false : SOLID[tile[y * MW + x]]);
   const wangOn = !!(IMG.t_dirt_w && IMG.t_stone_w);
+  // past the side walls the camera may look a little beyond the map: it's all bedrock out there
+  const tileAt = (x, y) => (x < 0 || x >= MW ? 3 : tile[y * MW + x]);
   for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
-    const m = tile[ty * MW + tx], v = (h2(tx, ty, 7) * VAR) | 0, z = zoneIdx(tx * T, ty * T);
+    const m = tileAt(tx, ty), v = (h2(tx, ty, 7) * VAR) | 0, z = zoneIdx(tx * T, ty * T);
     const ox = tx * T - camX, oy = ty * T - camY;
     const painted = wangOn && WANG_MAT.has(m);
     if (m === AIR || painted) {
@@ -225,7 +227,7 @@ export function drawCave(frame, cave, camX, camY, dig) {
   }
   // the special blocks keep their look, and digging shows its cracks
   for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
-    const m = tile[ty * MW + tx], ox = tx * T - camX, oy = ty * T - camY;
+    const m = tileAt(tx, ty), ox = tx * T - camX, oy = ty * T - camY;
     if (m === AIR) continue;
     const crack = dig?.get(ty * MW + tx) ?? 0;
     if (!WANG_MAT.has(m)) {
