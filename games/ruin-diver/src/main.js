@@ -2,7 +2,7 @@
 
 import { createFrame, clearFrame, createFx, painterFor } from "../../../src/core/index.js";
 import * as confettiFx from "../../../src/fx/ui/confetti.js";
-import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS, SURVIVE, LORE_N, MATS, FACILITIES, GEAR, RESEARCH, BEASTS, CHALLENGES, EVENTS } from "./data.js";
+import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS, SURVIVE, LORE_N, CONTRACTS, RISK, MATS, FACILITIES, GEAR, RESEARCH, BEASTS, CHALLENGES, EVENTS } from "./data.js";
 import { loadSave, writeSave, wipeSave, storageOk, saveWasCorrupt, stats, applyRun, applyMissions, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
 import { Run } from "./world.js";
 import { compositeLit, setBackdrop } from "./bg.js";
@@ -237,6 +237,19 @@ function updateHud(force = false) {
   meter("mWater", run.water);
   meter("mLight", run.light);
   meter("mPick", (run.dur / run.durMax) * 100);
+  show("mFood", !run.learning);
+  show("mWater", !run.learning);
+  // what you're carrying, and what escaping now would make of it
+  const bv = run.bagValue(), ek = (1 + run.depthMax / RISK.escapePer).toFixed(1);
+  const lootKey = bv + "/" + ek;
+  if (force || lastHud.loot !== lootKey) { lastHud.loot = lootKey; $("hLoot").innerHTML = `${icon("coin")}${S("bagValue", { v: bv })}<em>${S("escK", { k: ek })}</em>`; }
+  const c = run.contract;
+  show("ctLine", !!c);
+  if (c) {
+    const v = c.kind === "escape" ? (run.contractDone ? c.n : 0) : Math.min(c.n, run.ct[c.kind] ?? 0);
+    const txt = `${S("contract")}: ${STR[lang].ct[c.kind].replace("{n}", c.n)} ${c.kind === "escape" ? "" : v + "/" + c.n}${run.contractDone ? " ✓" : ""}`;
+    if (lastHud.ct !== txt) { lastHud.ct = txt; $("ctLine").textContent = txt; $("ctLine").classList.toggle("done", run.contractDone); }
+  }
   drawMini();
   // the collapse: on the gauge, and a warning when it's close
   const colM = Math.max(0, run.colY / 16);
@@ -476,6 +489,15 @@ function handleEvents() {
       case "event":
         openChoice(e.ev);
         break;
+      case "rare":
+        banner(S("rareFind"), itemName(e.id));
+        break;
+      case "record":
+        banner(S("newBest", { d: e.d }), "");
+        break;
+      case "contract":
+        banner(S("contractDone"), STR[lang].ct[run.contract.kind].replace("{n}", run.contract.n));
+        break;
       case "secret":
         banner(S("secretFound"), "");
         break;
@@ -503,7 +525,11 @@ function finishDive(died) {
   show("stick", false);
   const before = new Set(ITEMS.filter((it) => (save.book[it.id]?.count ?? 0) > 0).map((it) => it.id));
   // you keep what you found either way: the run's score is how deep and how long you lasted
-  result = applyRun(save, { bag: run.bag, dropped: [], seen: run.seen, coins: run.coins, depth: run.depthMax });
+  result = applyRun(save, { bag: run.bag, dropped: [], seen: run.seen, coins: run.coins, depth: run.depthMax, died });
+  // the contract pays when it's done, however the dive ended
+  if (run.contract && run.contractDone) { save.coins += run.contract.reward; result.total += run.contract.reward; result.contractPaid = run.contract.reward; }
+  save.contract = null;
+  save.offers = null;
   result.missions = [];
   result.died = died;
   result.won = run.won;
@@ -575,7 +601,7 @@ function showResults() {
   renderBookBtn();
   renderBaseBtn();
   renderStarts();
-  show("missionBox", false);
+  renderContracts();
 }
 /** Duplicates on one card with a count. */
 function stack(items) {
@@ -609,6 +635,28 @@ function hubGrid(grid) {
     grid.appendChild(el);
   }
 }
+// contracts: three on offer before each dive, scaled to how deep you've been
+function rollOffers() {
+  const tier = save.best < 100 ? 0 : save.best < 200 ? 1 : 2;
+  const pool = CONTRACTS.filter((c) => c.kind !== "escape" || tier > 0 || save.best >= 50);
+  const out = [];
+  while (out.length < 3 && pool.length) {
+    const c = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    out.push({ kind: c.kind, n: c.n[tier], reward: Math.round(c.reward * (1 + tier * 0.8)) });
+  }
+  return out;
+}
+function renderContracts() {
+  const box = $("missionBox");
+  if (save.runs < 1) return show("missionBox", false);
+  if (!save.offers) { save.offers = rollOffers(); save.contract = save.offers[0]; writeSave(save); }
+  show("missionBox", true);
+  box.innerHTML = `<h4>${S("contractPick")}</h4>` + save.offers.map((o, i) => {
+    const on = save.contract && save.contract.kind === o.kind && save.contract.n === o.n;
+    return `<div class="ct${on ? " on" : ""}" data-i="${i}"><span>${STR[lang].ct[o.kind].replace("{n}", o.n)}</span><b>${icon("coin")}${o.reward}</b><span class="pick">${on ? "✓" : "○"}</span></div>`;
+  }).join("");
+  for (const el of box.querySelectorAll(".ct")) el.addEventListener("click", () => { save.contract = save.offers[+el.dataset.i]; writeSave(save); audio.play("click"); renderContracts(); });
+}
 const missionText = (def) => STR[lang].mission[def.kind].replace("{n}", def.n);
 function renderMissions(done = []) {
   const box = $("missionBox");
@@ -627,6 +675,8 @@ function renderCoins(r) {
   if (r.looseCoins) parts.push(`${S("looseCoins")} <b>+${r.looseCoins}</b>`);
   if (r.missionCoins) parts.push(`${S("missionReward")} <b>+${r.missionCoins}</b>`);
   if (r.sealDoubled) parts.push(`<b style="color:#ff8a8a">${S("sealBonus")}</b>`);
+  if (r.items?.length) parts.push(r.died ? `<b style="color:#ff8a8a">${S("lostTreasure")}</b>` : `<b style="color:#9affb0">${S("escBonus", { k: (r.itemK ?? 1).toFixed(1) })}</b>`);
+  if (r.contractPaid) parts.push(`${S("contractReward")} <b>+${r.contractPaid}</b>`);
   $("resCoins").innerHTML = `<span id="resTotal">${icon("coin")} +${r.total * (r.doubled ? 2 : 1)}</span>${parts.map((p) => `<span>${p}</span>`).join("")}${r.doubled ? `<span><b>×2</b></span>` : ""}`;
 }
 function renderUpgrades() {

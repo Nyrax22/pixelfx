@@ -1,6 +1,6 @@
 // Rules that turn a save into numbers: stats, the collection, and what a finished dive is worth.
 
-import { ITEMS, ITEM, RARITY, SETS, STARS, STAR3_COIN_BONUS, UPGRADES, UPGRADE, ZONES, MISSIONS, MISSION_BEST, upgradeCost, MATS, FACILITIES, GEAR, RESEARCH, STORE_KIT, MUSEUM_COINS } from "./data.js";
+import { RISK, ITEMS, ITEM, RARITY, SETS, STARS, STAR3_COIN_BONUS, UPGRADES, UPGRADE, ZONES, MISSIONS, MISSION_BEST, upgradeCost, MATS, FACILITIES, GEAR, RESEARCH, STORE_KIT, MUSEUM_COINS } from "./data.js";
 
 const SAVE_KEY = "ruindiver.v1";
 export const SAVE_VERSION = 2;
@@ -25,6 +25,7 @@ export function defaultSave() {
     rec: { escapes: 0, deaths: 0, time: 0, coins: 0, kills: 0, events: 0, used: {} },
     claimed: {},  // challenge id -> true
     eventLog: [], // the last few dives' events, so they don't repeat too often
+    contract: null, offers: null, // the chosen contract for the next dive, and the three on offer
     lore: [],     // story fragments read (indices)
   };
 }
@@ -166,6 +167,8 @@ export const zoneAt = (m) => ZONES.find((z) => m >= z.from && m < z.to) ?? ZONES
  */
 export function applyRun(save, run, bonus = false) {
   const k = stats(save).coinK;
+  // treasure is only fully yours if you got out: escaping deeper pays more, falling keeps a quarter
+  const itemK = run.died ? RISK.deathKeep : 1 + Math.max(0, run.depth) / RISK.escapePer;
   const out = { items: [], itemCoins: 0, newCoins: 0, looseCoins: Math.round(run.coins * k), newSets: [], record: false, depth: run.depth, total: 0 };
   // everything seen goes in the book as discovered
   for (const [id, m] of Object.entries(run.seen)) {
@@ -185,7 +188,8 @@ export function applyRun(save, run, bonus = false) {
     if (newVariant) out.newCoins += r.newBonus * 2;
     out.items.push({ id: it.id, variant: it.variant, isNew, newVariant, starUp: starsOf(e.count) > starsOf(before) && !isNew, stars: starsOf(e.count), value });
   }
-  out.itemCoins = Math.round(out.itemCoins * k);
+  out.itemCoins = Math.round(out.itemCoins * k * itemK);
+  out.itemK = itemK;
   for (const s of SETS) if (!save.sets[s.id] && s.items.every((id) => (save.book[id]?.count ?? 0) > 0)) {
     save.sets[s.id] = true;
     out.newSets.push(s.id);

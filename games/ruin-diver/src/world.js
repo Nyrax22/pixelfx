@@ -99,6 +99,12 @@ export class Run {
     this.idols = (this.cave.idols ?? []).map((q) => ({ x: q.tx * T + 8, y: (q.ty + 1) * T, taken: false }));
     this.boulders = [];
     this.flash = 0;
+    // this dive's contract and its counters; the old best, to celebrate passing it
+    this.contract = save.contract ?? null;
+    this.ct = { relics: 0, ore: 0, kills: 0, secret: 0, tablet: 0, pots: 0, chests: 0, depth: 0, escape: 0 };
+    this.contractDone = false;
+    this.oldBest = save.best ?? 0;
+    this.learning = (save.runs ?? 0) < 2; // the first two dives: light only, hunger and thirst wait
     this.carry = st.bag;
     this.starveT = 0;
     this.spawnT = SURVIVE.hunters.lit;
@@ -237,6 +243,7 @@ export class Run {
         this.updateCollapse(dt);
         this.updateExplore(dt);
         this.updateTraps(dt, input);
+        this.updateGoals();
       }
       this.depthMax = Math.max(this.depthMax, this.depth);
       this.tally.depth = this.depthMax;
@@ -302,8 +309,9 @@ export class Run {
     this.alive = (this.alive ?? 0) + dt;
     const camp = this.lit(cx, cy);
     // meters run down; a campfire keeps the lantern topped up
-    this.food = Math.max(0, this.food - (100 / (S.food * st.stomach)) * dt);
-    this.water = Math.max(0, this.water - (100 / (S.water * st.stomach)) * this.pk.waterK * dt);
+    const easy = this.learning ? 0 : 1;
+    this.food = Math.max(0, this.food - (100 / (S.food * st.stomach)) * dt * easy);
+    this.water = Math.max(0, this.water - (100 / (S.water * st.stomach)) * this.pk.waterK * dt * easy);
     if (camp?.kind === "campfire") this.light = Math.min(100, this.light + 20 * dt);
     else this.light = Math.max(0, this.light - (100 / st.lantern) * this.pk.lightK * dt);
     if (this.food < 35) this.hint("hintEat");
@@ -441,6 +449,7 @@ export class Run {
   // ------------------------------------------------------------ the long game: materials, monsters, events
   addMat(id, n, x, y) {
     this.mats[id] = (this.mats[id] ?? 0) + n;
+    this.ct.ore += n;
     this.text(`+${n} ${id.toUpperCase()}`, x, y, "#9ae0ff", "big");
     this.emit("mat", { id, n });
   }
@@ -452,6 +461,7 @@ export class Run {
     this.spot(id, y);
     const b = this.beasts[id];
     b.kills++;
+    this.ct.kills++;
     for (const [m, ch] of Object.entries(BEAST[id]?.drops ?? {})) {
       const n = ch >= 1 ? Math.round(ch) : this.rng.next() < ch ? 1 : 0;
       if (!n) continue;
@@ -561,6 +571,23 @@ export class Run {
       if (this.crushT <= 0) { this.crushT = C.hurtEvery; this.hurt(1, "crush"); }
     } else this.crushT = 0;
   }
+  // ------------------------------------------------------------ goals: the contract, the record, the winches
+  updateGoals() {
+    this.ct.depth = this.depthMax;
+    this.ct.secret = this.secretsFound;
+    this.ct.tablet = this.loreRead.length;
+    const c = this.contract;
+    if (c && !this.contractDone && c.kind !== "escape" && this.ct[c.kind] >= c.n) { this.contractDone = true; this.emit("contract"); audio.play("set"); }
+    if (!this.recordSent && this.oldBest >= 15 && this.depthMax > this.oldBest) { this.recordSent = true; this.emit("record", { d: this.depthMax }); audio.play("newItem"); }
+    if (!this.winchSeen) for (const w of this.cave.winches) if (Math.abs(w.y * T - this.p.y) < 90 && Math.abs(w.x * T - this.p.x) < 160 && this.seen[w.y * MW + w.x]) { this.winchSeen = true; this.hint("winchSee"); break; }
+  }
+  /** What the treasure you're carrying is worth right now, before the escape multiplier. */
+  bagValue() {
+    let v = 0;
+    for (const b of this.bag) { const def = ITEM[b.id], zk = def.zone === "mine" ? 1.6 : 1; v += RARITY[def.rarity].value * zk * (b.variant ? 3 : 1); }
+    return Math.round(v * (this.st.coinK ?? 1));
+  }
+
   // ------------------------------------------------------------ bombs and traps
   updateTraps(dt, input) {
     const p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
@@ -780,6 +807,7 @@ export class Run {
   /** A pot breaks: bits, and maybe something useful. */
   breakPot(q) {
     q.broken = true;
+    this.ct.pots++;
     this.chipsAt(q.x, q.y - 6, BRICK, 10);
     audio.play("break");
     let r = this.rng.next();
@@ -810,6 +838,7 @@ export class Run {
       s.hit.add(en);
       this.freeze = 0.05;
       en.x += p.face * 6;
+      if (!this.vulnerable(en, "swing")) { audio.play("clang"); this.fxs.push({ fx: createFx(sparkFx, { angle: p.face > 0 ? Math.PI : 0, seed: 3 }), x: en.x, y: en.y + 24 }); p.vx = -p.face * 90; continue; }
       this.fxs.push({ fx: createFx(sparkFx, { angle: p.face > 0 ? 0 : Math.PI, seed: this.rng.int(1, 99) }), x: en.x, y: ey + 24 });
       this.strike(en, en.x, en.y);
     }
@@ -1007,6 +1036,10 @@ export class Run {
       }
       return;
     }
+    if (m === BRICK && this.st.pick < 1.35) {
+      if (!this.warnedHard.has(i)) { this.warnedHard.add(i); this.emit("toast", { key: "tooHardBrick" }); audio.play("clang"); this.chips(tx, ty, m, 3); }
+      return;
+    }
     if (this.dur <= 0) {
       if (this.t - (this.brokeT ?? -9) > 2.5) { this.brokeT = this.t; this.emit("toast", { key: "pickBroken" }); audio.play("clang"); }
       return;
@@ -1134,6 +1167,9 @@ export class Run {
       audio.play("newItem");
     } else audio.play("pickup", RARITY[r].order);
     this.emit("pickup", { id: it.id, isNew: !known });
+    this.ct.relics++;
+    // rare things deserve a moment
+    if (RARITY[r].order >= 2 || it.variant) { this.freeze = 0.22; this.shake = 0.25; this.emit("rare", { id: it.id }); }
 
   }
 
@@ -1174,7 +1210,7 @@ export class Run {
         } else if (en.state === "dash") {
           en.cd -= dt;
           const hit = this.flyMove(en, en.vx * dt, en.vy * dt);
-          if (hit || en.cd <= 0) { en.state = "rest"; en.cd = 1.1 / k; if (hit) this.chipsAt(en.x, en.y, DIRT, 4); }
+          if (hit || en.cd <= 0) { en.state = "rest"; en.cd = (hit ? 1.6 : 0.9) / k; en.dazed = hit; if (hit) { this.chipsAt(en.x, en.y, DIRT, 4); audio.play("clang"); } }
         } else {
           en.cd -= dt;
           this.flyMove(en, (dx > 0 ? 1 : -1) * 15 * dt, -10 * dt);
@@ -1211,9 +1247,17 @@ export class Run {
     return hit;
   }
   /** Contact with an enemy: land on top to squash it, anything else hurts. */
+  /** Can this enemy be hurt by a stomp or a swing right now? */
+  vulnerable(en, how) {
+    if (en.kind === "skull" && en.hunter !== true && !(en.state === "rest" && en.dazed)) { this.hint("skullTip"); return false; }
+    if (en.kind === "skull" && en.hunter && en.state === "dash") return false;
+    if (how === "swing" && en.red && Math.sign(en.vx) === -this.p.face) { this.hint("redTip"); return false; }
+    return true;
+  }
   touch(en, rx, ry, oy = 0) {
     const p = this.p, ex = en.x, ey = en.y + oy;
     if (p.x + PW < ex - rx || p.x > ex + rx || p.y + PH < ey - ry || p.y > ey + ry) return;
+    if (p.vy > 0 && p.y + PH < en.y + oy + ry * 0.5 && !this.vulnerable(en, "stomp")) { p.vy = -200; p.fallTop = p.y; audio.play("clang"); return; }
     // falling with your feet above its middle counts: generous on purpose
     if (p.vy > 0 && p.y + PH < en.y + oy + ry * 0.5) {
       p.vy = -230;
@@ -1260,6 +1304,7 @@ export class Run {
       // open: coins fly, the relic pops out on top
       c.open = true;
       this.tally.chests++;
+      if (!c.crate) this.ct.chests++;
       this.freeze = 0.08;
       this.shake = 0.2;
       if (c.crate) {
@@ -1505,6 +1550,8 @@ export class Run {
   }
   escape() {
     if (this.state === "done") return;
+    this.ct.escape = this.depthMax;
+    if (this.contract?.kind === "escape" && this.depthMax >= this.contract.n) this.contractDone = true;
     this.tally.escapeWith = this.bag.length;
     this.state = "done";
     audio.play("escape");
@@ -1781,7 +1828,8 @@ export class Run {
         if (hang) blit(frame, img, ex - (img.w >> 1), ey - 8); else blitMid(frame, img, ex, ey + bob, { flip: this.p.x < en.x });
       } else if (en.kind === "skull" && IMG.skull) {
         const shake = en.state === "aim" ? Math.round(Math.sin(t * 60)) : 0;
-        blitMid(frame, IMG.skull, ex + shake, ey - 2, { flip: this.p.x < en.x });
+        blitMid(frame, IMG.skull, ex + shake, ey - 2, { flip: this.p.x < en.x, tint: en.state === "rest" && en.dazed && Math.floor(t * 10) % 2 ? 0xffd0d0ff : undefined });
+        if (en.state === "rest" && en.dazed) for (let k = 0; k < 3; k++) { const a = t * 5 + k * 2.1; P.dot(ex + Math.cos(a) * 8, ey - 14 + Math.sin(a) * 3, 0xff4ae0ff); }
         P.glow(ex, ey - 6, 10, 0xff2a6aff, en.state === "aim" ? 0.9 : 0.4);
         addLight(lm, ex, ey, 22, 0.35);
       } else if (en.kind === "slime" && IMG.slime) {

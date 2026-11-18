@@ -31,7 +31,9 @@ export const ZONES = [
   { id: "library", from: 300, to: 600, sealed: 0.3, coming: true },
 ];
 export const SEAL_DEPTH = 300;
-export const WINCH_DEPTHS = []; // (no winches: the way out is down)
+// Escape winches: ride one up and you keep everything you carry. Treasure is only safe once you're out.
+export const WINCH_DEPTHS = [55, 140, 230];
+export const RISK = { deathKeep: 0.25, escapePer: 150 }; // fall: treasure worth 25%; escape: x(1 + depth/150)
 
 // Bosses guard the way down. Their arena spans the cave; the gate in its floor opens when they fall.
 // Each time you beat one it comes back a little tougher (up to +3 health).
@@ -113,7 +115,7 @@ export const upgradeCost = (u, level) => Math.round(u.base * Math.pow(u.growth, 
 
 // Survival: three meters that run down, and what refills them.
 export const SURVIVE = {
-  food: 140, water: 105,         // seconds from full to empty (times the stomach upgrade)
+  food: 210, water: 170,         // seconds from full to empty (times the stomach upgrade)
   starveEvery: 5,                // seconds per heart lost while hunger or thirst is empty
   mushroom: 35, cooked: 60,      // hunger a mushroom fills, raw / eaten by a campfire
   drink: 40,                     // thirst one water fills
@@ -576,6 +578,12 @@ export const LANDMARKS = {
 export const SECRETS = { village: 2, mine: 3 }; // sealed rooms behind cracked walls
 export const TABLETS = { village: 2, mine: 3 }; // stone tablets out in the cave (secret rooms hold more)
 export const LORE_N = 12;
+// Contracts: pick one of three before each dive. kind counts toward n during the dive; pays when the dive ends.
+export const CONTRACTS = [
+  { kind: "relics", n: [3, 5, 7], reward: 40 }, { kind: "ore", n: [2, 4, 6], reward: 45 }, { kind: "kills", n: [6, 10, 15], reward: 35 },
+  { kind: "depth", n: [80, 150, 220], reward: 50 }, { kind: "secret", n: [1, 2, 3], reward: 60 }, { kind: "tablet", n: [1, 2, 3], reward: 45 },
+  { kind: "pots", n: [5, 8, 12], reward: 30 }, { kind: "escape", n: [60, 140, 230], reward: 70 }, { kind: "chests", n: [3, 5, 8], reward: 40 },
+];
 export const EVENTS_PER_ZONE = { village: 3, mine: 4 };
 
 // The base on the surface. Each facility has levels; `up[n]` is the price of reaching level n.
@@ -627,6 +635,12 @@ export const CHALLENGES = [
 ];
 
 Object.assign(STR.ko, {
+  contract: "의뢰", contractPick: "다음 탐험 의뢰를 골라요", contractDone: "의뢰 완료!", contractReward: "의뢰 보상",
+  ct: { relics: "유물 {n}개 찾기", ore: "희귀 자원 {n}개 모으기", kills: "몬스터 {n}마리 처치", depth: "{n}m까지 내려가기", secret: "비밀의 방 {n}곳 찾기", tablet: "석판 {n}개 읽기", pots: "항아리 {n}개 깨기", escape: "{n}m 아래에서 탈출하기", chests: "보물상자 {n}개 열기" },
+  bagValue: "보물 {v}", escK: "탈출 ×{k}", winchSee: "탈출 윈치! ↑로 보물을 다 들고 나가요 (깊을수록 보상↑)",
+  escapedWinch: "탈출 성공!", lostTreasure: "쓰러져서 보물 가치 25%만", escBonus: "탈출 보너스 ×{k}",
+  rareFind: "희귀한 발견!", newBest: "최고 기록 갱신! {d}m", tooHardBrick: "벽돌이 너무 단단해요! 폭탄이나 강화 곡괭이가 필요해요",
+  skullTip: "불꽃 해골은 돌진 후 벽에 부딪혀 기절했을 때만 때릴 수 있어요", redTip: "붉은 슬라임은 앞에서 막아요! 밟거나 뒤를 노려요",
   secretFound: "비밀의 방을 발견했어요!", crackHint: "벽 틈으로 바람이 새어 나와요… 뭔가 있을지도?",
   landmarks: { grotto: "빛나는 버섯 동굴", graveyard: "잊힌 묘지", camp: "버려진 광부 야영지", bones: "거대한 뼈 무덤", crystals: "수정 동굴" },
   lmFound: "발견: {name}",
@@ -731,6 +745,12 @@ Object.assign(STR.ko, {
   saveCorrupt: "저장 데이터가 손상돼 새로 시작해요 (백업 보관됨)",
 });
 Object.assign(STR.en, {
+  contract: "Contract", contractPick: "Pick a contract for the next dive", contractDone: "Contract complete!", contractReward: "Contract reward",
+  ct: { relics: "Find {n} relics", ore: "Gather {n} rare materials", kills: "Beat {n} monsters", depth: "Reach {n}m", secret: "Find {n} secret rooms", tablet: "Read {n} tablets", pots: "Break {n} pots", escape: "Escape from below {n}m", chests: "Open {n} chests" },
+  bagValue: "Loot {v}", escK: "Escape ×{k}", winchSee: "Escape winch! Up to leave with your loot (deeper pays more)",
+  escapedWinch: "Escaped!", lostTreasure: "You fell: treasure worth 25%", escBonus: "Escape bonus ×{k}",
+  rareFind: "A rare find!", newBest: "New record! {d}m", tooHardBrick: "The brick is too hard! You need a bomb or a better pickaxe",
+  skullTip: "Flame skulls can only be hit while stunned after a dash", redTip: "Red slimes block from the front! Stomp them or hit from behind",
   secretFound: "You found a secret room!", crackHint: "Air seeps through a crack in the wall… something's behind it?",
   landmarks: { grotto: "Glowing Grotto", graveyard: "Forgotten Graveyard", camp: "Abandoned Miners' Camp", bones: "Great Bone Pit", crystals: "Crystal Cavern" },
   lmFound: "Found: {name}",

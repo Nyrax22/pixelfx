@@ -57,7 +57,7 @@ export function makeCave(seed, save, firstRun) {
     }
     return yMax;
   };
-  const sideCount = new Map(), sideRooms = [];
+  const sideCount = new Map(), sideRooms = [], recent = [];
   const startCols = segs.map((_, i) => (i === 0 ? Math.floor(ENTRANCE.holeX / RW) : R.int(0, 3)));
   const segPlans = segs.map((rows, si) => planRows(R, rows, startCols[si]));
   for (let si = 0; si < segs.length; si++) {
@@ -66,7 +66,13 @@ export function makeCave(seed, save, firstRun) {
       const z = zoneAt(row.y), mat = z.roomTile === "wood" ? WOOD : BRICK;
       for (let c = 0; c < 4; c++) {
         let tpl;
-        if (row.kinds[c] === "path") tpl = PATH[R.int(0, PATH.length - 1)];
+        if (row.kinds[c] === "path") {
+          // never the same room twice in a row: skip the last few used
+          let k = R.int(0, PATH.length - 1);
+          for (let tries = 0; tries < 8 && recent.includes(k); tries++) k = R.int(0, PATH.length - 1);
+          recent.push(k); if (recent.length > 4) recent.shift();
+          tpl = PATH[k];
+        }
         else {
           // vaults and idols are special: at most a couple of each per zone
           let k = R.int(0, SIDE.length - 1);
@@ -497,6 +503,8 @@ export function makeCave(seed, save, firstRun) {
   deco[at(26, 8)] = POOL; pools.push({ tx: 26, ty: 8 });
   chests.push({ tx: 21, ty: 8, crate: true });
   oils.push({ tx: 15, ty: 8 });
+  // the very first dive: treasure within ten seconds
+  if ((save.runs ?? 0) === 0) chests.push({ tx: 28, ty: 8, item: "rag_doll", variant: false, coins: 6 });
 
   // spikes in the floors of side caves, never on the main way
   if (!first) for (const [fx, fy] of floors) {
