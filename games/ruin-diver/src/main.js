@@ -2,7 +2,7 @@
 
 import { createFrame, clearFrame, createFx, painterFor } from "../../../src/core/index.js";
 import * as confettiFx from "../../../src/fx/ui/confetti.js";
-import { W, H, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS, SURVIVE, LORE_N, CONTRACTS, RISK, MATS, FACILITIES, GEAR, RESEARCH, BEASTS, CHALLENGES, EVENTS } from "./data.js";
+import { W, H, setViewW, STR, ITEMS, ITEM, RARITY, SETS, UPGRADES, ZONES, SEAL_DEPTH, LANTERN_AD_SECONDS, DEATH_COIN_KEEP, STARTS, MISSIONS, SURVIVE, LORE_N, CONTRACTS, RISK, MATS, FACILITIES, GEAR, RESEARCH, BEASTS, CHALLENGES, EVENTS } from "./data.js";
 import { loadSave, writeSave, wipeSave, storageOk, saveWasCorrupt, stats, applyRun, applyMissions, bookPercent, upgradeState, buyUpgrade, nextGoal, starsOf, zoneAt } from "./logic.js";
 import { Run } from "./world.js";
 import { compositeLit, setBackdrop } from "./bg.js";
@@ -18,7 +18,11 @@ import { poki } from "./poki.js";
 
 const $ = (id) => document.getElementById(id);
 const stage = $("stage"), cv = $("cv"), ctx = cv.getContext("2d");
-const img = ctx.createImageData(W, H), frame = createFrame(W, H), lm = new Float32Array(W * H);
+let img, frame, lm;
+function viewBuffers() {
+  cv.width = W; cv.height = H;
+  img = ctx.createImageData(W, H); frame = createFrame(W, H); lm = new Float32Array(W * H);
+}
 
 let save = loadSave();
 let lang = save.lang ?? ((navigator.language || "en").toLowerCase().startsWith("ko") ? "ko" : "en");
@@ -51,13 +55,15 @@ function applyStrings() {
 // ------------------------------------------------------------ layout: a 16:9 stage, 1em = 10 game pixels
 function layout() {
   const vw = window.innerWidth, vh = window.innerHeight;
-  // whole-number pixel scale when it doesn't waste much of the screen: every game pixel the same size
+  // fixed 270px tall; the width follows the screen's shape (16:9 up to ~2.4:1) so wide phones are filled
+  const want = Math.max(480, Math.min(640, Math.round((H * vw) / vh / 2) * 2));
+  if (want !== W || !frame) { setViewW(want); viewBuffers(); }
   let k = Math.min(vw / W, vh / H);
   if (Math.floor(k) >= 1 && Math.floor(k) / k >= 0.85) k = Math.floor(k);
   const w = W * k, h = H * k;
   stage.style.width = w + "px";
   stage.style.height = h + "px";
-  stage.style.fontSize = w / 48 + "px";
+  stage.style.fontSize = h / 27 + "px";
   const portrait = vh > vw && matchMedia("(pointer: coarse)").matches;
   $("rotate").style.display = portrait ? "flex" : "none";
   if (portrait && mode === "run") pause();
@@ -71,6 +77,16 @@ const keys = new Set();
 const touch = { dir: 0, up: false, down: false, jump: false };
 let jumpEdge = false, ropeEdge = false;
 const isTouch = matchMedia("(pointer: coarse)").matches;
+// phones: the first tap goes fullscreen (hides the browser bars) and locks landscape. not inside an iframe (Poki does its own).
+if (isTouch && window.top === window.self) {
+  const goFull = () => {
+    const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req || document.fullscreenElement || document.webkitFullscreenElement) return;
+    Promise.resolve(req.call(el, { navigationUI: "hide" })).then(() => screen.orientation?.lock?.("landscape")).catch(() => {});
+  };
+  window.addEventListener("pointerup", goFull);
+  document.addEventListener("fullscreenchange", () => setTimeout(layout, 50));
+}
 let stick = null;
 stage.addEventListener("pointerdown", (e) => {
   audio.unlock();

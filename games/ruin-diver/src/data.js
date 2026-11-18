@@ -1,6 +1,9 @@
 // Every number and name the game uses. Balance lives here, not in the code.
 
-export const W = 480, H = 270;          // the game's pixel resolution (16:9)
+export let W = 480;
+export const H = 270;
+// the view widens on wide screens (phones in landscape) so the game fills them instead of sitting between black bars
+export function setViewW(w) { W = w; }          // the game's pixel resolution (16:9)
 export const T = 16;                    // tile size in pixels; one tile of depth is one meter
 export const MW = 48, MH = 306;         // the cave in tiles: 48 wide, down to the seal at 300m
 
