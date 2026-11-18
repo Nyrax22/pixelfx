@@ -113,7 +113,7 @@ const hold = (id, on, off) => {
 hold("jumpBtn", () => { jumpEdge = true; touch.jump = true; }, () => (touch.jump = false));
 hold("ropeBtn", () => (ropeEdge = true), () => {});
 // the survival bar: eat, drink, torch, campfire (keys 1-4), tappable too
-const actEdge = { eat: false, drink: false, torch: false, campfire: false, look: false, attack: false };
+const actEdge = { eat: false, drink: false, torch: false, campfire: false, look: false, attack: false, bomb: false };
 hold("attackBtn", () => (actEdge.attack = true), () => {});
 hold("lookBtn", () => (actEdge.look = true), () => {});
 for (const b of document.querySelectorAll("#craftBar button")) hold(b.id, () => { if (b.dataset.act === "rope") ropeEdge = true; else actEdge[b.dataset.act] = true; }, () => {});
@@ -135,6 +135,7 @@ window.addEventListener("keydown", (e) => {
   if (!e.repeat && (k === "c" || k === "r" || k === "5")) ropeEdge = true;
   if (!e.repeat && (k === "x" || k === "j") && mode === "run") actEdge.attack = true;
   if (!e.repeat && (k === "arrowup" || k === "w") && mode === "run") actEdge.look = true;
+  if (!e.repeat && (k === "b" || k === "v") && mode === "run") actEdge.bomb = true;
   if (!e.repeat && mode === "run") {
     if (k === "1" || k === "e") actEdge.eat = true;
     if (k === "2" || k === "q") actEdge.drink = true;
@@ -244,7 +245,9 @@ function updateHud(force = false) {
   show("colWarn", !!run.colStarted && gap < 30);
   if (run.colStarted && gap < 30) { cw.textContent = S("collapseGap", { d: gap }); cw.classList.toggle("near", gap < 9); }
   // the survival bar: counts, and whether each action can be done now
-  const inv = run.inv, key = JSON.stringify(inv);
+  const inv = run.inv, key = JSON.stringify(inv) + run.bombs;
+  $("cnt-bomb").textContent = run.bombs;
+  $("act-bomb").classList.toggle("off", run.bombs <= 0);
   if (force || lastHud.inv !== key) {
     lastHud.inv = key;
     $("cnt-eat").textContent = inv.mushroom;

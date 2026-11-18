@@ -115,7 +115,9 @@ function bars(g) {
     put(g, x, y, band ? (x % 4 === 0 ? 4 : 3) : bar ? (x % 4 === 1 ? 3 : 1) : 0);
   }
 }
-TEX[9] = TEX[DIRT]; // a cracked wall looks like the rock around it, plus its cracks
+TEX[9] = TEX[DIRT];
+TEX[10] = TEX[STONE]; // arrow trap block (its face is drawn by the world)
+TEX[11] = TEX[WOOD];  // crumbling planks // a cracked wall looks like the rock around it, plus its cracks
 TEX[GATE] = [paint(["#06040a", "#3a3448", "#5a5468", "#8a84a0", "#c0b8d8"], bars), paint(["#06040a", "#3a3448", "#5a5468", "#8a84a0", "#c0b8d8"], bars)];
 const BACK = [
   paint(["#140a06", "#22140c", "#2e1c12", "#2e1c12", "#2e1c12"], backDirt),

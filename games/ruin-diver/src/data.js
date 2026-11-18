@@ -131,10 +131,13 @@ export const SURVIVE = {
 // meters of you; it holds still while a boss fight is on.
 export const COLLAPSE = { grace: 0, start: 0.5, max: 0.78, ramp: 300, catchup: 26, catchK: 0.08, hurtEvery: 0.7, warn: 9 };
 // The pickaxe wears out: each block costs durability (by material), crates and the merchant mend it.
-export const PICK = { base: 30, perLevel: 9, cost: { crack: 0, dirt: 1, gold: 1, wood: 1, brick: 2, stone: 2, gem: 2 }, crate: 5, chest: 8 };
+export const PICK = { base: 30, perLevel: 9, cost: { arrow: 2, crumble: 0, crack: 0, dirt: 1, gold: 1, wood: 1, brick: 2, stone: 2, gem: 2 }, crate: 5, chest: 8 };
 // A swing of the pickaxe: reach in pixels in front of you, how long it lasts and the wait before the next.
 export const SWING = { reach: 22, time: 0.18, cooldown: 0.34 };
 export const WALL = { slide: 55, jumpX: 150, jumpK: 0.92 }; // wall slide speed cap, wall jump push and height
+// Spelunky-style tools and traps.
+export const BOMB = { start: 3, fuse: 1.6, radius: 30, dmg: 2, throwX: 170, throwY: -200, crate: 0.4 };
+export const TRAP = { range: 8, speed: 330, windup: 0.16, reload: 4, crumble: 0.5, boulder: 175, boulderDmg: 2, tntFuse: 0.35 };
 export const START_KIT = { mushroom: 1, water: 1, wood: 2, stone: 0 };
 
 // Movement and danger.
@@ -142,7 +145,7 @@ export const PHYS = {
   gravity: 1100, maxFall: 420, walk: 92, accel: 900, jump: 300, climb: 72,
   coyote: 0.1, jumpBuffer: 0.12, fallHurt: 7, fallHurt2: 12, // tiles fallen before landing hurts (1, then 2 hearts)
 };
-export const DIG = { crack: 0.18, dirt: 0.32, gold: 0.45, brick: 0.7, wood: 0.4, stone: 0.75, gem: 0.9 };
+export const DIG = { arrow: 0.9, crumble: 0.2, crack: 0.18, dirt: 0.32, gold: 0.45, brick: 0.7, wood: 0.4, stone: 0.75, gem: 0.9 };
 export const STONE_PICK = 0;           // (stone can always be dug; a better pick just digs faster)
 export const DARK_DRAIN = 6;           // seconds per heart lost once the lantern is out
 export const ROPE_LEN = 8;             // tiles a thrown rope reaches
@@ -197,7 +200,7 @@ export const STR = {
     rules3: "숨겨진 방과 고대의 석판을 찾아 300m 아래 출구까지 내려가요",
     food: "배고픔", waterM: "목마름", light: "빛",
     inv: { mushroom: "버섯", water: "물", wood: "나무", stone: "돌" },
-    act: { eat: "먹기", drink: "마시기", torch: "횃불", campfire: "모닥불", rope: "로프" },
+    act: { eat: "먹기", drink: "마시기", torch: "횃불", campfire: "모닥불", rope: "로프", bomb: "폭탄" },
     needs: "{what} 부족",
     hintEat: "배고파요! 1번(버섯 먹기)을 누르세요",
     hintDrink: "목말라요! 2번(물 마시기)을 누르세요. 물웅덩이에 서 있으면 물을 떠요",
@@ -247,7 +250,7 @@ export const STR = {
     atExit: "출구 바로 여기!",
     jump: "점프",
     ropeBtn: "로프",
-    ctrlKeys: "←→ 이동 · Space 점프 · X 공격 · 벽으로 밀어 파기 · 벽에서 점프 = 벽차기 · 1 먹기 · 2 마시기 · 3 횃불 · 4 모닥불 · C 로프",
+    ctrlKeys: "←→ 이동 · Space 점프 · X 공격 · 벽으로 밀어 파기 · 벽에서 점프 = 벽차기 · 1 먹기 · 2 마시기 · 3 횃불 · 4 모닥불 · B 폭탄 · C 로프",
     ctrlTouch: "왼쪽 드래그 이동 · 아래로 끌면 파기 · 오른쪽 점프·공격 · 벽에서 점프 = 벽차기",
     keptCoins: "코인 절반만 챙겼어요",
     tapToDive: "탭해서 탐험 시작",
@@ -360,7 +363,7 @@ export const STR = {
     rules3: "Find hidden rooms and ancient tablets on your way to the exit 300m below",
     food: "Hunger", waterM: "Thirst", light: "Light",
     inv: { mushroom: "Mushroom", water: "Water", wood: "Wood", stone: "Stone" },
-    act: { eat: "Eat", drink: "Drink", torch: "Torch", campfire: "Campfire", rope: "Rope" },
+    act: { eat: "Eat", drink: "Drink", torch: "Torch", campfire: "Campfire", rope: "Rope", bomb: "Bomb" },
     needs: "Need {what}",
     hintEat: "Hungry! Press 1 to eat a mushroom",
     hintDrink: "Thirsty! Press 2 to drink. Stand in a pool to fill up",
@@ -410,7 +413,7 @@ export const STR = {
     atExit: "Exit right here!",
     jump: "Jump",
     ropeBtn: "Rope",
-    ctrlKeys: "←→ move · Space jump · X attack · push into walls to dig · jump off walls · 1 eat · 2 drink · 3 torch · 4 campfire · C rope",
+    ctrlKeys: "←→ move · Space jump · X attack · push into walls to dig · jump off walls · 1 eat · 2 drink · 3 torch · 4 campfire · B bomb · C rope",
     ctrlTouch: "Drag left side to move · drag down to dig · right buttons jump and attack · jump off walls",
     keptCoins: "Kept half your coins",
     tapToDive: "Tap to explore",
@@ -545,7 +548,7 @@ export const EVENTS = {
   altar:    { zones: ["village", "mine"], w: 2.2, from: 20, opts: [{ id: "blood", cost: { hp: 1 } }, { id: "offer", cost: { mushroom: 2 } }] },
   merchant: { zones: ["village", "mine"], w: 2.2, from: 15, stay: true, opts: [
     { id: "food", cost: { coins: 12 } }, { id: "water", cost: { coins: 12 } }, { id: "oil", cost: { coins: 15 } },
-    { id: "mats", cost: { coins: 20 } }, { id: "mend", cost: { coins: 15 } }, { id: "rare", cost: { coins: 45 } }] },
+    { id: "mats", cost: { coins: 20 } }, { id: "mend", cost: { coins: 15 } }, { id: "bombs", cost: { coins: 20 } }, { id: "rare", cost: { coins: 45 } }] },
   cursed:   { zones: ["village", "mine"], w: 1.4, from: 40, opts: [{ id: "open", cost: {} }] },
   vault:    { zones: ["mine"], w: 2, from: 105, opts: [{ id: "break", cost: { stone: 4 } }] },
   spring:   { zones: ["mine"], w: 1.6, from: 105, opts: [{ id: "drink", cost: {} }] },
@@ -711,9 +714,12 @@ Object.assign(STR.ko, {
   },
   evOpt: {
     blood: "하트 1개 바치기 → 희귀 유물", offer: "버섯 2개 바치기 → 희귀 자원 2개",
-    food: "버섯 2개", water: "물 2개", mend: "곡괭이 수리 +12", oil: "랜턴 기름 가득", mats: "나무 3 + 돌 3", rare: "희귀 자원 1개",
+    food: "버섯 2개", water: "물 2개", mend: "곡괭이 수리 +12", bombs: "폭탄 2개", oil: "랜턴 기름 가득", mats: "나무 3 + 돌 3", rare: "희귀 자원 1개",
     open: "열어 본다 (어둠과 괴물이 몰려와요)", break: "돌 4개로 부수기", drink: "마신다 (목마름 가득, 하트 +1)",
   },
+  hintBomb: "B로 폭탄! 벽 너머 숨겨진 방을 날려 열 수 있어요", hintArrow: "화살 함정! 앞을 지나가면 화살이 날아와요",
+  hintIdol: "황금 우상… 가져가면 무슨 일이 생길까?", boulderComing: "바위가 굴러온다!", hintCrumble: "발판이 무너진다!", hintTnt: "TNT! 건드리면 터져요",
+  noBombs: "폭탄이 없어요",
   collapse: "동굴이 무너진다! 아래로 도망쳐!", collapseNear: "붕괴가 바로 위에!", collapseGap: "붕괴 ↑{d}m",
   pickBroken: "곡괭이가 망가졌어요! 상자나 상인에게서 고쳐요", pickLow: "곡괭이가 닳고 있어요", hintPickLow: "곡괭이가 거의 닳았어요! 꼭 필요한 곳만 파세요", pickM: "곡괭이", attack: "공격",
   hintWall: "벽에 붙어 미끄러지다가 점프하면 벽차기!", hintSwing: "X로 곡괭이를 휘둘러 공격!", hintSwingTouch: "공격 버튼으로 곡괭이를 휘둘러요!",
@@ -812,9 +818,12 @@ Object.assign(STR.en, {
   },
   evOpt: {
     blood: "Offer 1 heart → a rare relic", offer: "Offer 2 mushrooms → 2 rare materials",
-    food: "2 mushrooms", water: "2 water", mend: "Mend pickaxe +12", oil: "Fill the lantern", mats: "3 wood + 3 stone", rare: "1 rare material",
+    food: "2 mushrooms", water: "2 water", mend: "Mend pickaxe +12", bombs: "2 bombs", oil: "Fill the lantern", mats: "3 wood + 3 stone", rare: "1 rare material",
     open: "Open it (darkness and monsters come)", break: "Smash it with 4 stones", drink: "Drink (thirst full, +1 heart)",
   },
+  hintBomb: "B throws a bomb! Blow open walls to find hidden rooms", hintArrow: "Arrow trap! Walk in front of it and it fires",
+  hintIdol: "A golden idol… what happens if you take it?", boulderComing: "Here comes a boulder!", hintCrumble: "The planks are giving way!", hintTnt: "TNT! Touch it and it blows",
+  noBombs: "No bombs left",
   collapse: "The cave is collapsing! Run down!", collapseNear: "The collapse is right above you!", collapseGap: "Collapse ↑{d}m",
   pickBroken: "Your pickaxe broke! Mend it with crates or the merchant", pickLow: "Your pickaxe is wearing out", hintPickLow: "Your pickaxe is nearly worn out! Dig only where you must", pickM: "Pick", attack: "Attack",
   hintWall: "Slide down a wall and jump to wall-jump!", hintSwing: "Press X to swing your pickaxe!", hintSwingTouch: "Tap Attack to swing your pickaxe!",

@@ -7,9 +7,9 @@ import * as poofFx from "../../../src/fx/spawn/poof.js";
 import * as torchFx from "../../../src/fx/fire/torch.js";
 import * as campfireFx from "../../../src/fx/fire/campfire.js";
 import * as beamFx from "../../../src/fx/pickups/loot-beam.js";
-import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME, SURVIVE, START_KIT, EVENTS, BEASTS, ORES, COLLAPSE, PICK, SWING, WALL, GLOW, POT_LOOT } from "./data.js";
+import { W, H, T, MW, MH, ITEM, RARITY, SEAL_DEPTH, PHYS, DIG, STONE_PICK, DARK_DRAIN, ROPE_LEN, DEPTH_SCALE, MISSIONS, COMBO_BONUS, GOLD_SLIME, SURVIVE, START_KIT, EVENTS, BEASTS, ORES, COLLAPSE, PICK, SWING, WALL, GLOW, POT_LOOT, BOMB, TRAP } from "./data.js";
 import { shape, PALS, variantPal, EXPLORER, EXPLORER_PAL, COIN, COIN_PAL, LADDER_TILE, LADDER_PAL, ROPE_TILE, ROPE_PAL, SPIKES_TILE, SPIKES_PAL, BAT_HANG, BAT_HANG_PAL, BAT, BAT_PAL, SLIME, SLIME_PAL, RED_SLIME_PAL, SKULL, SKULL_PAL, STALACTITE as STALACTITE_SPR, STALACTITE_PAL, BOULDER, BOULDER_PAL, SLIME_KING, SLIME_KING_PAL, GOLEM, GOLEM_PAL, HEART_SPR, HEART_PAL, CHEST, CHEST_PAL, GOLD_SLIME_PAL, MUSHROOM, MUSHROOM_PAL, OIL, OIL_PAL, ROOT_SPR, ROOT_PAL, CRATE, CRATE_PAL, ALTAR, ALTAR_PAL, MERCHANT, MERCHANT_PAL, CURSED_PAL, VAULT_PAL } from "./sprites.js";
-import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE, POOL, ROOT, CRACK, rollItem } from "./cave.js";
+import { makeCave, AIR, DIRT, STONE, BEDROCK, GOLD, GEM, BRICK, WOOD, GATE, SOLID, MAT_NAME, NONE, LADDER, SPIKES, ROPE, WINCH, TORCH, STALACTITE, POOL, ROOT, CRACK, ARROW, CRUMBLE, rollItem } from "./cave.js";
 import { drawCave, fillAmbient, addLight } from "./bg.js";
 import { zoneAt, missionProgress } from "./logic.js";
 import { audio } from "./audio.js";
@@ -90,6 +90,15 @@ export class Run {
     this.secretsFound = 0;
     this.loreRead = [];
     this.sealTaken = false;
+    // tools and traps
+    this.bombs = BOMB.start + (this.pk.kit.bomb ?? 0);
+    this.bombList = [];
+    this.traps = new Map([...(this.cave.arrows ?? new Map())].map(([i, dir]) => [i, { dir, loaded: true, wind: 0, reload: 0 }]));
+    this.arrows = [];
+    this.crumbling = new Map();
+    this.idols = (this.cave.idols ?? []).map((q) => ({ x: q.tx * T + 8, y: (q.ty + 1) * T, taken: false }));
+    this.boulders = [];
+    this.flash = 0;
     this.carry = st.bag;
     this.starveT = 0;
     this.spawnT = SURVIVE.hunters.lit;
@@ -227,6 +236,7 @@ export class Run {
         this.updateSwing(dt, input);
         this.updateCollapse(dt);
         this.updateExplore(dt);
+        this.updateTraps(dt, input);
       }
       this.depthMax = Math.max(this.depthMax, this.depth);
       this.tally.depth = this.depthMax;
@@ -496,6 +506,7 @@ export class Run {
       case "oil": this.light = 100; msg = "bought"; break;
       case "mats": this.inv.wood += 3; this.inv.stone += 3; msg = "bought"; break;
       case "mend": this.dur = Math.min(this.durMax, this.dur + 12); msg = "bought"; break;
+      case "bombs": this.bombs += 2; msg = "bought"; break;
       case "rare": this.addMat(this.zoneMat(ev.ty), 1, x, y); msg = "bought"; break;
       case "open":
         relic(ev.item, ev.variant); coins(14); this.addMat(this.zoneMat(ev.ty), 2, x, y);
@@ -550,6 +561,156 @@ export class Run {
       if (this.crushT <= 0) { this.crushT = C.hurtEvery; this.hurt(1, "crush"); }
     } else this.crushT = 0;
   }
+  // ------------------------------------------------------------ bombs and traps
+  updateTraps(dt, input) {
+    const p = this.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
+    this.flash = Math.max(0, this.flash - dt);
+    // bombs: throw one (or set it down at your feet holding down)
+    if (input.bomb) {
+      if (this.bombs <= 0) this.emit("toast", { key: "noBombs" });
+      else {
+        this.bombs--;
+        this.use("bomb");
+        const place = input.down && p.ground;
+        this.bombList.push({ x: cx + (place ? 0 : p.face * 6), y: p.y + 4, vx: place ? 0 : p.face * BOMB.throwX + p.vx * 0.4, vy: place ? 0 : BOMB.throwY, t: BOMB.fuse });
+        audio.play("throw");
+        this.emit("inv");
+      }
+    }
+    for (const b of this.bombList) {
+      b.t -= dt;
+      b.vy = Math.min(420, b.vy + 900 * dt);
+      const nx = b.x + b.vx * dt;
+      if (this.solid(Math.floor(nx / T), Math.floor(b.y / T))) b.vx *= -0.45; else b.x = nx;
+      const ny = b.y + b.vy * dt;
+      if (this.solid(Math.floor(b.x / T), Math.floor((ny + 3) / T))) { if (b.vy > 60) audio.play("land"); b.vy *= -0.35; b.vx *= 0.7; } else b.y = ny;
+      if (b.t <= 0) { b.done = true; this.explode(b.x, b.y, BOMB.radius); }
+    }
+    this.bombList = this.bombList.filter((b) => !b.done);
+    // TNT on a short fuse
+    for (const q of this.props) if (q.id === "tnt" && !q.broken && q.fuse != null) { q.fuse -= dt; if (q.fuse <= 0) { q.broken = true; this.explode(q.x, q.y - 8, BOMB.radius + 6); } }
+    // arrow traps: anything walking in front of one gets shot at
+    const ptx = Math.floor(cx / T), pty = Math.floor(cy / T);
+    for (const [i, tr] of this.traps) {
+      const tx = i % MW, ty = (i / MW) | 0;
+      if (Math.abs(ty - pty) > 14 || this.tile[i] !== ARROW) continue;
+      if (!tr.loaded) { tr.reload -= dt; if (tr.reload <= 0) tr.loaded = true; continue; }
+      if (tr.wind > 0) {
+        tr.wind -= dt;
+        if (tr.wind <= 0) {
+          this.arrows.push({ x: tx * T + 8 + tr.dir * 9, y: ty * T + 9, vx: tr.dir * TRAP.speed, life: 2 });
+          tr.loaded = false; tr.reload = TRAP.reload;
+          audio.play("throw");
+        }
+        continue;
+      }
+      if (ty !== pty && ty !== Math.floor((p.y + 2) / T) && ty !== Math.floor((p.y + PH - 2) / T)) continue;
+      for (let k = 1; k <= TRAP.range; k++) {
+        const x = tx + tr.dir * k;
+        if (this.solid(x, ty)) break;
+        if (x === ptx) { tr.wind = TRAP.windup; audio.play("clang"); if (this.depth > 10) this.hint("hintArrow"); break; }
+      }
+    }
+    for (const a of this.arrows) {
+      a.life -= dt;
+      if (a.stuck) continue;
+      a.x += a.vx * dt;
+      if (this.solid(Math.floor(a.x / T), Math.floor(a.y / T))) { a.stuck = true; a.life = Math.min(a.life, 0.8); audio.play("dig"); continue; }
+      if (a.x > p.x - 2 && a.x < p.x + PW + 2 && a.y > p.y && a.y < p.y + PH) { a.life = 0; this.hurt(1, "arrow", a.x - a.vx); continue; }
+      for (const en of this.enemies) if (en.alive && Math.abs(en.x - a.x) < 7 && Math.abs((en.kind === "slime" ? en.y - 6 : en.y) - a.y) < 8) { en.hp = 1; this.strike(en, en.x, en.y); a.life = 0; break; }
+      for (const q of this.props) if (!q.broken && Math.abs(q.x - a.x) < 7 && Math.abs(q.y - 8 - a.y) < 9) { if (q.id === "tnt") q.fuse ??= TRAP.tntFuse; else if (q.id === "pot") this.breakPot(q); else continue; a.life = 0; break; }
+    }
+    this.arrows = this.arrows.filter((a) => a.life > 0);
+    // crumbling planks under your feet
+    if (p.ground) for (const fx of [p.x + 1, p.x + PW - 1]) {
+      const i = Math.floor((p.y + PH + 1) / T) * MW + Math.floor(fx / T);
+      if (this.tile[i] === CRUMBLE && !this.crumbling.has(i)) { this.crumbling.set(i, TRAP.crumble); audio.play("crack"); this.hint("hintCrumble"); }
+    }
+    for (const [i, tl] of this.crumbling) {
+      const left = tl - dt;
+      if (Math.random() < 0.4) this.dust((i % MW) * T + Math.random() * 16, ((i / MW) | 0) * T + 16, 1);
+      if (left > 0) { this.crumbling.set(i, left); continue; }
+      this.crumbling.delete(i);
+      if (this.tile[i] !== CRUMBLE) continue;
+      this.tile[i] = AIR;
+      this.chips(i % MW, (i / MW) | 0, WOOD, 8);
+      audio.play("break");
+    }
+    // golden idols: the treasure of a lifetime, and a boulder to go with it
+    for (const q of this.idols) {
+      if (q.taken) continue;
+      const dx = Math.abs(q.x - cx), dy = Math.abs(q.y - 8 - cy);
+      if (dx < 60 && dy < 30) this.hint("hintIdol");
+      if (dx > 9 || dy > 12) continue;
+      q.taken = true;
+      const z = zoneAt(Math.floor(q.y / T));
+      for (let k = 0; k < 22; k++) this.popCoins.push({ x: q.x, y: q.y - 10, vx: this.rng.range(-130, 130), vy: this.rng.range(-280, -120), v: z.coinValue, t: 0 });
+      this.text("IDOL!", q.x, q.y - 22, "#ffd23a", "big");
+      this.fxs.push({ fx: createFx(burstFx, { palette: BURST.legendary, seed: 9, light: 1 }), x: q.x, y: q.y + 16 });
+      audio.play("newItem");
+      // the boulder comes from whichever side has more room to roll
+      const ty = Math.floor(q.y / T) - 1;
+      let best = null;
+      for (const side of [-1, 1]) { let n = 0; while (n < 12 && !this.solid(Math.floor(q.x / T) + side * (n + 1), ty)) n++; if (!best || n > best.n) best = { side, n }; }
+      const sx0 = q.x + best.side * Math.max(3, best.n - 1) * T;
+      this.boulders.push({ x: sx0, y: q.y - 14, vx: -best.side * TRAP.boulder, vy: 0, r: 11, life: 9, rot: 0 });
+      this.shake = 0.8;
+      audio.play("boss");
+      this.emit("toast", { key: "boulderComing" });
+    }
+    for (const b of this.boulders) {
+      b.life -= dt;
+      b.vy = Math.min(420, b.vy + 900 * dt);
+      b.rot += (b.vx / b.r) * dt;
+      const ahead = Math.floor((b.x + Math.sign(b.vx) * (b.r + 1)) / T), mid = Math.floor((b.y - 2) / T);
+      if (this.solid(ahead, mid) || this.solid(ahead, Math.floor((b.y - b.r) / T))) {
+        // smash into the wall: it goes, and so does the boulder
+        if (this.tile[mid * MW + ahead] !== BEDROCK && ahead > 0 && ahead < MW - 1 && b.life > 6.5) { this.tile[mid * MW + ahead] = AIR; this.chips(ahead, mid, STONE, 10); }
+        else { b.life = 0; this.chipsAt(b.x, b.y, STONE, 18); this.shake = 0.4; audio.play("slam"); continue; }
+      }
+      b.x += b.vx * dt;
+      const ny = b.y + b.vy * dt;
+      if (this.solid(Math.floor(b.x / T), Math.floor((ny + 1) / T))) { b.y = Math.floor((ny + 1) / T) * T - 0.01; b.vy = 0; } else b.y = ny;
+      if (Math.random() < 0.3) this.dust(b.x, b.y, 1);
+      if (Math.abs(p.x + PW / 2 - b.x) < b.r + 4 && p.y + PH > b.y - b.r * 2 && p.y < b.y) this.hurt(TRAP.boulderDmg, "boulder", b.x);
+      for (const en of this.enemies) if (en.alive && Math.abs(en.x - b.x) < b.r + 4 && Math.abs(en.y - b.y) < b.r * 2) { en.hp = 1; this.strike(en, en.x, en.y); }
+      for (const q of this.props) if (!q.broken && Math.abs(q.x - b.x) < b.r + 3 && Math.abs(q.y - b.y) < 16) { if (q.id === "tnt") q.fuse ??= 0.05; else if (q.id === "pot") this.breakPot(q); }
+      if (this.shake < 0.15) this.shake = 0.1;
+    }
+    this.boulders = this.boulders.filter((b) => b.life > 0);
+  }
+  /** Boom: rock within reach is gone, everything nearby is hurt, pots break and TNT goes up too. */
+  explode(x, y, r) {
+    const tx0 = Math.floor((x - r) / T), tx1 = Math.floor((x + r) / T), ty0 = Math.floor((y - r) / T), ty1 = Math.floor((y + r) / T);
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      if (tx <= 0 || tx >= MW - 1 || ty < 1 || ty >= MH) continue;
+      const i = ty * MW + tx, m = this.tile[i];
+      if (!SOLID[m] || m === BEDROCK || m === GATE) continue;
+      if (Math.hypot(tx * T + 8 - x, ty * T + 8 - y) > r + 6) continue;
+      const ore = this.ores.get(i);
+      if (ore) { this.ores.delete(i); this.addMat(ore, 1, tx * T + 8, ty * T); }
+      this.tile[i] = AIR;
+      if (this.deco[i] === SPIKES || this.deco[i] === STALACTITE) this.deco[i] = NONE;
+      this.chips(tx, ty, m, 6);
+      if (ty > 0 && this.deco[(ty - 1) * MW + tx] === SPIKES) this.deco[(ty - 1) * MW + tx] = NONE;
+    }
+    const p = this.p;
+    if (Math.hypot(p.x + PW / 2 - x, p.y + PH / 2 - y) < r + 8) this.hurt(BOMB.dmg, "bomb", x);
+    for (const en of this.enemies) if (en.alive && Math.hypot(en.x - x, en.y - y) < r + 12) { en.hp = 1; this.strike(en, en.x, en.y); }
+    for (const b of this.bosses) if (b.state === "fight" && b.hurtT <= 0 && Math.abs(b.x - x) < r + 20 && Math.abs(b.y - 20 - y) < r + 26) this.hitBoss(b, false);
+    for (const q of this.props) if (!q.broken && Math.hypot(q.x - x, q.y - 8 - y) < r + 10) { if (q.id === "tnt") q.fuse ??= 0.12; else if (q.id === "pot") this.breakPot(q); else if (!q.ceil) q.broken = q.id !== "minecart" && q.id !== "fossil"; }
+    for (const c of this.critters) if (c.alive && Math.hypot(c.x - x, c.y - y) < r + 10) c.alive = false;
+    for (const c of this.chests) if (!c.open && Math.hypot(c.x - x, c.y - 6 - y) < r) { c.x += 0; } // chests are sturdy
+    this.fxs.push({ fx: createFx(burstFx, { palette: ["#1e0a04", "#5a1a06", "#b0400a", "#f07a1a", "#ffb43a", "#ffe08a", "#fff6d0", "#ffffff"], seed: this.rng.int(1, 99), light: 1 }), x, y: y + 30 });
+    for (let k = 0; k < 2; k++) this.fxs.push({ fx: createFx(poofFx, { palette: POOF_DARK, seed: this.rng.int(1, 99) }), x: x + (k - 0.5) * 14, y: y + 36 });
+    this.shake = Math.max(this.shake, 0.55);
+    this.flash = 0.25;
+    this.flashAt = [x, y];
+    this.freeze = 0.05;
+    audio.play("slam");
+    audio.play("break");
+  }
+
   // ------------------------------------------------------------ exploration
   /** Light the way: flood out through open cave from the explorer, marking it (and the walls around it) seen. */
   reveal() {
@@ -593,7 +754,7 @@ export class Run {
         this.text("SECRET!", cx, p.y - 12, "#ffe06a", "big");
       }
       const [kx, ky] = q.crack;
-      if (!q.found && !q.hinted && this.tile[ky * MW + kx] === CRACK && Math.abs(kx * T + 8 - cx) < 70 && Math.abs(ky * T + 8 - cy) < 40 && this.seen[ky * MW + kx]) { q.hinted = true; this.hint("crackHint"); }
+      if (!q.found && !q.hinted && this.tile[ky * MW + kx] === CRACK && Math.abs(kx * T + 8 - cx) < 70 && Math.abs(ky * T + 8 - cy) < 40 && this.seen[ky * MW + kx]) { q.hinted = true; this.hint("crackHint"); this.hint("hintBomb"); }
     }
     for (const l of this.landmarks) {
       if (l.found || Math.abs(l.tx * T - cx) > 120 || Math.abs(l.ty * T - cy) > 70) continue;
@@ -653,6 +814,7 @@ export class Run {
       this.strike(en, en.x, en.y);
     }
     for (const q of this.props) {
+      if (!q.broken && q.id === "tnt" && !s.hit.has(q) && q.x > x0 - 6 && q.x < x1 + 6 && q.y - 8 > y0 - 6 && q.y - 8 < y1 + 6) { s.hit.add(q); q.fuse ??= TRAP.tntFuse; this.hint("hintTnt"); continue; }
       if (q.broken || q.id !== "pot" || s.hit.has(q) || q.x < x0 - 6 || q.x > x1 + 6 || q.y - 8 < y0 - 6 || q.y - 8 > y1 + 6) continue;
       s.hit.add(q);
       this.breakPot(q);
@@ -1106,6 +1268,7 @@ export class Run {
         const add = (k, n) => { const room = (k === "wood" || k === "stone" ? this.carry + 4 : this.carry) - this.inv[k]; const g = Math.max(0, Math.min(n, room)); this.inv[k] += g; if (g) got.push(`+${g} ${k.toUpperCase()}`); };
         add("wood", this.rng.int(2, 3));
         if (this.dur < this.durMax) { const g = Math.min(PICK.crate, this.durMax - this.dur); this.dur += g; got.push(`+${g} PICK`); }
+        if (this.rng.next() < BOMB.crate) { this.bombs++; got.push("+1 BOMB"); }
         if (this.rng.next() < 0.6) add("mushroom", 1);
         if (this.rng.next() < 0.5) add("water", 1);
         if (this.rng.next() < 0.35) add("stone", 2);
@@ -1722,6 +1885,43 @@ export class Run {
     addLight(lm, lampX, lampY + 6, dark ? 30 : (50 + 80 * lr) * flick * this.pk.lamp, dark ? 0.5 : 0.95);
     if (!dark) P.glow(lampX, lampY, 9, 0xff60c0ff, 0.5);
 
+    // arrow trap faces, flying arrows, bombs, idols and boulders
+    for (const [i, tr] of this.traps) {
+      if (this.tile[i] !== ARROW || !this.seen[i]) continue;
+      const ox = (i % MW) * T - camX, oy = ((i / MW) | 0) * T - camY;
+      if (ox < -16 || ox > W || oy < -16 || oy > H) continue;
+      P.rect(ox + 2, oy + 2, 12, 12, 0xff3a3644);
+      P.rect(ox + 3, oy + 3, 10, 10, 0xff5a5664);
+      const fx2 = tr.dir > 0 ? ox + 10 : ox + 3;
+      P.rect(fx2, oy + 6, 3, 4, tr.wind > 0 ? 0xff3a6aff : 0xff0a0810);
+      P.rect(ox + 6, oy + 4, 4, 2, 0xff8a8494);
+      if (tr.wind > 0) P.glow(fx2 + 1, oy + 8, 8, 0xff3a6aff, 0.8);
+    }
+    for (const a of this.arrows) { const ax = sx(a.x), ay = sy(a.y), d = Math.sign(a.vx); P.line(ax - d * 7, ay, ax, ay, 0xff6a4a2a); P.rect(ax - (d > 0 ? 0 : 1), ay - 1, 2, 3, 0xffd8dce8); P.dot(ax - d * 7, ay - 1, 0xffe0e0e0); P.dot(ax - d * 7, ay + 1, 0xffe0e0e0); }
+    for (const b of this.bombList) {
+      const bx = sx(b.x), by = sy(b.y);
+      P.circle(bx, by, 4, 0xff141018); P.circle(bx - 1, by - 1, 1, 0xff6a6a7a);
+      P.line(bx + 1, by - 4, bx + 3, by - 6, 0xff6a5a3a);
+      if (Math.floor(t * (b.t < 0.6 ? 20 : 8)) % 2) { P.dot(bx + 3, by - 7, 0xff4ae0ff); P.glow(bx + 3, by - 7, 6, 0xff3aa0ff, 0.9); }
+      addLight(lm, bx, by, 16, 0.4);
+    }
+    for (const q of this.idols) {
+      if (q.taken || !onScreen(q.x, q.y)) continue;
+      const img = IMG.mask, iy = sy(q.y) + Math.round(Math.sin(t * 2) * 1.5);
+      if (img) blitFeet(frame, img, sx(q.x), iy, { tint: undefined });
+      P.glow(sx(q.x), iy - 10, 18, 0xff3ad2ff, 0.55 + Math.sin(t * 4) * 0.15);
+      addLight(lm, sx(q.x), iy - 10, 40, 0.6);
+      P.light(sx(q.x) + Math.cos(t * 3) * 10, iy - 10 + Math.sin(t * 3) * 6, 0xffffffff, 0.9);
+    }
+    for (const b of this.boulders) {
+      const bx = sx(b.x), by = sy(b.y) - b.r;
+      P.circle(bx, by, b.r + 1, 0xff141018);
+      P.circle(bx, by, b.r, 0xff5a5664);
+      P.circle(bx - 3, by - 3, b.r - 5, 0xff7a7684);
+      for (let k = 0; k < 3; k++) { const a = b.rot + k * 2.1; P.line(bx + Math.cos(a) * 3, by + Math.sin(a) * 3, bx + Math.cos(a) * (b.r - 1), by + Math.sin(a) * (b.r - 1), 0xff3a3644); }
+    }
+    for (const q of this.props) if (q.id === "tnt" && !q.broken && q.fuse != null && Math.floor(t * 16) % 2 && onScreen(q.x, q.y)) P.glow(sx(q.x), sy(q.y) - 10, 14, 0xff3a3aff, 0.9);
+    if (this.flash > 0 && this.flashAt) addLight(lm, sx(this.flashAt[0]), sy(this.flashAt[1]), 120, this.flash * 4);
     // the swing: a quick arc of the pickaxe
     if (this.swing.t > 0 && this.state === "play") {
       const k = 1 - this.swing.t / SWING.time, f = p.face, hx = px + 5 + f * 3, hy = py + 4;

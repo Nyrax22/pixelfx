@@ -551,6 +551,7 @@ ICONS.torch = [["...fff...", "..fyyyf..", "..fywyf..", "...fff...", "...obo...",
 ICONS.campfire = [["....f....", "...fyf...", "..fyywf..", "..fywyf..", ".ofyyyfo.", "obboobbbo", ".obbobbo.", "..ooooo.."], { o: "#1e1006", b: "#a07040", f: "#ff6a1a", y: "#ffc040", w: "#fff4b0" }];
 ICONS.stomach = [["....ooo..", "...owwwo.", "..owbbbwo", ".obbbbbbo", "obbbbbbo.", "obbbbbo..", ".oobbo...", "..owo....", "..oo....."], { o: "#2a0c06", b: "#c8743a", w: "#f0b080" }];
 ICONS.lantern_ = ICONS.lantern;
+ICONS.bomb = [[".....oy..", "....o.o..", "..ooooo..", ".obbbbbo.", "obwbbbbbo", "obbbbbbbo", "obbbbbbbo", ".obbbbbo.", "..ooooo.."], { o: "#0a0810", b: "#2a2834", w: "#8a8a9a", y: "#ffd04a" }];
 const piCache = new Map();
 /** An <img> of a UI icon, scaled up crisply. */
 export function icon(name, cls = "pi") {
