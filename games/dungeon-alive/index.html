@@ -7,9 +7,10 @@
 <meta name="description" content="살아 있는 던전의 심장이 되어 방어 카드를 고르고 배치해 침입자를 막아내는 역던전 로그라이트.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Nanum+Pen+Script&family=Gaegu:wght@400;700&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Nanum+Pen+Script&family=Gaegu:wght@400;700&display=swap" media="print">
 <style>
 :root {
+  color-scheme: dark;
   --bg: #0b0814; --panel: #1a1430; --panel2: #241c40; --line: #3a2e58; --line2: #5a4a86;
   --text: #ece6ff; --dim: #a89cc8; --cyan: #4fe0e8; --crimson: #e0284a; --gold: #ffd25a; --orange: #ff9a3a;
   --trap: #ff9a3a; --facility: #4fe0e8; --monster: #8ad85a; --spell: #c684ff; --support: #ff7a9a;
@@ -20,7 +21,7 @@
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--ui); overflow: hidden; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 button { font-family: inherit; color: inherit; cursor: pointer; }
 #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
-#hud { display: flex; align-items: center; gap: 14px; padding: 8px 14px; background: linear-gradient(#150f28, #0f0a1e); border-bottom: 2px solid var(--line); min-height: 48px; flex-wrap: wrap; }
+#hud { display: flex; align-items: center; gap: 14px; padding: max(8px, env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) 8px max(14px, env(safe-area-inset-left, 0px)); background: linear-gradient(#150f28, #0f0a1e); border-bottom: 2px solid var(--line); min-height: 48px; flex-wrap: wrap; }
 .hp { display: flex; align-items: center; gap: 6px; }
 .hp .ico { color: var(--crimson); font-size: 22px; display: inline-block; animation: beat 1s infinite; text-shadow: 0 0 8px #ff3a5a88; }
 @keyframes beat { 0%, 30%, 100% { transform: scale(1); } 12% { transform: scale(1.25); } }
@@ -52,7 +53,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 #banner.show { animation: banner 2s ease-out forwards; }
 #banner small { display: block; text-align: center; font-size: 16px; color: var(--dim); }
 @keyframes banner { 0% { opacity: 0; letter-spacing: 8px; } 15% { opacity: 1; letter-spacing: 1px; } 80% { opacity: 1; } 100% { opacity: 0; } }
-#tray { display: flex; align-items: flex-end; gap: 10px; padding: 8px 12px 10px; background: linear-gradient(#0f0a1e, #150f28); border-top: 2px solid var(--line); min-height: 118px; }
+#tray { display: flex; align-items: flex-end; gap: 10px; padding: 8px max(12px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); background: linear-gradient(#0f0a1e, #150f28); border-top: 2px solid var(--line); min-height: 118px; }
 #hand { display: flex; gap: 8px; flex: 1; overflow-x: auto; padding: 10px 2px 2px; min-height: 104px; align-items: flex-end; scrollbar-width: thin; }
 #hand:empty::before { content: attr(data-empty); color: var(--dim); font-size: 14px; align-self: center; padding-left: 6px; }
 .card { position: relative; flex: 0 0 auto; width: 78px; height: 100px; background: linear-gradient(#2a2148, #1a1430); border: 2px solid var(--line2); border-radius: 8px; padding: 4px; display: flex; flex-direction: column; align-items: center; transition: transform .12s, border-color .12s; cursor: pointer; }

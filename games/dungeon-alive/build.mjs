@@ -19,6 +19,10 @@ function emit(res) {
   const html = readFileSync(join(here, "index.html"), "utf8")
     .replace('<script type="module" src="./src/main.js"></script>', () => `<script type="module">${js}</script>`);
   writeFileSync(join(out, "index.html"), html);
+  // the same page without its own document skeleton, for hosts that wrap it (claude.ai artifacts)
+  const head = html.match(/<head>([\s\S]*?)<\/head>/)[1].replace(/<meta charset[^>]*>\s*/, "").replace(/<meta name="viewport"[^>]*>\s*/, "");
+  const body = html.match(/<body>([\s\S]*)<\/body>/)[1];
+  writeFileSync(join(out, "artifact.html"), head.trim() + "\n" + body.trim() + "\n");
   console.log(`dist/index.html  ${(html.length / 1024).toFixed(0)} KB`);
 }
 if (process.argv.includes("--watch")) {

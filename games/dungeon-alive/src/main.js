@@ -53,6 +53,18 @@ R.onText = (x, y, text, cls) => {
 };
 
 // ---------------------------------------------------------------- little UI pieces
+/** A button that asks twice instead of a browser dialog (embedded viewers refuse confirm()). */
+function confirmBtn(btn, ask, action) {
+  const label = btn.textContent;
+  let armed = false, timer = 0;
+  btn.onclick = () => {
+    if (armed) { clearTimeout(timer); action(); return; }
+    armed = true;
+    btn.textContent = ask;
+    timer = setTimeout(() => { armed = false; btn.textContent = label; }, 3500);
+  };
+  return btn;
+}
 function toast(text, onClick) {
   const e = h("div", "tt", text);
   if (onClick) e.onclick = onClick;
@@ -615,10 +627,9 @@ function showMenu() {
     col.appendChild(h("button", "btn", "계속하기")).onclick = () => { menuPause = false; closeModal(); };
     col.appendChild(h("button", "btn ghost", "기록 보관함")).onclick = () => { closeModal(); showJournal(() => showMenu()); };
     col.appendChild(h("button", "btn ghost", "도움말")).onclick = () => { closeModal(); showHelp(() => showMenu()); };
-    col.appendChild(h("button", "btn red", "이번 판 포기")).onclick = () => {
-      if (!confirm("이번 판을 포기할까요? 영혼은 얻지 못해요.")) return;
+    confirmBtn(col.appendChild(h("button", "btn red", "이번 판 포기")), "정말 포기? 한 번 더 누르세요 (영혼 없음)", () => {
       menuPause = false; closeModal(); run = null; meta.runs++; save(meta, null); showMeta();
-    };
+    });
   }, { force: true });
 }
 function showHelp(back) {
@@ -702,16 +713,13 @@ function showSaves() {
     const ta = pn.appendChild(h("textarea", "save"));
     ta.value = exportSave(meta, null);
     const row = pn.appendChild(h("div", "row"));
-    row.appendChild(h("button", "btn ghost", "복사")).onclick = () => { ta.select(); navigator.clipboard?.writeText(ta.value); toast("복사했어요"); };
+    row.appendChild(h("button", "btn ghost", "복사")).onclick = () => { ta.select(); navigator.clipboard?.writeText(ta.value).catch(() => {}); toast("복사했어요"); };
     row.appendChild(h("button", "btn ghost", "가져오기")).onclick = () => {
       const d = importSave(ta.value);
       if (!d) return toast("저장 글자가 올바르지 않아요");
       meta = d.meta; run = null; save(meta, null); closeModal(); toast("가져왔어요"); showMeta();
     };
-    row.appendChild(h("button", "btn red", "처음부터")).onclick = () => {
-      if (!confirm("모든 진행을 지우고 처음부터 시작할까요?")) return;
-      wipe(); location.reload();
-    };
+    confirmBtn(row.appendChild(h("button", "btn red", "처음부터")), "모두 지울까요? 한 번 더", () => { wipe(); location.reload(); });
     row.appendChild(h("button", "btn", "닫기")).onclick = () => { closeModal(); showMeta(); };
   }, { force: true });
 }
@@ -795,6 +803,8 @@ function startPrologue(after) {
 
 // ---------------------------------------------------------------- boot
 function boot() {
+  // fonts load without blocking the first frame
+  document.querySelectorAll('link[media="print"]').forEach((l) => (l.media = "all"));
   if (/skipprologue/.test(location.search)) meta.seenPrologue = true;
   fit();
   requestAnimationFrame(frame);
