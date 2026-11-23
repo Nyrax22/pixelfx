@@ -154,11 +154,15 @@ export function newRun(meta, seed = (Math.random() * 2 ** 31) | 0) {
   run.heart = { hp: max, max };
   rooms[key(...ENT)] = { type: "entrance", card: null };
   rooms[key(...HEART)] = { type: "heart", card: null };
-  for (let c = ENT[0] + 1; c < HEART[0]; c++) rooms[key(c, ENT[1])] = { type: "hall", card: null };
+  // the old road: along the top floor, then down the stairwell to the heart
+  const road = [];
+  for (let c = ENT[0] + 1; c <= HEART[0]; c++) road.push([c, ENT[1]]);
+  for (let r = ENT[1] + 1; r < HEART[1]; r++) road.push([HEART[0], r]);
+  for (const [c, r] of road) rooms[key(c, r)] = { type: "hall", card: null };
   // what was left after a hundred years: one rusty trap and two slimes
-  rooms[key(2, 2)].card = { id: "spike", cd: 0 };
-  addMonster(run, CARDS.slime, 3, 2);
-  addMonster(run, CARDS.slime, 4, 2);
+  rooms[key(...road[1])].card = { id: "spike", cd: 0 };
+  addMonster(run, CARDS.slime, ...road[3]);
+  addMonster(run, CARDS.slime, ...road[road.length - 2]);
   if (!first && meta.favorite) {
     const fav = meta.lineage.find((m) => m.id === meta.favorite);
     if (fav) run.hand.push({ id: "bred", mon: fav, uid: run.uid++ });

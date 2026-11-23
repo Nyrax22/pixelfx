@@ -259,11 +259,14 @@ addEventListener("keydown", (ev) => {
   if (n >= 1 && n <= 9) selectCard(n - 1);
   if (ev.key === " ") { ev.preventDefault(); toggleSpeed(); }
   if (ev.key === "r" || ev.key === "R" || ev.key === "ㄱ") doRoar();
+  if (ev.key === "c" || ev.key === "C" || ev.key === "ㅊ") toggleCam();
 });
 
 // ---------------------------------------------------------------- hud buttons
 function toggleSpeed() { speed = speed === 1 ? 2 : 1; $("speedBtn").textContent = speed + "×"; }
 $("speedBtn").onclick = toggleSpeed;
+function toggleCam() { R.follow = R.follow === false; $("camBtn").textContent = R.follow === false ? "🔍" : "🎥"; toast(R.follow === false ? "전체 보기" : "전투를 따라가는 카메라"); }
+$("camBtn").onclick = toggleCam;
 $("muteBtn").onclick = () => { A.initAudio(); A.setMuted(!A.isMuted()); $("muteBtn").textContent = A.isMuted() ? "♪̸" : "♪"; };
 $("menuBtn").onclick = () => { if (mode === "run") showMenu(); else if (mode === "meta") showMeta(); };
 function doRoar() {

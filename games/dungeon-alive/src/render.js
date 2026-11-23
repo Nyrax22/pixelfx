@@ -46,7 +46,9 @@ export const FX = {
   healAoe, sunburst, runeCircle, dirtBoom, bigBoom, firework, eggHatch, fireflies,
 };
 
-export const CELL = 64, M = 48;
+export const CELL = 64;
+// the dungeon seen from the side: a strip of sky and ground on top, floors of rooms going down
+const LAYOUT = { land: { CW: 96, CH: 72, MX: 36, SKY: 112, BOT: 44 }, port: { CW: 68, CH: 70, MX: 12, SKY: 104, BOT: 36 } };
 const PAL = {
   fire: ["#4a1712", "#c9281f", "#f2561d", "#ff8a2a", "#ffe26b", "#fff3a6", "#ffffff"],
   lightning: ["#120a33", "#2a1b78", "#4630c0", "#58a6ff", "#9ed8ff", "#e4f6ff", "#ffffff"],
@@ -71,6 +73,8 @@ const FLOOR = {
   altar: ["#2a1f48", "#21183a", "#382a5c"], dark: ["#120e1c", "#0e0a16", "#1a1428"], mushroom: ["#1e2a1c", "#172216", "#283a24"],
   library: ["#2c2236", "#231a2c", "#3a2c44"], sealed: ["#3a3020", "#2e2618", "#4a3e2a"], secret: ["#4a3a24", "#3e301c", "#5e4a2e"],
 };
+/** A color a little brighter, so rooms stand out from the earth around them. */
+const lift = (hex, k) => "#" + [1, 3, 5].map((i) => Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k)).toString(16).padStart(2, "0")).join("");
 const GOLD_FLOOR = ["#6a5020", "#5a4218", "#8a6a2a"];
 
 const hash = (a, b, c = 0) => {
@@ -119,8 +123,9 @@ export class Renderer {
   setLayout(portrait) {
     this.portrait = portrait;
     this.camSnap = true;
-    this.W = (portrait ? ROWS : COLS) * CELL + M * 2;
-    this.H = (portrait ? COLS : ROWS) * CELL + M * 2;
+    Object.assign(this, portrait ? LAYOUT.port : LAYOUT.land);
+    this.W = this.MX * 2 + COLS * this.CW;
+    this.H = this.SKY + ROWS * this.CH + this.BOT;
     this.cv.width = this.W; this.cv.height = this.H;
     this.g.imageSmoothingEnabled = false;
     const mk = () => { const c = document.createElement("canvas"); c.width = this.W; c.height = this.H; return c; };
@@ -130,36 +135,34 @@ export class Renderer {
     this.roomsDirty = true;
   }
 
-  // ---- coordinates
-  cellXY(c, r) { return this.portrait ? [M + r * CELL, M + c * CELL] : [M + c * CELL, M + r * CELL]; }
-  /** Grid coordinates (cell units, may be fractional) to the world pixel at that cell's middle. */
-  gw(gx, gy) { const [x, y] = this.cellXY(gx, gy); return [x + CELL / 2, y + CELL / 2]; }
+  // ---- coordinates (side view: c is left to right, r is how deep the floor is)
+  cellXY(c, r) { return [this.MX + c * this.CW, this.SKY + r * this.CH]; }
+  /** The floor line of a row: where feet stand. Linear in r, so climbing between floors interpolates. */
+  floorY(gy) { return this.SKY + gy * this.CH + this.CH - 9; }
+  /** Grid coordinates (cell units, may be fractional) to a point at chest height in that room. */
+  gw(gx, gy) { return [this.MX + gx * this.CW + this.CW / 2, this.floorY(gy) - 20]; }
   cellAt(x, y) {
-    const a = Math.floor((x - M) / CELL), b = Math.floor((y - M) / CELL);
-    const [c, r] = this.portrait ? [b, a] : [a, b];
+    const c = Math.floor((x - this.MX) / this.CW), r = Math.floor((y - this.SKY) / this.CH);
     return c >= 0 && r >= 0 && c < COLS && r < ROWS ? [c, r] : null;
   }
   /** World pixel of an adventurer's feet. */
   advXY(a) {
     const [gx, gy] = advPos(a);
-    const [x, y] = this.gw(gx, gy);
-    const off = a.lane * 9;
-    // spread the party across the corridor, perpendicular to the way they walk
-    let horiz = !this.portrait;
-    if (a.next) { const dc = a.next[0] !== a.cell[0]; horiz = this.portrait ? !dc : dc; }
-    return horiz ? [x, y + 8 + off] : [x + off, y + 8];
+    const x = this.MX + gx * this.CW + this.CW / 2, y = this.floorY(gy);
+    const climbing = a.next && a.next[1] !== a.cell[1];
+    // a crowd spreads along the floor, a little in depth; on a ladder they queue up
+    return climbing ? [x + a.lane * 3, y] : [x + a.lane * this.CW * 0.2, y + Math.round(a.lane * 2)];
   }
   /** Which way an adventurer faces on screen. */
   faceOf(a) {
     if (!a.next) return a.sface ?? 1;
-    const [x0] = this.gw(...a.cell), [x1] = this.gw(...a.next);
-    if (x1 !== x0) a.sface = x1 > x0 ? 1 : -1;
+    if (a.next[0] !== a.cell[0]) a.sface = a.next[0] > a.cell[0] ? 1 : -1;
     return a.sface ?? 1;
   }
   monXY(m) {
-    const [x, y] = this.cellXY(m.c, m.r);
-    const sx = [16, 48, 32][m.slot] ?? 32, sy = [50, 50, 58][m.slot] ?? 50;
-    return [x + sx, y + sy + (SPECIES_Y[m.species] ?? 0)];
+    const [x] = this.cellXY(m.c, m.r);
+    const fx = [0.2, 0.8, 0.5][m.slot] ?? 0.5;
+    return [Math.round(x + this.CW * fx), this.floorY(m.r) + (SPECIES_Y[m.species] ?? 0)];
   }
 
   // ---- effects
@@ -214,12 +217,13 @@ export class Renderer {
   }
   bounds(run) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    const add = (c, r) => { const [x, y] = this.cellXY(c, r); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + CELL); y1 = Math.max(y1, y + CELL); };
+    const add = (c, r) => { const [x, y] = this.cellXY(c, r); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + this.CW); y1 = Math.max(y1, y + this.CH); };
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (run.rooms[key(c, r)]) add(c, r);
     for (const h of this.highlights) add(h[0], h[1]);
     if (!isFinite(x0)) return { x0: 0, y0: 0, x1: this.W, y1: this.H };
-    const m = this.portrait ? 6 : 18;
-    return { x0: x0 - m, y0: y0 - m - 10, x1: x1 + m, y1: y1 + m };
+    // always keep a slice of the surface in view: the gate, the sky, the castle on the hill
+    const m = this.portrait ? 4 : 14;
+    return { x0: x0 - m, y0: Math.min(y0, this.SKY - 58), x1: x1 + m, y1: y1 + m };
   }
   worldToScreen(x, y) { return [(this.dx + x * this.dz) / this.dpr, (this.dy + y * this.dz) / this.dpr]; }
   screenToWorld(px, py) { return [(px * this.dpr - this.dx) / this.dz, (py * this.dpr - this.dy) / this.dz]; }
@@ -233,6 +237,19 @@ export class Renderer {
       const b = this.bounds(run);
       tx = (b.x0 + b.x1) / 2; ty = (b.y0 + b.y1) / 2;
       tz = Math.max(0.6, Math.min(3.6, this.vw / (b.x1 - b.x0), this.vh / (b.y1 - b.y0)));
+      // in a fight the camera comes down close and follows the intruders, like a game screen;
+      // picking a card pulls it back out so every room is in reach
+      const act = run && run.phase === "wave" && this.follow !== false && !this.highlights.length ? run.advs.filter((a) => !a.dead && !a.out && !a.npc) : [];
+      if (act.length) {
+        let mx = 0, my = 0;
+        for (const a of act) { const [x, y] = this.advXY(a); mx += x; my += y; }
+        mx /= act.length; my /= act.length;
+        tz = Math.min(3.4, Math.max(tz * 1.5, this.portrait ? 1.7 : 2.4));
+        const hw = this.vw / (2 * tz), hh = this.vh / (2 * tz);
+        tx = b.x1 - b.x0 > hw * 2 ? Math.max(b.x0 + hw, Math.min(b.x1 - hw, mx)) : (b.x0 + b.x1) / 2;
+        ty = b.y1 - b.y0 > hh * 2 ? Math.max(b.y0 + hh, Math.min(b.y1 - hh, my - 16)) : (b.y0 + b.y1) / 2;
+        rate = 2.2;
+      }
       if (tz * dpr >= 2) tz = Math.floor(tz * dpr * 2) / (dpr * 2);
     }
     if (this.focus) {
@@ -310,106 +327,168 @@ export class Renderer {
 
   // ---- static rooms
   renderRooms(run) {
-    const g = this.roomCv.getContext("2d");
+    const g = this.roomCv.getContext("2d"), W = this.W, H = this.H, SKY = this.SKY, CW = this.CW, CH = this.CH;
     g.imageSmoothingEnabled = false;
-    g.fillStyle = "#0b0814";
-    g.fillRect(0, 0, this.W, this.H);
-    // rock speckle
-    for (let y = 0; y < this.H; y += 2)
-      for (let x = 0; x < this.W; x += 2) {
-        const h = hash(x, y, 7);
-        if (h < 0.08) { g.fillStyle = h < 0.02 ? "#241c3a" : "#150f24"; g.fillRect(x, y, 2, 2); }
-        else if (h > 0.9985) { g.fillStyle = "#3a6a8a"; g.fillRect(x, y, 1, 1); }
+    g.clearRect(0, 0, W, H);
+    const gold = this.mode === "golden";
+    // far hills and the king's castle against the sky (the sky itself is painted live, for day and night)
+    g.fillStyle = gold ? "#c8945a" : "#1c1634";
+    for (let x = 0; x < W; x++) { const hgt = 22 + Math.sin(x * 0.02) * 6 + Math.sin(x * 0.053 + 1) * 4; g.fillRect(x, SKY - 14 - hgt, 1, hgt); }
+    const cx = Math.round(W * 0.74), base = SKY - 30;
+    g.fillStyle = gold ? "#a8744a" : "#120e24";
+    for (const [dx, w, hgt] of [[-26, 10, 30], [-14, 30, 20], [16, 10, 34], [-4, 8, 42]]) {
+      g.fillRect(cx + dx, base - hgt, w, hgt);
+      for (let k = 0; k < w; k += 3) g.fillRect(cx + dx + k, base - hgt - 2, 2, 2);
+    }
+    g.fillStyle = gold ? "#fff0b0" : "#ffcc5a";
+    for (const [dx, dy] of [[-22, -20], [20, -26], [-8, -12], [2, -14], [-1, -34]]) g.fillRect(cx + dx, base + dy, 1, 2);
+    // little houses of the village
+    for (let i = 0; i < 6; i++) {
+      const hx = Math.round(W * 0.42 + i * 13 + hash(i, 3) * 6), hh = 6 + ((hash(i, 4) * 5) | 0);
+      g.fillStyle = gold ? "#b07a50" : "#16122a"; g.fillRect(hx, SKY - 14 - hh, 9, hh);
+      g.fillRect(hx + 1, SKY - 16 - hh, 7, 2); g.fillRect(hx + 3, SKY - 18 - hh, 3, 2);
+      if (hash(i, 5) > 0.4) { g.fillStyle = "#ffd070"; g.fillRect(hx + 3, SKY - 11 - hh / 2, 2, 2); }
+    }
+    // the ground: grass on top, then layers of earth that get darker and stranger with depth
+    const soil = g.createLinearGradient(0, SKY - 10, 0, H);
+    soil.addColorStop(0, gold ? "#5a3e24" : "#2a1c1c"); soil.addColorStop(0.5, gold ? "#3e2a1a" : "#1a1220"); soil.addColorStop(1, gold ? "#24180e" : "#0c0812");
+    g.fillStyle = soil; g.fillRect(0, SKY - 10, W, H);
+    for (let x = 0; x < W; x += 1) {
+      const t = (hash(x, 9) * 3) | 0;
+      g.fillStyle = gold ? "#7aa040" : "#2e4a2a"; g.fillRect(x, SKY - 14, 1, 5 + (t === 0 ? 1 : 0));
+      if (t === 2) { g.fillStyle = gold ? "#a8d060" : "#4a7a3a"; g.fillRect(x, SKY - 15, 1, 2); }
+    }
+    for (let i = 0; i < 4; i++) {
+      // strata
+      const y0 = SKY + 6 + i * CH * 0.9 + CH * 0.35;
+      g.fillStyle = "rgba(0,0,0,0.22)";
+      for (let x = 0; x < W; x++) g.fillRect(x, Math.round(y0 + Math.sin(x * 0.04 + i * 2) * 3), 1, 2);
+    }
+    for (let y = SKY - 8; y < H; y += 2)
+      for (let x = 0; x < W; x += 2) {
+        const h = hash(x, y, 7), depth = (y - SKY) / (H - SKY);
+        if (h < 0.05) { g.fillStyle = h < 0.015 ? "#4a3a3a" : "#120c14"; g.fillRect(x, y, 2, 2); }
+        else if (h > 0.9992 - depth * 0.002) { g.fillStyle = depth > 0.5 ? "#3ac8d8" : "#b8a890"; g.fillRect(x, y, 2, 1); }
       }
+    // roots from the grass, bones deeper down
+    g.fillStyle = gold ? "#6a4a2a" : "#3a2418";
+    for (let i = 0; i < 18; i++) { let x = hash(i, 11) * W, y = SKY - 9; for (let k = 0; k < 14 + hash(i, 12) * 16; k++) { g.fillRect(x | 0, y | 0, 1, 1); x += hash(i, k) - 0.5; y += 1; } }
+    g.fillStyle = "#8a8070";
+    for (let i = 0; i < 7; i++) { const x = hash(i, 21) * W | 0, y = (SKY + CH * 1.5 + hash(i, 22) * (H - SKY - CH * 1.5)) | 0; g.fillRect(x, y, 5, 1); g.fillRect(x - 1, y - 1, 2, 3); g.fillRect(x + 4, y - 1, 2, 3); }
+
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { const rm = run.rooms[key(c, r)]; if (rm) this.drawRoom(g, run, rm, c, r); }
-    // doorways
+    // doorways between neighbours on a floor, ladders between floors
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       const rm = run.rooms[key(c, r)];
       if (!rm) continue;
-      for (const [dc, dr] of [[1, 0], [0, 1]]) {
-        const o = roomAt(run, c + dc, r + dr);
-        if (!o) continue;
-        const [x0, y0] = this.cellXY(c, r), [x1, y1] = this.cellXY(c + dc, r + dr);
-        const fl = this.floorOf(rm.type);
-        g.fillStyle = fl[0];
-        if (x0 !== x1) g.fillRect(Math.min(x0, x1) + CELL - 5, y0 + CELL / 2 - 9, 10, 18);
-        else g.fillRect(x0 + CELL / 2 - 9, Math.min(y0, y1) + CELL - 5, 18, 10);
-        g.fillStyle = fl[1];
-        if (x0 !== x1) { g.fillRect(Math.min(x0, x1) + CELL - 5, y0 + CELL / 2 - 9, 10, 1); }
-        else { g.fillRect(x0 + CELL / 2 - 9, Math.min(y0, y1) + CELL - 5, 1, 10); }
+      const [x, y] = this.cellXY(c, r), FY = y + CH - 9, fl = this.floorOf(rm.type);
+      if (roomAt(run, c + 1, r)) {
+        const ox = x + CW - 6;
+        g.fillStyle = fl[0]; g.fillRect(ox, FY - 30, 12, 30);
+        g.fillStyle = "rgba(0,0,0,0.3)"; g.fillRect(ox, FY - 30, 12, 4);
+        g.fillStyle = "#1a1226"; g.fillRect(ox - 1, FY - 33, 14, 3);
+        g.fillStyle = "#6a5a90"; g.fillRect(ox, FY, 12, 1);
+        g.fillStyle = "#4a3c6e"; g.fillRect(ox, FY + 1, 12, 7);
+      }
+      if (roomAt(run, c, r + 1)) {
+        const lx = x + CW / 2 - 7, FY2 = FY + CH;
+        g.fillStyle = "#0a0712"; g.fillRect(lx, FY, 14, CH - 22 + 22 - 14);
+        g.fillStyle = "#0a0712"; g.fillRect(lx, FY, 14, 16);
+        g.fillStyle = "#8a6a3a"; g.fillRect(lx + 1, FY - 14, 2, FY2 - FY + 14); g.fillRect(lx + 11, FY - 14, 2, FY2 - FY + 14);
+        g.fillStyle = "#b08a4a"; for (let yy = FY - 12; yy < FY2; yy += 5) g.fillRect(lx + 1, yy, 12, 1);
       }
     }
-    // the entrance opens to daylight at the edge of the grid
-    const [ex, ey] = this.cellXY(...ENT);
-    g.fillStyle = "#c8b890";
-    if (this.portrait) g.fillRect(ex + 22, ey - 12, 20, 16); else g.fillRect(ex - 12, ey + 22, 16, 20);
-    g.fillStyle = "#fff0c8";
-    if (this.portrait) g.fillRect(ex + 26, ey - 12, 12, 10); else g.fillRect(ex - 12, ey + 26, 10, 12);
+    // the gatehouse on the surface and the stairs down into the entrance room
+    const [ex, ey] = this.cellXY(...ENT), gx = ex + CW / 2;
+    g.fillStyle = "#0a0712"; g.fillRect(gx - 9, SKY - 10, 18, ey - SKY + 16);
+    g.fillStyle = "#5a5068"; for (let i = 0; i < 6; i++) g.fillRect(gx - 9 + (i % 2) * 6, SKY - 6 + i * 4, 12, 2);
+    g.fillStyle = gold ? "#d8c090" : "#4a4458"; g.fillRect(gx - 18, SKY - 46, 36, 34);
+    g.fillStyle = gold ? "#f0e0b0" : "#5e5870"; g.fillRect(gx - 20, SKY - 50, 40, 5);
+    for (let k = 0; k < 40; k += 6) g.fillRect(gx - 20 + k, SKY - 54, 4, 4);
+    g.fillStyle = "#0a0712"; g.fillRect(gx - 8, SKY - 34, 16, 22); g.fillRect(gx - 6, SKY - 36, 12, 2);
+    g.fillStyle = "#8a1a2a"; g.fillRect(gx - 16, SKY - 44, 5, 12); g.fillRect(gx + 11, SKY - 44, 5, 12);
+    this.gateXY = [gx, SKY - 30];
     this.roomsDirty = false;
   }
   floorOf(type) { return this.mode === "golden" ? GOLD_FLOOR : FLOOR[type] ?? FLOOR.hall; }
 
   drawRoom(g, run, rm, c, r) {
-    const [x, y] = this.cellXY(c, r), fl = this.floorOf(rm.type);
-    // walls: lit top edge, dark sides
-    g.fillStyle = "#3a2e58"; g.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
-    g.fillStyle = "#4a3c6e"; g.fillRect(x + 1, y + 1, CELL - 2, 3);
-    g.fillStyle = fl[0]; g.fillRect(x + 5, y + 6, CELL - 10, CELL - 11);
-    // 32px tiles, quartered
+    const CW = this.CW, CH = this.CH;
+    const [x, y] = this.cellXY(c, r), fl = this.floorOf(rm.type).map((h) => lift(h, 1.35)), FY = y + CH - 9, iw = CW - 8;
+    // the carved-out room: a stone frame, a brick back wall, a ceiling and a thick floor slab
+    g.fillStyle = "#140e1e"; g.fillRect(x + 1, y + 1, CW - 2, CH - 2);
+    g.fillStyle = fl[0]; g.fillRect(x + 4, y + 6, iw, FY - y - 6);
     g.fillStyle = fl[1];
-    g.fillRect(x + 5, y + 6 + 26, CELL - 10, 1); g.fillRect(x + 5 + 27, y + 6, 1, CELL - 11);
-    for (let i = 0; i < 10; i++) {
-      const h = hash(c, r, i);
-      g.fillStyle = h > 0.5 ? fl[2] : fl[1];
-      g.fillRect(x + 7 + Math.floor(hash(r, c, i) * 48), y + 8 + Math.floor(h * 46), 2, 1);
+    for (let yy = y + 6, row = 0; yy < FY; yy += 8, row++) {
+      g.fillRect(x + 4, yy, iw, 1);
+      for (let xx = x + 4 + (row % 2) * 7; xx < x + 4 + iw; xx += 14) g.fillRect(xx, yy, 1, 8);
     }
-    const P = (px, py, w, h, col) => { g.fillStyle = col; g.fillRect(x + px, y + py, w, h); };
+    for (let i = 0; i < 9; i++) { g.fillStyle = fl[2]; g.fillRect(x + 6 + ((hash(c, r, i) * (iw - 10)) | 0), y + 8 + ((hash(r, c, i) * (FY - y - 18)) | 0), 6, 1); }
+    const sh = g.createLinearGradient(0, y + 6, 0, FY);
+    sh.addColorStop(0, "rgba(0,0,0,0.45)"); sh.addColorStop(0.35, "rgba(0,0,0,0.05)"); sh.addColorStop(1, "rgba(0,0,0,0.25)");
+    g.fillStyle = sh; g.fillRect(x + 4, y + 6, iw, FY - y - 6);
+    g.fillStyle = "#3a2e58"; g.fillRect(x + 2, y + 2, CW - 4, 4);
+    g.fillStyle = "#2a2040"; g.fillRect(x + 2, y + 5, CW - 4, 1);
+    g.fillStyle = "#6a5a90"; g.fillRect(x + 2, FY, CW - 4, 1);
+    g.fillStyle = "#4a3c6e"; g.fillRect(x + 2, FY + 1, CW - 4, 5);
+    g.fillStyle = "#2a2040"; g.fillRect(x + 2, FY + 6, CW - 4, 2);
+    const P = (px, py, w, h, col) => { g.fillStyle = col; g.fillRect(Math.round(x + px), Math.round(y + py), w, h); };
+    const F = FY - y, M = CW / 2;
     switch (rm.type) {
       case "entrance":
-        for (let i = 0; i < 4; i++) P(10, 12 + i * 10, 44, 6, i % 2 ? "#3a3448" : "#4a4458");
+        // daylight falling down the stairs from the gate
+        g.fillStyle = "rgba(255,230,170,0.14)";
+        g.beginPath(); g.moveTo(x + M - 8, y + 6); g.lineTo(x + M + 8, y + 6); g.lineTo(x + M + 22, FY); g.lineTo(x + M - 22, FY); g.fill();
+        for (let i = 0; i < 4; i++) P(M - 10 + i * 2, 8 + i * 9, 20 - i * 4 + 8, 3, "#5a5068");
         break;
       case "heart":
-        for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2; for (let k = 8; k < 26; k++) P(32 + Math.cos(a + k * 0.05) * k | 0, 34 + Math.sin(a + k * 0.05) * k * 0.8 | 0, 1, 1, "#6a1a34"); }
+        for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; for (let k = 10; k < 40; k++) P(M + Math.cos(a + k * 0.04) * k * 1.1, F * 0.48 + Math.sin(a + k * 0.04) * k * 0.6, 1, 1, "#6a1a34"); }
+        P(M - 14, F - 6, 28, 6, "#5a1a2a"); P(M - 10, F - 8, 20, 2, "#7a2a3a");
         break;
       case "water":
-        P(8, 10, 48, 44, "#1e4a8a");
-        for (let i = 0; i < 9; i++) P(10 + ((hash(c, i) * 40) | 0), 12 + ((hash(i, r) * 38) | 0), 6, 1, "#3a7ac8");
+        P(4, F - 20, iw, 20, "#1e4a8a"); P(4, F - 20, iw, 1, "#7ac0ff");
+        for (let i = 0; i < 7; i++) P(8 + ((hash(c, i) * (iw - 12)) | 0), F - 16 + ((hash(i, r) * 12) | 0), 6, 1, "#3a7ac8");
         break;
       case "treasure":
-        P(36, 30, 18, 12, "#8a5a20"); P(36, 30, 18, 4, "#b07a2c"); P(43, 34, 4, 3, "#ffe07a");
-        for (let i = 0; i < 14; i++) P(10 + ((hash(c, r, i) * 24) | 0), 40 + ((hash(i, c) * 12) | 0), 2, 2, i % 3 ? "#e8b23a" : "#ffe07a");
+        P(CW - 34, F - 12, 20, 12, "#8a5a20"); P(CW - 34, F - 12, 20, 4, "#b07a2c"); P(CW - 26, F - 8, 4, 3, "#ffe07a");
+        for (let i = 0; i < 20; i++) { const px = 8 + hash(c, r, i) * 30, ph = 1 + ((hash(i, c) * 6) | 0); P(px, F - ph, 2, ph, i % 3 ? "#e8b23a" : "#ffe07a"); }
         break;
       case "nest":
-        for (let a = 0; a < 40; a++) { const t = (a / 40) * Math.PI * 2; P(32 + Math.cos(t) * 18 | 0, 40 + Math.sin(t) * 9 | 0, 3, 2, a % 2 ? "#8a6a3a" : "#b08a4a"); }
+        for (let a = 0; a < 30; a++) { const t = (a / 30) * Math.PI; P(M + Math.cos(t) * 22, F - 3 - Math.sin(t) * 6, 3, 2, a % 2 ? "#8a6a3a" : "#b08a4a"); }
+        P(M - 20, F - 4, 40, 4, "#8a6a3a");
+        P(M - 6, F - 10, 5, 6, "#f4ead0"); P(M + 2, F - 9, 5, 5, "#e8dcc0");
         break;
       case "web":
-        for (const [sx, sy, dx, dy] of [[6, 7, 1, 1], [57, 7, -1, 1]]) for (let k = 0; k < 16; k++) { P(sx + dx * k, sy + dy * k, 1, 1, "#c8c8dc"); P(sx + dx * k, sy, 1, 1, "#9a9ab0"); P(sx, sy + dy * k, 1, 1, "#9a9ab0"); }
+        for (const [sx, dx] of [[5, 1], [CW - 6, -1]]) for (let k = 0; k < 18; k++) { P(sx + dx * k, 7 + k, 1, 1, "#c8c8dc"); P(sx + dx * k, 7, 1, 1, "#9a9ab0"); P(sx, 7 + k, 1, 1, "#9a9ab0"); if (k % 6 === 5) for (let j = 0; j < k; j++) P(sx + dx * j, 7 + k, 1, 1, "#7a7a90"); }
         break;
       case "lava":
-        for (let i = 0; i < 6; i++) { let px = 8 + hash(c, i) * 48, py = 10 + hash(i, r) * 40; for (let k = 0; k < 9; k++) { P(px | 0, py | 0, 2, 1, "#c83a10"); px += hash(k, i) * 4 - 2; py += 1; } }
+        P(4, F - 9, iw, 9, "#c83a10"); P(4, F - 9, iw, 2, "#ff8a2a");
+        for (let i = 0; i < 5; i++) { let px = 8 + hash(c, i) * (iw - 10), py = 10; for (let k = 0; k < 10; k++) { P(px, py, 1, 2, "#8a2a10"); px += hash(k, i) * 3 - 1.5; py += 2; } }
         break;
       case "icecave":
-        for (let i = 0; i < 5; i++) { const px = 8 + ((hash(c, r, i) * 44) | 0); P(px, 14, 3, 8, "#9ad8ff"); P(px + 1, 10, 1, 4, "#e0f6ff"); }
+        for (let i = 0; i < 9; i++) { const px = 6 + ((hash(c, r, i) * (iw - 6)) | 0), ln = 4 + ((hash(i, r) * 12) | 0); for (let k = 0; k < ln; k++) P(px + (k > ln * 0.6 ? 0.5 : 0), 6 + k, k < ln * 0.5 ? 3 : k < ln * 0.8 ? 2 : 1, 1, k < 2 ? "#e0f6ff" : "#9ad8ff"); }
+        P(4, F - 2, iw, 2, "#bfe8ff");
         break;
       case "altar":
-        P(22, 26, 20, 16, "#5a4a90"); P(22, 26, 20, 3, "#7a6ab0"); P(29, 16, 6, 10, "#c89aff"); P(31, 14, 2, 2, "#ffffff");
+        P(M - 12, F - 16, 24, 16, "#5a4a90"); P(M - 14, F - 18, 28, 3, "#7a6ab0"); P(M - 3, F - 34, 6, 10, "#c89aff"); P(M - 1, F - 36, 2, 2, "#ffffff");
         break;
       case "dark":
-        for (let i = 0; i < 20; i++) P(6 + ((hash(c, r, i) * 50) | 0), 8 + ((hash(i, r, c) * 46) | 0), 3, 1, "#2a1a44");
+        for (let i = 0; i < 24; i++) P(6 + ((hash(c, r, i) * (iw - 8)) | 0), 8 + ((hash(i, r, c) * (F - 12)) | 0), 3, 1, "#2a1a44");
         break;
       case "mushroom":
-        for (let i = 0; i < 6; i++) { const px = 8 + ((hash(c, r, i) * 44) | 0), py = 12 + ((hash(i, c) * 38) | 0); P(px + 1, py + 2, 2, 3, "#e8dcc8"); P(px - 1, py, 6, 3, i % 2 ? "#c83a5a" : "#8a4ac8"); P(px, py, 1, 1, "#ffffff"); }
+        for (let i = 0; i < 6; i++) { const px = 8 + ((hash(c, r, i) * (iw - 12)) | 0), hgt = 4 + ((hash(i, c) * 8) | 0); P(px + 1, F - hgt, 2, hgt, "#e8dcc8"); P(px - 2, F - hgt - 3, 7, 3, i % 2 ? "#c83a5a" : "#8a4ac8"); P(px, F - hgt - 3, 1, 1, "#ffffff"); }
         break;
       case "library":
-        for (let i = 0; i < 3; i++) { P(8 + i * 17, 7, 15, 14, "#4a3020"); for (let k = 0; k < 6; k++) P(9 + i * 17 + k * 2, 9, 2, 10, ["#a02a2a", "#2a5aa0", "#3a8a3a", "#c8a040"][k % 4]); }
+        for (let i = 0; i < Math.floor(iw / 18); i++) { P(6 + i * 18, 10, 16, F - 12, "#4a3020"); for (let sy = 12; sy < F - 6; sy += 11) for (let k = 0; k < 7; k++) P(7 + i * 18 + k * 2, sy, 2, 9, ["#a02a2a", "#2a5aa0", "#3a8a3a", "#c8a040"][(k + sy) % 4]); }
         break;
       case "sealed":
-        P(18, 8, 28, 40, "#5a4a30"); P(20, 10, 24, 36, "#3a2e1e"); P(30, 24, 4, 6, "#c8a040"); P(31, 10, 2, 36, "#2a2014");
+        P(M - 16, 10, 32, F - 10, "#5a4a30"); P(M - 14, 12, 28, F - 12, "#3a2e1e"); P(M - 2, F * 0.5, 4, 6, "#c8a040"); P(M - 1, 12, 2, F - 12, "#2a2014");
+        for (let k = 0; k < 3; k++) P(M - 14, 18 + k * 14, 28, 2, "#6a5a3a");
         break;
       case "secret":
-        P(8, 7, 48, 10, "#6a4a2a");
-        for (let k = 0; k < 18; k++) P(9 + k * 2.6, 9, 2, 7, ["#a0602a", "#6a3a1a", "#c89a5a"][k % 3]);
-        P(14, 40, 3, 6, "#f0e0c0"); P(46, 38, 3, 8, "#f0e0c0");
+        P(6, 10, iw - 4, 10, "#6a4a2a");
+        for (let k = 0; k < (iw - 6) / 3; k++) P(7 + k * 3, 12, 2, 7, ["#a0602a", "#6a3a1a", "#c89a5a"][k % 3]);
+        P(14, F - 8, 3, 8, "#f0e0c0"); P(CW - 18, F - 10, 3, 10, "#f0e0c0"); P(M - 10, F - 6, 20, 6, "#6a4a2a");
         break;
     }
   }
@@ -451,7 +530,7 @@ export class Renderer {
         const dir = Math.sign(x - fx0) || (Math.random() < 0.5 ? -1 : 1);
         const pow = e.boss ? 0.6 : e.big ? 1.7 : 1.1;
         // the body gets thrown, spins, bounces once, then pops into stars and coins
-        this.corpses.push({ spr: chibi(e.cls === "boss" ? "boss" : e.cls, 0, "scared"), k: e.boss ? 2 : 1, x, y: y + 10, h: 4, vx: dir * (45 + Math.random() * 45) * pow, vh: (110 + Math.random() * 70) * pow, rot: 0, vr: dir * (7 + Math.random() * 7) * pow, bounces: 0, age: 0 });
+        this.corpses.push({ spr: chibi(e.cls === "boss" ? "boss" : e.cls, 0, "scared"), k: e.boss ? 2 : 1, x, y: y + 20, h: 4, vx: dir * (45 + Math.random() * 45) * pow, vh: (110 + Math.random() * 70) * pow, rot: 0, vr: dir * (7 + Math.random() * 7) * pow, bounces: 0, age: 0 });
         if (e.execute) this.spawn("necro", x, y + 10, {}, "over", 1.2);
         if (e.big) this.stop(0.06);
         if (e.boss) { this.spawn("bigBoom", x, y + 10, {}, "over"); this.shake = 0.9; this.flash = 0.6; this.stop(0.35); this.slowmo(1.6); this.impact(x, y, 1.2); this.punch(x, y, 0.5); }
@@ -528,7 +607,7 @@ export class Renderer {
     const d = CARDS[e.id];
     const targets = (e.targets ?? (e.target ? [e.target] : [])).map((id) => run.advs.find((a) => a.id === id)).filter(Boolean);
     const tp = targets.map((a) => this.advXY(a));
-    const [ix, iy] = this.iconXY(e.c, e.r);
+    const [ix, iy] = this.iconXY(e.c, e.r, d?.kind);
     switch (e.id) {
       case "spike": this.spikeT = this.spikeT ?? {}; this.spikeT[key(e.c, e.r)] = 0.35; break;
       case "boulder": for (const [x, y] of tp) { this.floaters.push({ x, y: y - 50, boulder: true, age: 0, vy: 220, life: 0.25 }); this.spawn("bluntHit", x, y - 2, {}, "over"); } this.shake = 0.3; break;
@@ -543,7 +622,7 @@ export class Renderer {
         if (e.chained) { this.flash = 0.12; this.flashColor = "200,220,255"; this.light(cx, cy, 60, "150,190,255", 0.35); if (tp.length >= 3) { this.stop(0.05); this.shake = Math.max(this.shake, 0.3); } }
         break;
       }
-      case "flame": this.spawn("flamethrower", cx - 26, cy + 10, { reach: 52 }, "over", 0.9); this.light(cx, cy, 50, "255,150,60", 0.6); break;
+      case "flame": this.spawn("flamethrower", cx - this.CW / 2 + 6, cy + 12, { reach: this.CW - 24 }, "over", 0.9); this.light(cx, cy, 50, "255,150,60", 0.6); break;
       case "frost": this.spawn("snowflake", cx, cy + 16, { count: 6 }, "over"); this.light(cx, cy, 40, "150,220,255", 0.5); break;
       case "gas": break;
       case "arrow": for (const [x, y] of tp) this.shoot(ix + 12, iy + 8, x, y - 10, "arrow"); break;
@@ -564,7 +643,8 @@ export class Renderer {
     }
     this.light(x, y, big ? 90 : 60, "255,230,180", 0.8);
   }
-  iconXY(c, r) { const [x, y] = this.cellXY(c, r); return [x + 20, y + 14]; }
+  /** Where a placed card sits: traps on the floor, facilities up on the back wall. */
+  iconXY(c, r, kind = "trap") { const [x, y] = this.cellXY(c, r); return kind === "facility" ? [Math.round(x + this.CW / 2 - 12), y + 8] : [Math.round(x + this.CW / 2 - 12), y + this.CH - 9 - 22]; }
 
   // ---- the frame
   update(dt) {
@@ -612,6 +692,7 @@ export class Renderer {
     const g = this.g;
     if (this.roomsDirty) this.renderRooms(run);
     g.setTransform(1, 0, 0, 1, 0, 0);
+    this.drawSky();
     g.drawImage(this.roomCv, 0, 0);
 
     const lowHp = run.heart.hp / Math.max(1, run.heart.max);
@@ -690,6 +771,26 @@ export class Renderer {
     g.setTransform(1, 0, 0, 1, 0, 0);
   }
 
+  /** Dusk by day, stars and a moon by night; gold in the prologue. */
+  drawSky() {
+    const g = this.g, SKY = this.SKY, n = this.mode === "golden" ? 0 : this.night;
+    const mix = (a, b) => a.map((v, i) => Math.round(v + (b[i] - v) * n));
+    const top = this.mode === "golden" ? [250, 214, 140] : mix([226, 120, 90], [10, 8, 30]);
+    const bot = this.mode === "golden" ? [255, 236, 190] : mix([248, 190, 130], [40, 24, 60]);
+    const gr = g.createLinearGradient(0, 0, 0, SKY);
+    gr.addColorStop(0, `rgb(${top})`); gr.addColorStop(1, `rgb(${bot})`);
+    g.fillStyle = gr; g.fillRect(0, 0, this.W, SKY);
+    if (n > 0.2) {
+      g.fillStyle = `rgba(255,250,230,${n})`;
+      for (let i = 0; i < 60; i++) { const x = hash(i, 31) * this.W | 0, y = hash(i, 32) * (SKY - 30) | 0; if ((this.t * 2 + i) % 7 > 0.6) g.fillRect(x, y, 1, 1); }
+      const mx = Math.round(this.W * 0.18), my = 22;
+      g.fillStyle = `rgba(240,236,210,${n})`; g.beginPath(); g.arc(mx, my, 9, 0, Math.PI * 2); g.fill();
+      g.fillStyle = `rgba(10,8,30,${n})`; g.beginPath(); g.arc(mx + 4, my - 2, 8, 0, Math.PI * 2); g.fill();
+    } else {
+      g.fillStyle = `rgba(255,230,150,${0.9 - n})`; g.beginPath(); g.arc(this.W * 0.2, SKY - 26, 12, 0, Math.PI * 2); g.fill();
+    }
+  }
+
   blit(frame, img, cv) {
     composite(frame, img.data, null);
     cv.getContext("2d").putImageData(img, 0, 0);
@@ -697,41 +798,40 @@ export class Renderer {
   }
 
   drawLiving(run, pulse, breath) {
-    const g = this.g;
+    const g = this.g, CW = this.CW, CH = this.CH;
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       const rm = run.rooms[key(c, r)];
       if (!rm) continue;
-      const [x, y] = this.cellXY(c, r);
-      // walls breathe in and out by a pixel
-      const b = breath > 0.5 ? 1 : 0;
-      g.fillStyle = "#3a2e58";
-      g.fillRect(x + 5, y + 6, CELL - 10, b); g.fillRect(x + 5, y + CELL - 5 - b, CELL - 10, b);
-      g.fillRect(x + 5, y + 6, b, CELL - 11); g.fillRect(x + CELL - 5 - b, y + 6, b, CELL - 11);
-      // cracks in the floor glow with the heartbeat
-      g.fillStyle = `rgba(230,40,80,${0.15 + pulse * 0.45})`;
-      for (let i = 0; i < 6; i++) {
-        let px = x + 8 + hash(c, r, i + 40) * 46, py = y + 10 + hash(r, c, i + 40) * 42;
-        for (let k = 0; k < 4; k++) { g.fillRect(px | 0, py | 0, 1, 1); px += hash(i, k, c) > 0.5 ? 1 : -1; py += 1; }
-      }
+      const [x, y] = this.cellXY(c, r), FY = y + CH - 9;
+      // the back wall breathes: it swells darker and lighter with a slow breath
+      g.fillStyle = `rgba(20,0,20,${0.04 + breath * 0.1})`; g.fillRect(x + 4, y + 6, CW - 8, FY - y - 6);
+      // cracks in the floor slab glow with the heartbeat
+      g.fillStyle = `rgba(240,40,80,${0.2 + pulse * 0.6})`;
+      for (let i = 0; i < 5; i++) { let px = x + 6 + hash(c, r, i + 40) * (CW - 12); for (let k = 0; k < 4; k++) { g.fillRect(px | 0, FY + 1 + k, 1, 1); px += hash(i, k, c) > 0.5 ? 1 : -1; } }
       if (rm.type === "water") {
-        g.fillStyle = "rgba(140,200,255,0.5)";
-        for (let i = 0; i < 6; i++) { const px = x + 10 + ((hash(c, i, r) * 40 + this.t * 6 * (i % 2 ? 1 : -1)) % 42 + 42) % 42; g.fillRect(px | 0, y + 12 + i * 7, 5, 1); }
+        g.fillStyle = "rgba(160,220,255,0.7)";
+        for (let i = 0; i < 6; i++) { const px = x + 6 + ((hash(c, i, r) * (CW - 16) + this.t * 8 * (i % 2 ? 1 : -1)) % (CW - 16) + (CW - 16)) % (CW - 16); g.fillRect(px | 0, FY - 20 + (i % 2), 5, 1); }
+        g.fillStyle = "rgba(30,80,160,0.35)"; g.fillRect(x + 4, FY - 19, CW - 8, 19);
       }
-      if (rm.type === "lava") { g.fillStyle = `rgba(255,120,30,${0.25 + 0.2 * Math.sin(this.t * 3 + c)})`; g.fillRect(x + 6, y + 7, CELL - 12, CELL - 13); }
-      if (rm.type === "dark") { g.fillStyle = "rgba(10,4,20,0.35)"; g.fillRect(x + 5, y + 6, CELL - 10, CELL - 11); }
-      if (rm.type === "secret") { g.fillStyle = `rgba(120,180,255,${0.12 + 0.06 * Math.sin(this.t * 2)})`; g.fillRect(x + 5, y + 6, CELL - 10, CELL - 11); }
-      // a little torch on each wall
-      if (rm.type !== "water") {
-        const tx = x + 50, ty = y + 5, f = Math.floor(this.t * 10 + c * 3 + r) % 3;
-        g.fillStyle = "#5a3a1a"; g.fillRect(tx, ty + 2, 2, 4);
-        g.fillStyle = "#ff8a2a"; g.fillRect(tx - (f === 1 ? 1 : 0), ty - 2, 2 + (f === 1 ? 1 : 0), 4);
-        g.fillStyle = "#ffe26b"; g.fillRect(tx, ty - 1 - (f === 2 ? 1 : 0), 1 + (f === 0 ? 1 : 0), 2);
+      if (rm.type === "lava") {
+        g.fillStyle = `rgba(255,140,40,${0.3 + 0.2 * Math.sin(this.t * 3 + c)})`; g.fillRect(x + 4, FY - 9, CW - 8, 9);
+        const b = (this.t * 1.3 + c * 0.37) % 1; g.fillStyle = "#ffd070"; g.fillRect(x + 10 + ((hash(c, Math.floor(this.t * 1.3)) * (CW - 20)) | 0), FY - 9 - Math.round(b * 6), 2, 2);
+      }
+      if (rm.type === "dark") { g.fillStyle = "rgba(8,2,18,0.4)"; g.fillRect(x + 4, y + 6, CW - 8, FY - y - 6); }
+      if (rm.type === "secret") { g.fillStyle = `rgba(120,180,255,${0.12 + 0.06 * Math.sin(this.t * 2)})`; g.fillRect(x + 4, y + 6, CW - 8, FY - y - 6); }
+      // two torches on the back wall
+      for (const tx of [x + 10, x + CW - 12]) {
+        if (rm.type === "water" && tx > x + CW / 2) continue;
+        const ty = y + 22, f = Math.floor(this.t * 10 + c * 3 + r + tx) % 3;
+        g.fillStyle = "#5a3a1a"; g.fillRect(tx, ty, 2, 6); g.fillRect(tx - 1, ty + 5, 4, 1);
+        g.fillStyle = "#ff8a2a"; g.fillRect(tx - (f === 1 ? 1 : 0), ty - 4, 2 + (f === 1 ? 1 : 0), 4);
+        g.fillStyle = "#ffe26b"; g.fillRect(tx, ty - 3 - (f === 2 ? 1 : 0), 1 + (f === 0 ? 1 : 0), 2);
       }
       if (rm.type === "heart") {
         const hurt = this.heartHurt > 0 ? 1 : 0;
-        const s = 9 + pulse * 2.5;
+        const s = 12 + pulse * 3.5;
         const sp = heartSprite(s, hurt || (run.heart.hp / run.heart.max < 0.34 ? 1 : 0));
-        g.drawImage(sp, Math.round(x + CELL / 2 - sp.width / 2), Math.round(y + CELL / 2 - sp.height / 2));
+        g.drawImage(sp, Math.round(x + CW / 2 - sp.width / 2), Math.round(y + (FY - y) * 0.46 - sp.height / 2));
       }
     }
   }
@@ -741,15 +841,16 @@ export class Renderer {
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       const rm = run.rooms[key(c, r)];
       if (!rm?.card) continue;
-      const [ix, iy] = this.iconXY(c, r);
-      const pop = this.spikeT?.[key(c, r)] > 0 ? -3 : 0;
+      const d = CARDS[rm.card.id];
+      const [ix, iy] = this.iconXY(c, r, d.kind);
+      const pop = this.spikeT?.[key(c, r)] > 0 ? -5 : 0;
+      if (d.kind === "facility") { g.fillStyle = "#2a2040"; g.fillRect(ix + 10, iy - 2, 4, 3); }
       g.drawImage(cardIcon(rm.card.id), ix, iy + pop);
       if (rm.card.disabledT > 0) {
         g.fillStyle = "rgba(20,12,28,0.6)"; g.fillRect(ix, iy, 24, 24);
         g.fillStyle = "#ff6a4a"; for (let i = 0; i < 12; i++) { g.fillRect(ix + 6 + i, iy + 6 + i, 1, 1); g.fillRect(ix + 17 - i, iy + 6 + i, 1, 1); }
       }
-      const d = CARDS[rm.card.id];
-      if (d.hp) this.bar(ix + 2, iy + 25, 20, rm.card.hp / d.hp, "#4fe0e8");
+      if (d.hp) this.bar(ix + 2, iy - 4, 20, rm.card.hp / d.hp, "#4fe0e8");
     }
   }
 
@@ -854,14 +955,14 @@ export class Renderer {
   }
 
   drawDark(run, pulse) {
-    const d = this.darkCv.getContext("2d");
-    const night = this.night;
+    const d = this.darkCv.getContext("2d"), CW = this.CW, CH = this.CH;
     d.globalCompositeOperation = "source-over";
     d.clearRect(0, 0, this.W, this.H);
-    const base = this.mode === "golden" ? 0 : 0.1 + night * 0.34;
+    const base = this.mode === "golden" ? 0 : 0.08 + this.night * 0.26;
     if (base <= 0.01) return;
-    d.fillStyle = `rgba(6,3,18,${base})`;
-    d.fillRect(0, 0, this.W, this.H);
+    // underground is darker than the open air
+    d.fillStyle = `rgba(6,3,18,${base * 0.5})`; d.fillRect(0, 0, this.W, this.SKY - 12);
+    d.fillStyle = `rgba(6,3,18,${base})`; d.fillRect(0, this.SKY - 12, this.W, this.H);
     d.globalCompositeOperation = "destination-out";
     const hole = (x, y, r, k = 1) => {
       const gr = d.createRadialGradient(x, y, 0, x, y, r);
@@ -872,18 +973,17 @@ export class Renderer {
       const rm = run.rooms[key(c, r)];
       if (!rm) continue;
       const [x, y] = this.cellXY(c, r);
-      hole(x + 51, y + 10, 30 + Math.sin(this.t * 9 + c) * 1.5, 0.7);
-      hole(x + 32, y + 34, 30, 0.35);
-      if (rm.card) hole(x + 32, y + 26, 16, 0.5);
-      if (rm.type === "secret") hole(x + 32, y + 32, 30, 0.7);
-      if (rm.type === "lava") hole(x + 32, y + 32, 34, 0.6);
+      for (const tx of [x + 11, x + CW - 11]) hole(tx, y + 20, 34 + Math.sin(this.t * 9 + c + tx) * 1.5, 0.7);
+      hole(x + CW / 2, y + CH * 0.55, CW * 0.55, 0.45);
+      if (rm.type === "secret" || rm.type === "lava") hole(x + CW / 2, y + CH / 2, CW * 0.5, 0.65);
     }
     const [hx, hy] = this.gw(...HEART);
-    hole(hx, hy, 34 + pulse * 10, 0.9);
-    for (const a of run.advs) if (!a.dead && !a.out) { const [x, y] = this.advXY(a); hole(x + 4, y - 14, 20, 0.7); }
-    for (const m of run.monsters) if (m.hp > 0 && (m.species === "wisp" || m.traits.includes("불"))) { const [x, y] = this.monXY(m); hole(x, y - 8, 22, 0.7); }
+    hole(hx, hy - 6, 40 + pulse * 12, 0.9);
+    if (this.gateXY) hole(this.gateXY[0], this.gateXY[1], 30, 0.6);
+    for (const a of run.advs) if (!a.dead && !a.out) { const [x, y] = this.advXY(a); hole(x + 4, y - 14, 22, 0.7); }
+    for (const m of run.monsters) if (m.hp > 0 && (m.species === "wisp" || m.traits.includes("불"))) { const [x, y] = this.monXY(m); hole(x, y - 8, 24, 0.7); }
     for (const l of this.lights) hole(l.x, l.y, l.r, Math.min(1, l.life / l.max));
-    for (const it of this.fx) if (it.layer === "over" && it.age < 1.2) hole(it.fx.options.x, it.fx.options.y - 12, 34, 0.6);
+    for (const it of this.fx) if (it.layer === "over" && it.age < 1.2) hole(it.fx.options.x, it.fx.options.y - 12, 36, 0.6);
     d.globalCompositeOperation = "source-over";
     this.g.drawImage(this.darkCv, 0, 0);
   }
@@ -894,25 +994,25 @@ export class Renderer {
     for (const h of this.highlights) {
       const [x, y] = this.cellXY(h[0], h[1]);
       g.fillStyle = `rgba(79,224,232,${0.1 + 0.12 * t})`;
-      g.fillRect(x + 4, y + 5, CELL - 8, CELL - 9);
+      g.fillRect(x + 3, y + 3, this.CW - 6, this.CH - 6);
       g.strokeStyle = `rgba(79,224,232,${0.5 + 0.4 * t})`;
       g.lineWidth = 1;
-      g.strokeRect(x + 3.5, y + 4.5, CELL - 7, CELL - 8);
+      g.strokeRect(x + 2.5, y + 2.5, this.CW - 5, this.CH - 5);
     }
     for (const h of this.range) {
       const [x, y] = this.cellXY(h[0], h[1]);
       g.fillStyle = "rgba(255,180,60,0.16)";
-      g.fillRect(x + 4, y + 5, CELL - 8, CELL - 9);
+      g.fillRect(x + 3, y + 3, this.CW - 6, this.CH - 6);
     }
     if (this.hover) {
       const [x, y] = this.cellXY(this.hover[0], this.hover[1]);
       g.strokeStyle = this.hoverBad ? "rgba(255,90,90,0.9)" : "rgba(255,255,255,0.95)";
       g.lineWidth = 2;
-      g.strokeRect(x + 3, y + 4, CELL - 6, CELL - 7);
+      g.strokeRect(x + 2, y + 2, this.CW - 4, this.CH - 4);
     }
     if (this.breach != null) {
       const [x, y] = this.cellXY(this.breach % COLS, (this.breach / COLS) | 0);
-      g.strokeStyle = `rgba(255,60,80,${0.5 + 0.5 * t})`; g.lineWidth = 2; g.strokeRect(x + 2, y + 3, CELL - 4, CELL - 5);
+      g.strokeStyle = `rgba(255,60,80,${0.5 + 0.5 * t})`; g.lineWidth = 2; g.strokeRect(x + 2, y + 2, this.CW - 4, this.CH - 4);
     }
   }
 
@@ -980,12 +1080,11 @@ export function critterIcon(species, palette = null) {
 export function roomIcon(type) {
   const k = "room:" + type;
   if (iconCache.has(k)) return iconCache.get(k);
-  const cv = document.createElement("canvas");
-  cv.width = CELL; cv.height = CELL;
+  const L = LAYOUT.land, cv = document.createElement("canvas");
+  cv.width = L.CW; cv.height = L.CH;
   const g = cv.getContext("2d");
-  const fake = { cellXY: () => [0, 0], floorOf: (t) => FLOOR[t] ?? FLOOR.hall, mode: "normal" };
-  Renderer.prototype.drawRoom.call(fake, g, null, { type }, 3, 1);
-  if (type === "sealed" || type === "secret") { g.fillStyle = "rgba(120,180,255,0.15)"; g.fillRect(5, 6, 54, 53); }
+  const fake = Object.assign(Object.create(Renderer.prototype), L, { mode: "normal", SKY: 0, MX: 0 });
+  fake.drawRoom(g, null, { type }, 0, 0);
   iconCache.set(k, cv);
   return cv;
 }

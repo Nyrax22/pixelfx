@@ -21,7 +21,7 @@ function botPlace(run, meta, R) {
     if (tg === null) { if (run.heart.hp < run.heart.max * 0.6) S.playCard(run, meta, i, 0, 0); continue; }
     if (!tg.length) continue;
     // prefer water for lightning, otherwise the road
-    const pref = tg.find(([c, r]) => d.el === "lightning" && S.room(run, c, r).type === "water") ?? tg.find(([c, r]) => r === 2) ?? R.pick(tg);
+    const pref = tg.find(([c, r]) => d.el === "lightning" && S.room(run, c, r).type === "water") ?? tg.find(([c, r]) => S.room(run, c, r)?.type === "hall") ?? R.pick(tg);
     S.playCard(run, meta, i, pref[0], pref[1]);
   }
 }
