@@ -72,12 +72,14 @@ export function sfx(name, arg = 0) {
     case "heartHit": tone(90, t, 0.35, { type: "sawtooth", vol: 0.25, slide: 0.3 }); noise(t, 0.2, { vol: 0.3, freq: 600 }); break;
     case "babble": {
       // adventurers talk in a cute nonsense language
-      const base = 300 + Math.random() * 300 + (arg || 0);
-      for (let i = 0; i < 3 + (Math.random() * 3 | 0); i++) tone(base * (0.8 + Math.random() * 0.5), t + i * 0.07, 0.06, { type: "square", vol: 0.05, slide: 1.2 });
+      const base = 110 + Math.random() * 60 + (arg || 0) * 0.3;
+      for (let i = 0; i < 3 + (Math.random() * 2 | 0); i++) tone(Math.max(60, base * (0.85 + Math.random() * 0.3)), t + i * 0.11, 0.12, { type: "sawtooth", vol: 0.05, slide: 0.9 });
       break;
     }
     case "scream": for (let i = 0; i < 4; i++) tone(900 - i * 60, t + i * 0.05, 0.08, { type: "square", vol: 0.06, slide: 1.4 }); break;
-    case "shriek": tone(1200, t, 0.25, { type: "square", vol: 0.08, slide: 2 }); break;
+    case "shriek": tone(600, t, 0.4, { type: "sawtooth", vol: 0.07, slide: 0.5 }); noise(t, 0.3, { vol: 0.1, freq: 1500 }); break;
+    case "clank": tone(880, t, 0.25, { type: "square", vol: 0.08, slide: 0.98 }); tone(1320, t, 0.2, { type: "triangle", vol: 0.06 }); noise(t, 0.15, { vol: 0.3, freq: 3000, q: 4 }); tone(60, t, 0.4, { type: "sine", vol: 0.5, slide: 0.6 }); break;
+    case "chant": [0, 3, 7].forEach((n) => tone(midi(50 + n), t, 2.4, { type: "sawtooth", vol: 0.03, attack: 0.6 })); break;
     case "summon": tone(midi(60), t, 0.2, { type: "triangle", vol: 0.15, slide: 2 }); break;
     case "place": tone(midi(67), t, 0.06, { type: "square", vol: 0.1 }); noise(t, 0.05, { vol: 0.12, freq: 900 }); break;
     case "room": noise(t, 0.4, { vol: 0.3, freq: 250, type: "lowpass" }); tone(80, t, 0.3, { type: "sine", vol: 0.3, slide: 0.7 }); break;
@@ -134,11 +136,10 @@ function schedule() {
   while (nextNote < ctx.currentTime + 0.25) {
     const t = nextNote;
     if (musicMode === "day") {
-      const n = BOX[step % BOX.length];
-      tone(midi(n), t, 0.9, { type: "sine", vol: 0.12, bus: musBus });
-      tone(midi(n + 12), t, 0.4, { type: "triangle", vol: 0.03, bus: musBus });
-      if (step % 4 === 0) tone(midi(48 + [0, 3, 5, 7][(step / 4) % 4 | 0]), t, 1.6, { type: "triangle", vol: 0.07, bus: musBus });
-      nextNote += 0.36;
+      const n = BOX[step % BOX.length] - 12;
+      if (step % 2 === 0) tone(midi(n), t, 1.6, { type: "triangle", vol: 0.09, bus: musBus });
+      if (step % 8 === 0) { tone(midi(36 + [0, -4, -2, -5][(step / 8) % 4 | 0]), t, 4.4, { type: "sawtooth", vol: 0.025, bus: musBus, attack: 0.8 }); tone(midi(48 + [0, -4, -2, -5][(step / 8) % 4 | 0]), t, 4.4, { type: "sine", vol: 0.05, bus: musBus, attack: 0.8 }); }
+      nextNote += 0.55;
     } else if (musicMode === "night") {
       const beatLen = 60 / Math.max(70, bpm);
       const s = step % 8;

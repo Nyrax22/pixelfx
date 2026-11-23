@@ -25,7 +25,7 @@ let { meta, run } = load();
 let mode = "boot", speed = 1, slowT = 0, selected = -1, placingRoom = null, lastPhase = null, modalOpen = false, menuPause = false;
 const modalQueue = [];
 let prologue = null, backdrop = null;
-window.__game = { get run() { return run; }, get meta() { return meta; }, S, R };
+window.__game = { get run() { return run; }, get meta() { return meta; }, S, R, chibi };
 
 // ---------------------------------------------------------------- layout
 function fit() {
@@ -551,8 +551,8 @@ function showEnd() {
   }
   setTimeout(() => openModal((m) => {
     const pn = m.appendChild(h("div", "panel"));
-    pn.appendChild(h("div", "stamp" + (res.win ? " win" : ""), res.win ? "생존!" : "던전 털림"));
-    pn.appendChild(h("div", "sub", res.win ? `${run.maxDays}일을 버텨 냈다. 심장이 힘차게 뛴다` : "모험가들이 보물을 들고 만세를 불렀다"));
+    pn.appendChild(h("div", "stamp" + (res.win ? " win" : ""), res.win ? "새벽이 왔다" : "심장 함락"));
+    pn.appendChild(h("div", "sub", res.win ? `${run.maxDays}일을 버텨 냈다. 심장이 다시 힘차게 뛴다` : "침입자들이 심장의 조각을 들고 승리의 함성을 질렀다"));
     const st = pn.appendChild(h("div", "stat"));
     const br = res.breach != null ? S.ROOMS[run.rooms[res.breach]?.type]?.name : null;
     st.innerHTML = `<span>버틴 날</span><b>${res.days}일</b><span>쓰러뜨린 침입자</span><b>${res.kills}명</b><span>겁줘서 쫓아낸 모험가</span><b>${res.spared}명</b><span>얻은 영혼</span><b style="color:#c8b0ff">+${res.souls}</b>` + (br ? `<span>가장 많이 뚫린 곳</span><b>${esc(br)}</b>` : "");

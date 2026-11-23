@@ -66,80 +66,134 @@ export const CLASS_PAL = {
   traitor: { a: "#5a1a6a", A: "#2e0a38", l: "#d8b040", hat: "#d8b040", Hat: "#8a6a20" },
 };
 
-/** A 20x24 chibi, feet at (10, 23). mood: walk | scared | cheer. frame: 0 or 1. */
+/**
+ * A full-height figure, 24x44 with feet at (12, 43): helmets and hoods instead of faces,
+ * capes, crests, real weapons. mood: walk | scared (weapon dropped, running) | cheer (weapon raised).
+ * The figure fills the bottom 36 rows; the rows above are headroom for plumes, banners and staffs.
+ */
+export const HERO_H = 36;
+const ST = ["#e4e8f0", "#a8b0c2", "#6a7290", "#3c4258", "#22263a"];
+const DARK_ST = ["#9aa0b4", "#5c6278", "#3a3e52", "#24273a", "#14161f"];
+const WHITE_ST = ["#fbf8ee", "#d8d0b8", "#a49a80", "#6e6652", "#3e3a2e"];
+const HERO_PAL = {
+  warrior: { st: ST, tab: ["#b0202e", "#781424"], trim: "#e8c050", cape: ["#7a1420", "#4a0a14"] },
+  knight: { st: ST, tab: ["#2a4aa0", "#1a2e6a"], trim: "#e8c050", cape: ["#1e3478", "#101c48"] },
+  bannerman: { st: ST, tab: ["#2a4aa0", "#1a2e6a"], trim: "#e8c050", cape: ["#1e3478", "#101c48"], banner: true },
+  boss: { st: DARK_ST, tab: ["#3a1050", "#22082e"], trim: "#c8a040", cape: ["#3a0c4a", "#1c0626"], horns: true, eyes: "#ff3030" },
+  cleric: { st: WHITE_ST, tab: ["#f6f2e8", "#d0c8b4"], trim: "#e8c040", cape: ["#e8e0cc", "#b0a888"], cross: true },
+};
+const EYE_GLOW = { rogue: "#d8ff5a", mage: "#7ad8ff", sealmage: "#bff4ff" };
+
+function armored(px, P, f, mood, cls) {
+  const s = P.st, a = f ? 1 : 0, Y = 11; // Y: top of the figure in the canvas
+  const up = mood === "cheer", lost = mood === "scared";
+  // cape, behind everything
+  px.rect(8, Y + 10, 9, 17, P.cape[0]); px.rect(7, Y + 15, 2, 12, P.cape[1]); px.rect(16, Y + 14, 2, 12, P.cape[1]);
+  for (let i = 0; i < 5; i++) px.set(7 + i * 2, Y + 27 + (i % 2), P.cape[1]);
+  // legs: greaves and sabatons
+  px.rect(9 + a, Y + 21, 3, 10, s[2]); px.rect(9 + a, Y + 21, 1, 10, s[1]); px.rect(8 + a, Y + 31, 5, 2, s[3]);
+  px.rect(12 - a, Y + 21, 3, 10, s[1]); px.rect(12 - a, Y + 21, 1, 10, s[0]); px.rect(12 - a, Y + 31, 5, 2, s[2]);
+  px.rect(9 + a, Y + 25, 3, 1, s[3]); px.rect(12 - a, Y + 25, 3, 1, s[2]);
+  // breastplate and tabard
+  px.rect(8, Y + 10, 9, 11, s[1]); px.rect(8, Y + 10, 2, 11, s[2]);
+  px.rect(9, Y + 12, 7, 12, P.tab[0]); px.rect(9, Y + 12, 1, 12, P.tab[1]); px.hline(9, Y + 12, 7, P.trim);
+  for (let i = 0; i < 4; i++) px.set(9 + i * 2, Y + 23 + (i % 2), P.tab[1]);
+  if (P.cross) { px.rect(12, Y + 14, 1, 7, P.trim); px.rect(10, Y + 16, 5, 1, P.trim); }
+  else { px.rect(11, Y + 15, 3, 3, P.trim); px.set(12, Y + 16, P.tab[1]); }
+  px.hline(8, Y + 20, 9, "#3a2418"); px.set(12, Y + 20, P.trim);
+  // pauldrons and gorget
+  px.rect(6, Y + 9, 4, 3, s[0]); px.hline(6, Y + 11, 4, s[2]);
+  px.rect(15, Y + 9, 4, 3, s[1]); px.hline(15, Y + 11, 4, s[3]);
+  px.rect(10, Y + 8, 5, 2, s[2]);
+  // the helm: no face, a slit, a glint
+  px.rect(9, Y + 1, 7, 8, s[1]); px.rect(9, Y + 1, 2, 8, s[0]); px.rect(15, Y + 1, 1, 8, s[2]);
+  px.set(9, Y + 1, null); px.set(15, Y + 1, null); px.hline(10, Y, 5, s[1]);
+  px.hline(10, Y + 4, 5, "#06040a"); px.set(13, Y + 4, P.eyes ?? "#ff6a50");
+  if (P.eyes) px.set(11, Y + 4, P.eyes);
+  px.set(12, Y + 6, s[3]); px.set(14, Y + 6, s[3]); px.vline(12, Y + 1, 3, s[2]);
+  if (P.horns) { px.line(9, Y + 2, 6, Y - 3, s[0]); px.line(8, Y + 2, 5, Y - 2, s[2]); px.line(15, Y + 2, 18, Y - 3, s[0]); px.line(16, Y + 2, 19, Y - 2, s[2]); }
+  else if (P.cross) { px.rect(10, Y - 3, 5, 4, WHITE_ST[1]); px.rect(11, Y - 5, 3, 2, WHITE_ST[1]); px.vline(12, Y - 5, 5, P.trim); }
+  else { px.rect(11, Y - 3, 3, 3, P.tab[0]); px.rect(12, Y - 5, 3, 2, P.tab[0]); px.set(14, Y - 6, P.tab[1]); }
+  if (lost) return;
+  // shield on the far arm
+  px.rect(4, Y + 11, 6, 8, P.tab[0]); px.rect(5, Y + 19, 4, 2, P.tab[0]); px.rect(6, Y + 21, 2, 1, P.tab[0]);
+  px.vline(4, Y + 11, 8, P.trim); px.hline(4, Y + 11, 6, P.trim); px.rect(6, Y + 13, 2, 4, P.trim);
+  // weapon in the near hand
+  if (cls === "cleric") {
+    if (up) { px.vline(17, Y - 6, 18, "#6a4a2a"); px.rect(15, Y - 9, 6, 4, s[1]); px.hline(15, Y - 9, 6, P.trim); }
+    else { px.vline(18, Y + 10, 16, "#6a4a2a"); px.rect(16, Y + 7, 6, 4, s[1]); px.hline(16, Y + 7, 6, P.trim); px.rect(17, Y + 15, 2, 2, s[2]); }
+  } else if (up) {
+    px.vline(18, Y - 8, 18, s[0]); px.vline(19, Y - 7, 16, s[2]); px.rect(16, Y + 9, 6, 1, P.trim); px.rect(17, Y + 10, 3, 2, s[2]);
+  } else {
+    px.rect(17, Y + 14, 3, 3, s[2]);
+    px.line(18, Y + 17, 22, Y + 29, s[0]); px.line(19, Y + 17, 23, Y + 28, s[2]); px.rect(16, Y + 16, 5, 1, P.trim);
+  }
+  if (P.banner) {
+    // a banner bearer: the kingdom's colours above the march
+    px.vline(19, 0, Y + 18, "#6a4a2a");
+    px.rect(20, 1, 4, 10, P.tab[0]); px.vline(20, 1, 10, P.trim); px.set(22, 5, P.trim); px.set(22, 6, P.trim);
+    px.set(21, 11, P.tab[1]); px.set(23, 11, P.tab[1]);
+  }
+}
+
+function robed(px, cls, f, mood) {
+  const Y = 11, a = f ? 1 : 0;
+  const isSeal = cls === "sealmage";
+  const R = isSeal ? ["#e8eef8", "#a8b8d8", "#6a7ca8"] : ["#2e44a0", "#1c2a6a", "#101a44"];
+  const trim = isSeal ? "#7ad8ff" : "#e8c050";
+  // robe widening to the floor, hem swaying with the step
+  for (let y = 0; y < 23; y++) { const w = 9 + Math.floor(y / 3); px.hline(12 - Math.floor(w / 2) + (y > 18 ? a : 0), Y + 10 + y, w, y % 7 === 6 ? R[2] : R[1]); }
+  px.vline(12, Y + 12, 20, R[0]);
+  for (let y = 14; y < 31; y += 4) px.set(12, Y + y, trim);
+  px.hline(8 + a, Y + 32, 9, trim);
+  // pointed hood with a dark face and two eyes
+  px.rect(9, Y + 1, 7, 9, R[1]); px.rect(10, Y - 1, 5, 2, R[1]); px.rect(12, Y - 3, 3, 2, R[1]); px.set(15, Y - 4, R[1]);
+  px.rect(10, Y + 3, 5, 5, "#05040a"); px.set(11, Y + 5, EYE_GLOW[cls]); px.set(13, Y + 5, EYE_GLOW[cls]);
+  px.rect(8, Y + 9, 9, 2, R[0]);
+  if (mood === "scared") return;
+  // staff with a glowing stone
+  const sx = mood === "cheer" ? 18 : 19;
+  px.vline(sx, Y - (mood === "cheer" ? 8 : 2), 36, isSeal ? "#d0d8ff" : "#5a3a1a");
+  px.rect(sx - 1, Y - (mood === "cheer" ? 11 : 5), 3, 3, isSeal ? "#bff4ff" : "#ff5a8a"); px.set(sx, Y - (mood === "cheer" ? 10 : 4), "#ffffff");
+  px.rect(17, Y + 15, 2, 2, R[2]);
+}
+
+function hooded(px, f, mood) {
+  // the rogue: a dark cloak, a mask, two eyes in the shadow, two knives
+  const Y = 11, a = f ? 1 : 0, C = ["#2f4436", "#1e2a22", "#121a14"];
+  px.rect(9 + a, Y + 20, 3, 11, "#2a2218"); px.rect(13 - a, Y + 20, 3, 11, "#3a3022"); px.rect(8 + a, Y + 31, 4, 2, "#1a140c"); px.rect(13 - a, Y + 31, 4, 2, "#241c12");
+  px.rect(8, Y + 9, 10, 13, C[1]); px.rect(7, Y + 12, 2, 12, C[2]); px.rect(17, Y + 11, 2, 11, C[2]);
+  for (let i = 0; i < 6; i++) px.set(7 + i * 2, Y + 24 + (i % 2), C[2]);
+  px.rect(10, Y + 12, 5, 8, "#3a3022"); px.hline(10, Y + 17, 5, "#1a140c");
+  px.rect(9, Y + 1, 8, 9, C[0]); px.rect(10, Y, 6, 1, C[0]); px.rect(8, Y + 4, 1, 6, C[1]);
+  px.rect(11, Y + 3, 5, 5, "#04060a"); px.set(12, Y + 4, EYE_GLOW.rogue); px.set(14, Y + 4, EYE_GLOW.rogue);
+  px.rect(11, Y + 6, 5, 2, "#3a4a3a");
+  if (mood === "scared") return;
+  px.rect(17, Y + 14, 2, 2, "#3a3022"); px.line(19, Y + 13, 21, Y + 9, "#e4e8f0"); px.set(19, Y + 15, "#6a4a2a");
+  px.rect(6, Y + 15, 2, 2, "#3a3022"); px.line(5, Y + 17, 4, Y + 21, "#c8ccd8");
+}
+
+function commoner(px, cls, f) {
+  // villagers, and the chancellor in his robes of state
+  const Y = 11, a = f ? 1 : 0, tr = cls === "traitor";
+  const C = tr ? ["#4a1460", "#2e0a3c", "#d8b040"] : ["#8a6a40", "#5e4628", "#c8a870"];
+  if (tr) { for (let y = 0; y < 22; y++) px.hline(8 - (y > 12 ? 1 : 0), Y + 11 + y, 9 + (y > 12 ? 2 : 0), y % 6 === 5 ? C[1] : C[0]); px.vline(12, Y + 11, 22, C[2]); px.hline(8, Y + 13, 9, C[2]); px.rect(7, Y + 10, 11, 3, "#e8e0d0"); }
+  else { px.rect(9 + a, Y + 21, 3, 10, "#4a3a2a"); px.rect(12 - a, Y + 21, 3, 10, "#5a4834"); px.rect(9 + a, Y + 31, 3, 2, "#2a1e14"); px.rect(12 - a, Y + 31, 3, 2, "#2a1e14"); px.rect(8, Y + 10, 9, 12, C[0]); px.hline(8, Y + 18, 9, C[1]); }
+  px.rect(10, Y + 2, 5, 7, "#e8c0a0"); px.rect(10, Y + 2, 5, 2, tr ? "#3a2a2a" : "#4a3020"); px.set(11, Y + 5, "#1a1018"); px.set(13, Y + 5, "#1a1018");
+  if (tr) { px.hline(11, Y + 7, 3, "#6a2020"); px.set(14, Y + 6, "#6a2020"); px.rect(11, Y + 8, 3, 2, "#3a2a2a"); px.rect(9, Y, 7, 2, C[2]); px.set(9, Y - 1, C[2]); px.set(12, Y - 2, C[2]); px.set(15, Y - 1, C[2]); px.set(12, Y - 1, "#e03040"); }
+}
+
 export function chibi(cls, frame = 0, mood = "walk") {
-  return memo(`chibi:${cls}:${frame}:${mood}`, () => {
-    const P = CLASS_PAL[cls] ?? CLASS_PAL.villager, px = new Pix(20, 24);
-    const up = mood === "scared" || mood === "cheer";
-    // legs
-    const lo = frame ? 1 : 0;
-    px.rect(7, 20 - lo, 2, 3 + lo, P.A); px.rect(11, 20 + lo - 1, 2, 3 - lo + 1, P.A);
-    px.rect(7, 22, 2, 1, "#3a2418"); px.rect(11, 22, 2, 1, "#3a2418");
-    // body
-    px.rect(6, 14, 8, 6, P.a);
-    px.rect(6, 18, 8, 1, P.A);
-    px.rect(7, 15, 1, 3, P.l);
-    if (cls === "warrior" || cls === "boss" || cls === "knight") { px.rect(6, 14, 8, 2, P.hat); px.rect(9, 16, 2, 2, P.l); }
-    if (cls === "cleric") { px.rect(9, 15, 2, 4, "#e8c040"); px.rect(8, 16, 4, 1, "#e8c040"); }
-    if (cls === "traitor") px.rect(9, 14, 2, 6, P.l);
-    // arms
-    if (up) { px.rect(4, 10, 2, 5, P.a); px.rect(14, 10, 2, 5, P.a); px.rect(4, 9, 2, 2, SKIN); px.rect(14, 9, 2, 2, SKIN); }
-    else { px.rect(4, 15, 2, 4, P.A); px.rect(14, 15, 2, 4, P.A); px.rect(4, 18, 2, 1, SKIN); px.rect(14, 18, 2, 1, SKIN); }
-    // head
-    px.oval(10, 8.5, 6.2, 5.6, SKIN);
-    px.rect(5, 11, 10, 2, SKIN);
-    px.hline(6, 13, 8, SKIN2);
-    // face
-    if (mood === "scared") {
-      px.rect(6, 8, 3, 3, WHITE); px.rect(11, 8, 3, 3, WHITE); px.set(7, 9, EYE); px.set(12, 9, EYE);
-      px.rect(9, 11, 2, 2, "#5a1020");
-      px.rect(16, 5, 1, 2, "#7ac8ff"); px.set(16, 7, "#cfeeff");
-    } else if (mood === "cheer") {
-      px.hline(6, 9, 2, EYE); px.hline(12, 9, 2, EYE); px.set(5, 8, EYE); px.set(14, 8, EYE);
-      px.rect(8, 11, 4, 1, "#5a1020"); px.rect(9, 12, 2, 1, "#e05060");
-    } else {
-      px.rect(7, 9, 1, 2, EYE); px.rect(12, 9, 1, 2, EYE);
-      px.set(7, 9, "#5a4a70");
-      px.hline(9, 12, 2, SKIN2);
-      px.set(6, 11, "#f09a8a"); px.set(13, 11, "#f09a8a");
-    }
-    // hats
-    if (cls === "warrior" || cls === "knight" || cls === "boss") {
-      px.oval(10, 6, 6.6, 4.6, P.hat); px.rect(4, 6, 13, 2, P.hat); px.hline(4, 7, 13, P.Hat);
-      px.rect(9, 7, 2, 3, P.Hat); px.set(7, 4, P.l); px.set(8, 3, P.l);
-      if (cls !== "knight") { px.rect(9, 0, 2, 3, cls === "boss" ? "#e03040" : "#e8483a"); px.set(11, 0, "#ff8a6a"); }
-    } else if (cls === "rogue") {
-      px.oval(10, 6.5, 7, 5.6, P.hat); px.rect(3, 7, 3, 6, P.hat); px.rect(14, 7, 3, 6, P.hat);
-      px.rect(6, 8, 8, 5, SKIN); px.rect(7, 9, 1, 2, EYE); px.rect(12, 9, 1, 2, EYE);
-      if (mood === "scared") { px.rect(6, 8, 3, 3, WHITE); px.rect(11, 8, 3, 3, WHITE); px.set(7, 9, EYE); px.set(12, 9, EYE); px.rect(9, 11, 2, 2, "#5a1020"); }
-      if (mood === "cheer") { px.rect(6, 8, 8, 5, SKIN); px.hline(6, 9, 2, EYE); px.hline(12, 9, 2, EYE); px.rect(8, 11, 4, 1, "#5a1020"); }
-      px.rect(6, 12, 8, 1, P.Hat);
-      px.hline(5, 4, 10, P.l);
-    } else if (cls === "mage" || cls === "sealmage") {
-      px.rect(2, 5, 16, 2, P.hat); px.hline(2, 6, 16, P.Hat);
-      for (let i = 0; i < 6; i++) px.rect(6 + i, 4 - i, 8 - i * 2 + 1, 1, P.hat);
-      px.rect(5, 4, 10, 1, P.hat); px.set(13, 0, P.hat); px.set(14, 0, P.l);
-      px.hline(5, 4, 10, cls === "mage" ? "#e8c040" : P.l);
-    } else if (cls === "cleric") {
-      px.oval(10, 5.5, 6.4, 4, P.hat); px.rect(4, 5, 12, 2, P.hat); px.hline(4, 6, 12, P.Hat);
-      px.rect(9, 1, 2, 4, "#e8c040"); px.rect(8, 2, 4, 1, "#e8c040");
-    } else if (cls === "traitor") {
-      px.rect(5, 3, 10, 2, P.hat); px.set(5, 2, P.hat); px.set(8, 1, P.hat); px.set(11, 1, P.hat); px.set(14, 2, P.hat);
-      px.set(8, 2, "#e03040");
-    } else {
-      px.oval(10, 4.5, 6, 2.6, P.hat);
-    }
-    // weapons
-    if (!up) {
-      if (cls === "warrior" || cls === "knight" || cls === "boss") { px.vline(16, 9, 9, "#dfe6f0"); px.vline(17, 10, 7, "#9aa4b8"); px.rect(15, 17, 4, 1, "#8a6a30"); px.set(16, 18, "#5a3a18"); }
-      if (cls === "rogue") { px.vline(16, 14, 4, "#dfe6f0"); px.rect(15, 18, 3, 1, "#5a3a18"); }
-      if (cls === "mage") { px.vline(16, 6, 16, "#8a5a2a"); px.rect(15, 4, 3, 3, "#ff5a8a"); px.set(16, 4, "#ffd0e0"); }
-      if (cls === "sealmage") { px.vline(16, 6, 16, "#d0d8ff"); px.rect(15, 3, 3, 3, "#7ae0ff"); }
-      if (cls === "cleric") { px.vline(16, 12, 7, "#8a6a30"); px.rect(15, 10, 3, 3, "#e8c040"); }
-      if (cls === "boss") { px.rect(1, 13, 4, 7, "#8a92a8"); px.rect(2, 14, 2, 5, "#e03040"); }
-    }
-    if (cls === "boss" || cls === "knight") px.rect(5, 19, 10, 1, cls === "boss" ? "#5a1a6a" : P.A);
-    return px.outline().canvas();
+  return memo(`hero:${cls}:${frame}:${mood}`, () => {
+    const px = new Pix(24, 44);
+    const P = HERO_PAL[cls];
+    if (P) armored(px, P, frame, mood, cls);
+    else if (cls === "mage" || cls === "sealmage") robed(px, cls, frame, mood);
+    else if (cls === "rogue") hooded(px, frame, mood);
+    else commoner(px, cls, frame);
+    const cv = px.outline("#06040a").canvas();
+    cv.vh = HERO_H;
+    return cv;
   });
 }
 
@@ -258,17 +312,42 @@ function heartPix(px, cx, cy, s, c1, c2, c3) {
       }
     }
 }
-/** The beating heart at a given swell (radius in pixels). */
-export function heartSprite(s, hurt = 0) {
+/** The heart: an organ, not an emoji. Ventricles, atria, the great vessels, veins; cracks when hurt, stone when sealed. */
+export function heartSprite(s, hurt = 0, dead = 0) {
   const k = Math.round(s * 2) / 2;
-  return memo(`heart:${k}:${hurt}`, () => {
-    const n = Math.ceil(k * 3) + 4, px = new Pix(n, n);
-    const c1 = hurt ? "#a01830" : "#d42040", c2 = "#ff7a8a", c3 = "#7a0c22";
-    heartPix(px, n / 2, n / 2 + 1, k, c1, c2, c3);
-    // veins
-    if (k > 6) { px.line(n / 2 - 2, n / 2 + 3, n / 2 + 1, n / 2 - 1, "#8a1028"); px.line(n / 2 + 1, n / 2 - 1, n / 2 + 4, n / 2, "#8a1028"); }
-    if (hurt) { px.line(n / 2 - 1, n / 2 - 3, n / 2 + 1, n / 2 + 2, "#2a0610"); px.line(n / 2 + 1, n / 2 + 2, n / 2 - 1, n / 2 + 4, "#2a0610"); }
-    return px.outline("#2a0610").canvas();
+  return memo(`organ:${k}:${hurt}:${dead}`, () => {
+    const n = Math.ceil(k * 3.4) + 8, px = new Pix(n, n), cx = n / 2, cy = n / 2 + k * 0.35;
+    const C = dead
+      ? { body: "#6a6670", dark: "#48444e", hi: "#8e8a94", spec: "#b0acb6", art: "#7a7680", vein: "#3a3640", cav: "#56525c" }
+      : { body: hurt ? "#86142a" : "#a8182e", dark: "#6a0c1e", hi: "#d63a4a", spec: "#ff9aa6", art: "#c84a5a", vein: "#4a0814", cav: "#4a3a8a" };
+    // the great vessels first, so the muscle sits in front of them
+    for (let i = 0; i < 4; i++) {
+      px.line(cx - 0.15 * k + i * 0.18 * k, cy - 0.7 * k, cx - 0.55 * k + i * 0.18 * k, cy - 1.45 * k, C.cav);
+      px.line(cx + 0.05 * k + i * 0.16 * k, cy - 0.7 * k, cx + 0.05 * k + i * 0.16 * k, cy - 1.35 * k, C.art);
+    }
+    px.oval(cx + 0.45 * k, cy - 1.32 * k, 0.55 * k, 0.22 * k, C.art);
+    px.oval(cx + 0.85 * k, cy - 1.05 * k, 0.2 * k, 0.35 * k, C.art);
+    px.oval(cx - 0.62 * k, cy - 1.45 * k, 0.18 * k, 0.12 * k, C.vein);
+    // atria, then the two ventricles and the apex
+    px.oval(cx - 0.45 * k, cy - 0.65 * k, 0.48 * k, 0.4 * k, C.dark);
+    px.oval(cx + 0.45 * k, cy - 0.62 * k, 0.42 * k, 0.36 * k, C.dark);
+    px.oval(cx - 0.12 * k, cy + 0.1 * k, 0.95 * k, 1.05 * k, C.body);
+    px.oval(cx + 0.38 * k, cy + 0.05 * k, 0.72 * k, 0.92 * k, C.body);
+    px.oval(cx - 0.2 * k, cy + 0.82 * k, 0.48 * k, 0.48 * k, C.body);
+    px.oval(cx + 0.55 * k, cy + 0.25 * k, 0.42 * k, 0.65 * k, C.dark);
+    px.oval(cx - 0.45 * k, cy - 0.1 * k, 0.26 * k, 0.5 * k, C.hi);
+    px.set(cx - 0.55 * k, cy - 0.35 * k, C.spec); px.set(cx - 0.5 * k, cy - 0.25 * k, C.spec);
+    // the coronary veins running down the front
+    px.line(cx + 0.05 * k, cy - 0.55 * k, cx - 0.1 * k, cy + 0.4 * k, C.vein);
+    px.line(cx - 0.1 * k, cy + 0.4 * k, cx - 0.35 * k, cy + 0.95 * k, C.vein);
+    px.line(cx - 0.05 * k, cy - 0.1 * k, cx + 0.45 * k, cy + 0.35 * k, C.vein);
+    px.line(cx - 0.1 * k, cy + 0.2 * k, cx - 0.6 * k, cy + 0.45 * k, C.vein);
+    if (hurt || dead) {
+      px.line(cx + 0.2 * k, cy - 0.5 * k, cx + 0.05 * k, cy + 0.1 * k, "#140408");
+      px.line(cx + 0.05 * k, cy + 0.1 * k, cx + 0.3 * k, cy + 0.6 * k, "#140408");
+      px.line(cx - 0.5 * k, cy + 0.3 * k, cx - 0.2 * k, cy + 0.55 * k, "#140408");
+    }
+    return px.outline(dead ? "#1a181e" : "#1a0408").canvas();
   });
 }
 

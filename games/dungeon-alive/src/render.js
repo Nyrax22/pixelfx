@@ -31,6 +31,7 @@ import * as lootBeam from "../../../src/fx/pickups/loot-beam.js";
 import * as coinSpin from "../../../src/fx/pickups/coin-spin.js";
 import * as healAoe from "../../../src/fx/holy/heal-aoe.js";
 import * as sunburst from "../../../src/fx/holy/sunburst.js";
+import * as holyPillar from "../../../src/fx/holy/holy-pillar.js";
 import * as runeCircle from "../../../src/fx/arcane/rune-circle.js";
 import * as dirtBoom from "../../../src/fx/explosions/dirt-explosion.js";
 import * as bigBoom from "../../../src/fx/explosions/big-explosion.js";
@@ -43,7 +44,7 @@ import { chibi, cardIcon, heartSprite, angryGhost, diaryPage, Pix, INK } from ".
 export const FX = {
   slime, bat, frog, ghost, snake, eyeball, "flying-skull": skull, wisp, hitSpark, bluntHit, zapHit, lightningStrike, flamethrower,
   flamePillar, meteorFx, snowflake, iceSpikes, toxicPuddle, necro, darkBoom, poof, coinDrop, summonRise, collect, lootBeam, coinSpin,
-  healAoe, sunburst, runeCircle, dirtBoom, bigBoom, firework, eggHatch, fireflies,
+  healAoe, sunburst, holyPillar, runeCircle, dirtBoom, bigBoom, firework, eggHatch, fireflies,
 };
 
 export const CELL = 64;
@@ -95,7 +96,7 @@ export class Renderer {
     this.camSnap = true;
     this.vw = 800; this.vh = 600; this.dpr = 1;
     this.hitStop = 0; this.slowT = 0; this.slowK = 0.3;
-    this.impacts = []; this.rings = []; this.corpses = [];
+    this.impacts = []; this.rings = []; this.corpses = []; this.embers = []; this.chains = []; this.sealCircle = null; this.heartDead = false;
     this.flashColor = "255,255,255"; this.redPulse = 0; this.focus = null;
     this.fx = [];
     this.mons = new Map();
@@ -232,7 +233,15 @@ export class Renderer {
     const vg = this.vg, V = this.view, dpr = this.dpr;
     let tx, ty, tz, rate = 4;
     const o = this.camOverride;
-    if (o) { tx = o.x; ty = o.y; tz = o.z; rate = o.speed ?? 2; }
+    if (o) {
+      tx = o.x; ty = o.y; tz = o.z; rate = o.speed ?? 2;
+      // keep cinematic shots inside the world, unless the shot means to leave it (the dive)
+      if (!o.free) {
+        const hw = this.vw / (2 * tz), hh = this.vh / (2 * tz);
+        tx = this.W > hw * 2 ? Math.max(hw, Math.min(this.W - hw, tx)) : this.W / 2;
+        ty = this.H > hh * 2 ? Math.max(hh, Math.min(this.H - hh, ty)) : this.H / 2;
+      }
+    }
     else {
       const b = this.bounds(run);
       tx = (b.x0 + b.x1) / 2; ty = (b.y0 + b.y1) / 2;
@@ -306,6 +315,39 @@ export class Renderer {
       vg.lineTo(cx + Math.cos(ang - w) * R1, cy + Math.sin(ang - w) * R1);
       vg.lineTo(cx + Math.cos(ang + w) * R1, cy + Math.sin(ang + w) * R1);
       vg.fill();
+    }
+  }
+  /** The seal: a vast turning circle of runes over the dungeon, and chains from the sky into the heart. */
+  drawSeal() {
+    const g = this.g, sc = this.sealCircle;
+    if (sc) {
+      const t = Math.min(1, sc.age / 3), R = sc.r * (1 - Math.pow(1 - t, 3)), a = Math.min(1, sc.age);
+      g.save();
+      g.shadowColor = "#7ad8ff"; g.shadowBlur = 6;
+      g.strokeStyle = `rgba(180,230,255,${0.85 * a})`; g.lineWidth = 1;
+      for (const k of [1, 0.86, 0.55]) { g.beginPath(); g.ellipse(sc.x, sc.y, R * k, R * k * 0.62, 0, 0, Math.PI * 2); g.stroke(); }
+      g.fillStyle = `rgba(200,240,255,${0.9 * a})`;
+      for (let i = 0; i < 60; i++) {
+        const ang = (i / 60) * Math.PI * 2 + sc.age * 0.25, rr = R * 0.93;
+        g.fillRect(Math.round(sc.x + Math.cos(ang) * rr), Math.round(sc.y + Math.sin(ang) * rr * 0.62), i % 5 ? 1 : 3, i % 5 ? 3 : 2);
+      }
+      g.beginPath();
+      for (let i = 0; i <= 6; i++) {
+        const ang = ((i * 2) / 6) * Math.PI * 2 - sc.age * 0.4, p = [sc.x + Math.cos(ang) * R * 0.55, sc.y + Math.sin(ang) * R * 0.55 * 0.62];
+        i ? g.lineTo(...p) : g.moveTo(...p);
+      }
+      g.stroke();
+      g.restore();
+    }
+    for (const ch of this.chains) {
+      const len = Math.hypot(ch.x1 - ch.x0, ch.y1 - ch.y0) * ch.t, ang = Math.atan2(ch.y1 - ch.y0, ch.x1 - ch.x0);
+      for (let d = 0, i = 0; d < len; d += 5, i++) {
+        const x = Math.round(ch.x0 + Math.cos(ang) * d), y = Math.round(ch.y0 + Math.sin(ang) * d);
+        g.fillStyle = "#14161f"; g.fillRect(x - 2, y - 2, 5, 5);
+        g.fillStyle = i % 2 ? "#c8d0e0" : "#8a92a8";
+        if (i % 2) g.fillRect(x - 1, y - 2, 3, 4); else g.fillRect(x - 2, y - 1, 4, 3);
+        g.fillStyle = "#14161f"; g.fillRect(x, y, 1, 1);
+      }
     }
   }
   drawRing(r) {
@@ -499,7 +541,8 @@ export class Renderer {
     if (!it) {
       const sp = MON.species[m.species] ?? MON.species.slime;
       const opts = { seed: m.id * 13 };
-      if (m.palette) opts.palette = m.palette;
+      const pal = m.palette ?? sp.palette;
+      if (pal) opts.palette = pal;
       if (m.species === "slime") opts.hop = 8;
       if (m.species === "ghost") opts.hover = 5;
       if (m.species === "wisp") opts.hover = 8;
@@ -596,7 +639,7 @@ export class Renderer {
         break;
       case "loot": { const a = advById(e.id); if (a) { const [x, y] = this.advXY(a); this.spawn("coinSpin", x, y - 26, {}, "over", 1.2); } break; }
       case "spawn": { const [x, y] = at(...ENT, 14); this.spawn("poof", x, y, {}, "over"); if (e.boss) { this.shake = 0.5; } break; }
-      case "shriek": { const m = run.monsters.find((q) => q.id === e.mid); if (m) { const [x, y] = this.monXY(m); this.floatText(x, y - 26, "끼야아악!", "shriek"); } break; }
+      case "shriek": { const m = run.monsters.find((q) => q.id === e.mid); if (m) { const [x, y] = this.monXY(m); this.floatText(x, y - 26, "비명", "shriek"); } break; }
       case "synergy": { const [x, y] = at(e.c, e.r, -18); this.floatText(x, y, e.text, "synergy"); break; }
       case "scare": break;
     }
@@ -629,7 +672,7 @@ export class Renderer {
       case "crystal": for (const [x, y] of tp) this.shoot(ix + 12, iy + 4, x, y - 10, "orb"); break;
       case "totem": this.pulses = this.pulses ?? []; this.pulses.push({ x: cx, y: cy + 8, age: 0 }); break;
     }
-    if (d?.fear) for (const [x, y] of tp) if (Math.random() < 0.3) this.floatText(x, y - 30, "덜덜", "fear");
+    if (d?.fear) for (const [x, y] of tp) if (Math.random() < 0.3) this.floatText(x, y - 30, "공포", "fear");
   }
   spellFx(e) {
     const [x, y] = this.gw(e.c, e.r);
@@ -639,7 +682,7 @@ export class Renderer {
       case "meteor": case "pro_meteor": this.spawn("meteorFx", x, y + 20, {}, "over", 2.6); this.shake = 0.8; this.stop(0.08); this.impact(x, y, 0.6); break;
       case "pro_pillar": this.spawn("flamePillar", x, y + 24, {}, "over", 2.4); this.shake = 0.5; break;
       case "nova": this.spawn("iceSpikes", x, y + 20, {}, "over", 1.6); this.spawn("snowflake", x, y + 16, {}, "over"); this.shake = 0.3; break;
-      case "scream": this.spawn("necro", x, y + 18, {}, "over", 1.6); this.floatText(x, y - 24, "우오오오…", "fear"); break;
+      case "scream": this.spawn("necro", x, y + 18, {}, "over", 1.6); this.floatText(x, y - 24, "절규", "fear"); break;
     }
     this.light(x, y, big ? 90 : 60, "255,230,180", 0.8);
   }
@@ -649,7 +692,11 @@ export class Renderer {
   // ---- the frame
   update(dt) {
     this.t += dt;
-    for (const it of this.fx) { it.fx.update(dt); it.age += dt; if (it.dur && it.age >= it.dur) it.fx.stop(); }
+    for (const it of this.fx) { it.fx.update(dt); it.age += dt; if (it.vy) it.fx.options.y += it.vy * dt; if (it.dur && it.age >= it.dur) it.fx.stop(); }
+    for (const e of this.embers) { e.age += dt; e.x += e.vx * dt; e.y += e.vy * dt; e.vx *= 0.97; }
+    this.embers = this.embers.filter((e) => e.age < e.life);
+    for (const ch of this.chains) ch.t = Math.min(1, ch.t + dt * 2.2);
+    if (this.sealCircle) this.sealCircle.age += dt;
     this.fx = this.fx.filter((it) => !it.fx.done());
     for (const n of this.nums) n.age += dt;
     this.nums = this.nums.filter((n) => n.age < 0.9);
@@ -672,9 +719,11 @@ export class Renderer {
         else c.done = true;
       }
       if (c.done) {
-        this.spawn("poof", c.x, c.y, {}, "over");
-        this.spawn("coinDrop", c.x, c.y, {}, "over");
-        this.floaters.push({ x: c.x, y: c.y - 16, sprite: angryGhost(), age: 0, vy: -26, life: 1.4 });
+        // no stars and coins: black smoke, embers, and the soul leaving the body
+        this.spawn("poof", c.x, c.y, { palette: ["#06040a", "#140a1a", "#24142c", "#3a2442", "#5a3a5e", "#8a6a8a"], stars: ["#ff6a3a", "#ffb05a", "#ffe0a0"] }, "over");
+        const soul = this.spawn("wisp", c.x, c.y - 6, { palette: ["#0a0a1a", "#1a1a3a", "#3a3a6a", "#6a7aaa", "#a8b8e0", "#e0e8ff", "#ffffff"], hover: 0 }, "over", 1.1);
+        if (soul) soul.vy = -34;
+        for (let i = 0; i < 8; i++) this.embers.push({ x: c.x + (Math.random() - 0.5) * 10, y: c.y - 4, vx: (Math.random() - 0.5) * 30, vy: -20 - Math.random() * 40, age: 0, life: 0.8 + Math.random() * 0.8 });
       }
     }
     this.corpses = this.corpses.filter((c) => !c.done && c.age < 4);
@@ -758,6 +807,8 @@ export class Renderer {
     for (const b of this.bolts) this.drawBolt(b);
     if (this.pulses) for (const p of this.pulses) { g.strokeStyle = `rgba(160,130,255,${1 - p.age / 0.8})`; g.lineWidth = 1; g.beginPath(); g.ellipse(p.x, p.y, 6 + p.age * 40, 3 + p.age * 18, 0, 0, Math.PI * 2); g.stroke(); }
     for (const r of this.rings) this.drawRing(r);
+    this.drawSeal();
+    for (const e of this.embers) { g.fillStyle = e.age / e.life < 0.5 ? "#ffb05a" : "#c8402a"; g.fillRect(Math.round(e.x), Math.round(e.y), 1, 1); }
     for (const n of this.nums) this.drawNum(n);
 
     // ui highlights
@@ -830,7 +881,7 @@ export class Renderer {
       if (rm.type === "heart") {
         const hurt = this.heartHurt > 0 ? 1 : 0;
         const s = 12 + pulse * 3.5;
-        const sp = heartSprite(s, hurt || (run.heart.hp / run.heart.max < 0.34 ? 1 : 0));
+        const sp = this.heartDead ? heartSprite(12, 1, 1) : heartSprite(s, hurt || (run.heart.hp / run.heart.max < 0.34 ? 1 : 0));
         g.drawImage(sp, Math.round(x + CW / 2 - sp.width / 2), Math.round(y + (FY - y) * 0.46 - sp.height / 2));
       }
     }
@@ -862,7 +913,7 @@ export class Renderer {
     const mood = a.state === "flee" ? "scared" : "walk";
     const spr = chibi(a.skin ?? (a.boss ? "boss" : a.cls), frame, a.cheer ? "cheer" : mood);
     const k = a.boss ? 2 : 1;
-    const w = spr.width * k, h = spr.height * k;
+    const w = spr.width * k, fullH = spr.height * k, h = (spr.vh ?? spr.height) * k;
     const bob = moving && frame ? -1 : 0;
     const knock = a.hitT > 0 ? -this.faceOf(a) * (a.hitT / 0.18) * 5 : 0;
     // shadow
@@ -870,9 +921,9 @@ export class Renderer {
     g.save();
     g.translate(Math.round(x + knock), Math.round(y + bob));
     if (this.faceOf(a) < 0) g.scale(-1, 1);
-    g.drawImage(spr, -w / 2, -h, w, h);
+    g.drawImage(spr, -w / 2, -fullH, w, fullH);
     g.restore();
-    if (a.hitT > 0) { g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.7; g.save(); g.translate(Math.round(x), Math.round(y)); if (this.faceOf(a) < 0) g.scale(-1, 1); g.drawImage(spr, -w / 2, -h, w, h); g.restore(); g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; }
+    if (a.hitT > 0) { g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.7; g.save(); g.translate(Math.round(x), Math.round(y)); if (this.faceOf(a) < 0) g.scale(-1, 1); g.drawImage(spr, -w / 2, -fullH, w, fullH); g.restore(); g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; }
     if (a.frozenT > 0) { g.fillStyle = "rgba(150,220,255,0.45)"; g.fillRect(Math.round(x - w / 2), Math.round(y - h), w, h); }
     if (a.burnT > 0 && Math.floor(this.t * 12) % 2) { g.fillStyle = "#ff8a2a"; g.fillRect(Math.round(x - 3 + Math.random() * 6), Math.round(y - h + 4), 2, 2); }
     if (a.poisonT > 0 && Math.floor(this.t * 8) % 3 === 0) { g.fillStyle = "#a6f06a"; g.fillRect(Math.round(x + 4), Math.round(y - h - 1), 2, 2); }
@@ -1018,19 +1069,25 @@ export class Renderer {
 
   /** The seal turning the world to stone, from the edges in. */
   drawGray() {
+    // stone creeping in from the edges: a soft-edged oval of colour that shrinks to nothing
     const g = this.vg, V = this.view, k = Math.min(1, this.gray);
-    const ix = (V.width / 2) * (1 - k) * 1.05, iy = (V.height / 2) * (1 - k) * 1.05;
+    if (!this.grayCv || this.grayCv.width !== V.width || this.grayCv.height !== V.height) { this.grayCv = document.createElement("canvas"); this.grayCv.width = V.width; this.grayCv.height = V.height; }
+    const m = this.grayCv.getContext("2d");
+    m.globalCompositeOperation = "source-over";
+    m.clearRect(0, 0, V.width, V.height);
+    m.fillStyle = "#808080"; m.fillRect(0, 0, V.width, V.height);
+    if (k < 1) {
+      m.globalCompositeOperation = "destination-out";
+      const r = Math.hypot(V.width, V.height) * 0.62 * (1 - k);
+      const gr = m.createRadialGradient(V.width / 2, V.height / 2, r * 0.7, V.width / 2, V.height / 2, Math.max(1, r));
+      gr.addColorStop(0, "rgba(0,0,0,1)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+      m.fillStyle = gr; m.fillRect(0, 0, V.width, V.height);
+    }
     g.save();
-    g.beginPath();
-    g.rect(0, 0, V.width, V.height);
-    if (k < 1) g.rect(V.width / 2 - ix, V.height / 2 - iy, ix * 2, iy * 2);
-    g.clip("evenodd");
     g.globalCompositeOperation = "saturation";
-    g.fillStyle = "#808080";
-    g.fillRect(0, 0, V.width, V.height);
+    g.drawImage(this.grayCv, 0, 0);
     g.globalCompositeOperation = "source-over";
-    g.fillStyle = "rgba(70,70,84,0.3)";
-    g.fillRect(0, 0, V.width, V.height);
+    g.globalAlpha = 0.25 * k; g.fillStyle = "#464654"; g.fillRect(0, 0, V.width, V.height);
     g.restore();
   }
 }
@@ -1063,7 +1120,7 @@ export function critterIcon(species, palette = null) {
   const W = 64, H = 56, frame = createFrame(W, H), img = new ImageData(W, H);
   const sp = MON.species[species] ?? MON.species.slime;
   const opts = { x: 32, y: 48 + (SPECIES_Y[species] ?? 0) * 0.5, seed: 3 };
-  if (palette) opts.palette = palette;
+  if (palette ?? sp.palette) opts.palette = palette ?? sp.palette;
   if (species === "slime") opts.hop = 0;
   if (species === "ghost" || species === "wisp") opts.hover = 0;
   const fx = createFx(FX[sp.fx], opts);
