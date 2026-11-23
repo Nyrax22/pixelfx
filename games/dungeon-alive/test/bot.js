@@ -41,6 +41,7 @@ export function playRun(meta, seed, opts = {}) {
       botPlace(run, meta, R);
     } else if (run.phase === "wave") {
       S.step(run, meta, dt);
+      if (run.rage >= run.rageNeed && run.advs.filter((a) => !a.dead && !a.out).length >= 4) S.roar(run, meta);
       nightTime += dt;
       if (guard % 15 === 0) botPlace(run, meta, R);
       for (const id of [...run.mercy]) if (R.chance(0.02)) S.decideMercy(run, meta, id, R.chance(0.6));

@@ -90,7 +90,31 @@ export function sfx(name, arg = 0) {
     case "seal": tone(midi(48), t, 2.5, { type: "sawtooth", vol: 0.08, slide: 0.5, attack: 0.4 }); noise(t, 2.5, { vol: 0.15, freq: 300, type: "lowpass", sweep: 0.3 }); break;
     case "fizzle": tone(300, t, 0.3, { type: "square", vol: 0.08, slide: 0.3 }); noise(t, 0.2, { vol: 0.08, freq: 800 }); break;
     case "power": [0, 7, 12, 16, 19, 24].forEach((n, i) => tone(midi(60 + n), t + i * 0.09, 0.6, { type: "triangle", vol: 0.12 })); break;
-    case "wave": tone(midi(55), t, 0.3, { type: "sawtooth", vol: 0.1 }); tone(midi(58), t + 0.15, 0.4, { type: "sawtooth", vol: 0.1 }); break;
+    case "wave": horn(t, 0.9); noise(t, 0.4, { vol: 0.35, freq: 120, type: "lowpass" }); tone(55, t, 0.5, { type: "sine", vol: 0.5, slide: 0.5 }); break;
+    case "horn": horn(t, 2.2); horn(t + 0.05, 2.2, 1.5); break;
+    case "roar":
+      tone(110, t, 1.2, { type: "sawtooth", vol: 0.3, slide: 0.35 }); tone(82, t, 1.4, { type: "square", vol: 0.15, slide: 0.4 });
+      noise(t, 1.2, { vol: 0.6, freq: 500, type: "lowpass", sweep: 0.15 }); tone(45, t, 1, { type: "sine", vol: 0.8, slide: 0.5 });
+      break;
+    case "slam": tone(50, t, 0.5, { type: "sine", vol: 0.8, slide: 0.4 }); noise(t, 0.35, { vol: 0.5, freq: 260, type: "lowpass" }); tone(midi(arg || 48), t, 0.8, { type: "sawtooth", vol: 0.06 }); break;
+    case "rumble": noise(t, 3.5, { vol: 0.5, freq: 90, type: "lowpass" }); tone(32, t, 3.5, { type: "sine", vol: 0.5, attack: 0.8 }); break;
+    case "boomBig": noise(t, 1.4, { vol: 0.7, freq: 500, type: "lowpass", sweep: 0.12 }); tone(48, t, 1.2, { type: "sine", vol: 0.8, slide: 0.35 }); break;
+    case "chime": [0, 7, 12, 19].forEach((n, i) => tone(midi(84 + n), t + i * 0.09, 1.2, { type: "sine", vol: 0.08 })); break;
+  }
+}
+
+// a brass-like swell: detuned saws through a filter that opens and closes
+function horn(t, dur, mul = 1) {
+  if (!ctx) return;
+  const f = ctx.createBiquadFilter(), g = ctx.createGain();
+  f.type = "lowpass"; f.Q.value = 2;
+  f.frequency.setValueAtTime(200, t); f.frequency.linearRampToValueAtTime(1400, t + dur * 0.3); f.frequency.linearRampToValueAtTime(300, t + dur);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.22, t + 0.15); g.gain.setValueAtTime(0.22, t + dur * 0.6); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+  f.connect(g); g.connect(sfxBus);
+  for (const d of [-6, 0, 7]) {
+    const o = ctx.createOscillator();
+    o.type = "sawtooth"; o.frequency.value = midi(45) * mul; o.detune.value = d;
+    o.connect(f); o.start(t); o.stop(t + dur + 0.05);
   }
 }
 
@@ -123,9 +147,19 @@ function schedule() {
       if (s === 6) { tone(110, t, 0.2, { type: "triangle", vol: 0.15, bus: musBus, slide: 0.7 }); noise(t, 0.08, { vol: 0.06, freq: 900, bus: musBus }); }
       if (step % 16 === 0) tone(midi(43), t, beatLen * 8, { type: "sawtooth", vol: 0.025, bus: musBus, attack: 0.5 });
       nextNote += beatLen / 2;
-    } else if (musicMode === "prologue") {
+    } else if (musicMode === "prologue" || musicMode === "war") {
+      // a big choir; in war, timpani and marching drums under it
       const ch = CHOIR[(step / 4 | 0) % CHOIR.length];
-      if (step % 4 === 0) for (const n of ch) { tone(midi(n), t, 2.6, { type: "sawtooth", vol: 0.018, bus: musBus, attack: 0.6 }); tone(midi(n + 12), t, 2.6, { type: "sine", vol: 0.03, bus: musBus, attack: 0.6 }); }
+      if (step % 4 === 0) for (const n of ch) {
+        tone(midi(n), t, 2.9, { type: "sawtooth", vol: 0.028, bus: musBus, attack: 0.5 });
+        tone(midi(n + 12), t, 2.9, { type: "sine", vol: 0.05, bus: musBus, attack: 0.5 });
+        tone(midi(n + 12) * 1.004, t, 2.9, { type: "triangle", vol: 0.03, bus: musBus, attack: 0.7 });
+      }
+      if (step % 4 === 0) tone(midi(ch[0] - 12), t, 2.9, { type: "sawtooth", vol: 0.05, bus: musBus, attack: 0.3 });
+      if (musicMode === "war") {
+        tone(65, t, 0.4, { type: "sine", vol: 0.7, bus: musBus, slide: 0.5 }); noise(t, 0.15, { vol: 0.25, freq: 180, type: "lowpass", bus: musBus });
+        if (step % 2) { noise(t + 0.35, 0.08, { vol: 0.18, freq: 1800, bus: musBus }); noise(t + 0.525, 0.06, { vol: 0.12, freq: 1800, bus: musBus }); }
+      } else if (step % 4 === 0) tone(55, t, 1.2, { type: "sine", vol: 0.45, bus: musBus, slide: 0.6 });
       nextNote += 0.7;
     } else if (musicMode === "heartbeat") {
       tone(55, t, 0.25, { type: "sine", vol: 0.5, bus: musBus, slide: 0.6 });

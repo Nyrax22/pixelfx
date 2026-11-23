@@ -148,7 +148,7 @@ export function newRun(meta, seed = (Math.random() * 2 ** 31) | 0) {
     kills: 0, spared: 0, executed: 0, nemeses: [], guild: { gear: {}, known: {} }, diaries: [], recordsFound: [],
     events: [], uid: 1, pick: null, roomOffer: null, pendingRoom: null, breedsLeft: 0, mercy: [], mercyShown: 0,
     combo: { n: 0, t: 0, last: null }, discount: powerSum(meta, "discount"), options: BAL.night.pickOptions + powerSum(meta, "options"),
-    breach: {}, stats: { dmg: 0, hits: 0 }, bossDown: false, result: null, firstKillDone: false, speed: 1,
+    breach: {}, stats: { dmg: 0, hits: 0 }, rage: 0, rageNeed: meta.runs === 0 ? BAL.roar.firstNeed : BAL.roar.need, roars: 0, bossDown: false, result: null, firstKillDone: false, speed: 1,
   };
   const max = (first ? BAL.heart.firstRunHp : BAL.heart.hp) + powerSum(meta, "heart");
   run.heart = { hp: max, max };
@@ -190,21 +190,23 @@ export function startNight(run, meta) {
 }
 
 function makeWaves(run, meta, R) {
-  const d = run.day;
-  if (run.first) {
-    if (d === 1) return [["warrior", "rogue"]];
-    if (d === 2) return [["warrior", "rogue", "cleric"], ["warrior", "mage"]];
-    return [["warrior", "rogue"], ["warrior", "cleric", "mage"]];
-  }
-  const nW = d <= 2 ? 1 : d <= 5 ? 2 : 3;
-  const size = Math.min(5, 2 + Math.floor((d + 1) / 3));
+  const d = run.day, H = BAL.horde;
   const pool = ["warrior", "rogue", "mage", "cleric"];
-  const waves = [];
-  for (let w = 0; w < nW; w++) {
-    const party = [];
-    for (let i = 0; i < size - (w === 0 && d > 2 ? 1 : 0); i++) party.push(weighted(R, pool, (c) => BAL.classes[c].weight));
-    waves.push(party);
+  const party = (n, must = []) => {
+    const out = [...must];
+    while (out.length < n) out.push(weighted(R, pool, (c) => BAL.classes[c].weight));
+    return shuffle(R, out);
+  };
+  // parties come as hordes: many weak bodies, so traps that hit a room at once feel like they should
+  if (run.first) {
+    if (d === 1) return [party(4, ["warrior", "rogue"])];
+    if (d === 2) return [party(6, ["warrior", "rogue", "cleric"]), party(6, ["warrior", "mage"])];
+    return [party(7, ["rogue", "mage"]), party(9, ["warrior", "cleric", "mage"])];
   }
+  const nW = d <= 2 ? 2 : 3;
+  const size = Math.min(H.max, Math.round(H.base + d * H.perDay + (act(meta) - 1)));
+  const waves = [];
+  for (let w = 0; w < nW; w++) waves.push(party(size - (nW - 1 - w)));
   if (d === 7) waves[waves.length - 1].push("boss");
   return waves;
 }
@@ -260,9 +262,10 @@ function makeAdv(run, meta, cls, R, nemesis = null) {
   const C = BAL.classes[cls], S = BAL.scale;
   const day = run.day;
   let hpMul = (1 + S.hpPerDay * (day - 1)) * (1 + S.hpPerAct * (act(meta) - 1));
-  if (run.first && day === 1) hpMul *= 0.7;
+  if (run.first && day === 1) hpMul *= 0.8;
   if (nemesis) hpMul *= S.nemesisHp * (1 + 0.15 * (nemesis.lvl - 1));
-  const atkMul = 1 + S.atkPerDay * (day - 1);
+  let atkMul = 1 + S.atkPerDay * (day - 1);
+  if (cls !== "boss") { hpMul *= BAL.horde.hp; atkMul *= BAL.horde.atk; }
   const gear = [];
   for (const [el, lvl] of Object.entries(run.guild.gear)) {
     if (el === "trap" && cls !== "rogue") continue;
@@ -362,6 +365,20 @@ function castSpell(run, meta, d, c, r, id) {
   if (d.radius) for (const [nc, nr] of neighbors(run, c, r)) hit(nc, nr, d.splash ?? d.dmg);
 }
 
+/** The heart's own blow: everyone in the dungeon, once the rage meter is full. */
+export function roar(run, meta) {
+  if (run.phase !== "wave" || run.rage < run.rageNeed) return false;
+  run.rage = 0;
+  run.roars++;
+  run.events.push({ t: "roar" });
+  const dmg = BAL.roar.dmg + BAL.roar.perDay * (run.day - 1);
+  for (const a of run.advs.filter(targetable)) {
+    deal(run, meta, a, dmg, "holy", { kind: "roar" });
+    if (targetable(a)) { scare(run, meta, a, BAL.roar.fear); a.frozenT = Math.max(a.frozenT, 0.6); }
+  }
+  return true;
+}
+
 // ---------------------------------------------------------------- monsters
 export function monstersIn(run, c, r) {
   return run.monsters.filter((m) => m.c === c && m.r === r && m.hp > 0);
@@ -425,6 +442,7 @@ function deal(run, meta, a, amount, el, src) {
   if (src.key != null) (a.hitRooms ??= new Set()).add(src.key);
   a.courage -= dmg * BAL.fear.dmgToCourage;
   run.stats.dmg += dmg; run.stats.hits++;
+  if (src.kind !== "status" && src.kind !== "roar") run.rage = Math.min(run.rageNeed, (run.rage ?? 0) + BAL.roar.perHit);
   if (src.kind === "status") {
     // burns and poison tick every frame: show them as one number per whole point
     a.dot = (a.dot ?? 0) + dmg;
@@ -469,10 +487,12 @@ function kill(run, meta, a, src) {
   a.dead = true;
   a.hp = 0;
   run.kills++;
+  run.rage = Math.min(run.rageNeed, (run.rage ?? 0) + BAL.roar.perKill);
   run.mana = Math.min(run.manaMax, run.mana + (src.kind === "execute" ? BAL.mana.execute : BAL.mana.kill));
   run.mercy = run.mercy.filter((id) => id !== a.id);
   const [x, y] = advPos(a);
-  run.events.push({ t: "death", id: a.id, x, y, cls: a.cls, execute: src.kind === "execute", boss: a.boss });
+  const from = src.key != null ? [src.key % COLS, (src.key / COLS) | 0] : src.kind === "roar" ? HEART : null;
+  run.events.push({ t: "death", id: a.id, x, y, cls: a.cls, execute: src.kind === "execute", boss: a.boss, from, big: src.kind === "spell" || src.kind === "roar" || (CARDS[src.id]?.dmg ?? 0) >= 12, last: !run.spawnQ.length && run.advs.filter((o) => !o.dead && !o.out && !o.npc).length === 0 && run.wave === run.waves.length - 1 });
   for (const o of run.advs) if (active(o) && o !== a && dist(advCell(o), advCell(a)) <= 2) { o.courage -= BAL.fear.allyDeath; checkFlee(run, o); }
   // the diary page that flutters down
   const libs = run.rooms.some((rm) => rm?.type === "library") ? 2 : 1;
@@ -539,7 +559,8 @@ export function step(run, meta, dt) {
     if (run.spawnT <= 0) {
       const a = run.spawnQ.shift();
       run.advs.push(a);
-      run.spawnT = BAL.night.spawnGap;
+      // they come in clumps: sometimes two at once, then a breath
+      run.spawnT = withRng(run, (R) => (R.chance(0.35) ? 0.08 : BAL.night.spawnGap * (0.6 + R.next() * 0.9)));
       run.events.push({ t: "spawn", id: a.id, cls: a.cls, boss: a.boss, nemesis: a.nemesis, name: a.name });
     }
   }

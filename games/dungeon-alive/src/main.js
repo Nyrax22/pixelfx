@@ -32,18 +32,10 @@ function fit() {
   const portrait = innerHeight > innerWidth * 1.05;
   if (portrait !== R.portrait) R.setLayout(portrait);
   const st = $("stage").getBoundingClientRect();
-  const pad = 12;
-  let k = Math.min((st.width - pad) / R.W, (st.height - pad) / R.H);
-  if (k >= 2) k = Math.floor(k * 2) / 2;
-  k = Math.max(0.5, k);
-  $("cv").style.width = Math.floor(R.W * k) + "px";
-  $("cv").style.height = Math.floor(R.H * k) + "px";
+  R.resizeView(Math.max(1, st.width), Math.max(1, st.height), Math.min(2, window.devicePixelRatio || 1));
 }
 addEventListener("resize", fit);
-const toScreen = (x, y) => {
-  const cr = $("cv").getBoundingClientRect(), sr = $("stage").getBoundingClientRect();
-  return [cr.left - sr.left + (x * cr.width) / R.W, cr.top - sr.top + (y * cr.height) / R.H];
-};
+const toScreen = (x, y) => R.worldToScreen(x, y);
 R.onText = (x, y, text, cls) => {
   const [sx, sy] = toScreen(x, y);
   const e = h("div", "ft " + cls, esc(text));
@@ -133,6 +125,7 @@ function syncHud() {
   $("hpBar").style.width = (100 * hp) / run.heart.max + "%";
   $("hpText").textContent = `${Math.ceil(hp)}/${run.heart.max}`;
   document.querySelector(".hp .ico").style.animationDuration = 0.4 + (hp / run.heart.max) * 0.8 + "s";
+  if (run.phase === "wave" && run.rage >= run.rageNeed && !seen.has("roarHint")) { seen.add("roarHint"); hint("♥ 포효 게이지가 찼어요! 버튼(또는 R)을 눌러 던전 전체를 뒤흔드세요"); }
   const full = Math.floor(run.mana), part = run.phase === "wave" ? run.regenT / S.BAL.mana.regenEvery : 0;
   const sig = run.manaMax + ":" + full + ":" + Math.floor(part * 4);
   if (sig !== manaSig) {
@@ -149,6 +142,11 @@ function syncHud() {
   $("powerText").textContent = `잃어버린 힘 ${meta.powers.length}/20 · 영혼 ${meta.souls}`;
   const hs = run.hand.map((c) => c.uid).join() + "|" + full + "|" + selected + "|" + run.phase;
   if (hs !== handSig) { handSig = hs; renderHand(); }
+  const rb = $("roarBtn");
+  rb.hidden = run.phase !== "wave";
+  const rageFull = run.rage >= run.rageNeed;
+  rb.classList.toggle("ready", rageFull);
+  rb.style.setProperty("--fill", Math.min(1, run.rage / run.rageNeed));
   const go = $("goBtn");
   go.hidden = !(run.phase === "day" && run.roomPicked && !placingRoom);
 }
@@ -190,7 +188,7 @@ function selectCard(i) {
 // ---------------------------------------------------------------- canvas input
 function cellFromEvent(ev) {
   const cr = $("cv").getBoundingClientRect();
-  const x = ((ev.clientX - cr.left) * R.W) / cr.width, y = ((ev.clientY - cr.top) * R.H) / cr.height;
+  const [x, y] = R.screenToWorld(ev.clientX - cr.left, ev.clientY - cr.top);
   return R.cellAt(x, y);
 }
 function rangeCells(c, r, range) {
@@ -260,6 +258,7 @@ addEventListener("keydown", (ev) => {
   const n = parseInt(ev.key, 10);
   if (n >= 1 && n <= 9) selectCard(n - 1);
   if (ev.key === " ") { ev.preventDefault(); toggleSpeed(); }
+  if (ev.key === "r" || ev.key === "R" || ev.key === "ㄱ") doRoar();
 });
 
 // ---------------------------------------------------------------- hud buttons
@@ -267,6 +266,12 @@ function toggleSpeed() { speed = speed === 1 ? 2 : 1; $("speedBtn").textContent 
 $("speedBtn").onclick = toggleSpeed;
 $("muteBtn").onclick = () => { A.initAudio(); A.setMuted(!A.isMuted()); $("muteBtn").textContent = A.isMuted() ? "♪̸" : "♪"; };
 $("menuBtn").onclick = () => { if (mode === "run") showMenu(); else if (mode === "meta") showMeta(); };
+function doRoar() {
+  if (!run || !S.roar(run, meta)) { if (run?.phase === "wave") { A.sfx("deny"); toast("처치할수록 포효 게이지가 차요"); } return; }
+  A.sfx("roar");
+  if (!seen.has("roar")) seen.add("roar");
+}
+$("roarBtn").onclick = () => { A.initAudio(); doRoar(); };
 $("goBtn").onclick = () => {
   if (!run || run.phase !== "day") return;
   A.initAudio();
@@ -294,6 +299,7 @@ function handle(e) {
     case "flee": A.sfx("babble", 400); showMercy(e); break;
     case "spare": break;
     case "combo": A.sfx("combo", e.n - 3); comboText(e.n); break;
+    case "roar": break;
     case "record": A.sfx("page"); openModal((m) => showRecord(m, e.id, true)); break;
     case "diary":
       A.sfx("page");
@@ -319,13 +325,13 @@ function handle(e) {
   }
 }
 function comboText(n) {
-  const cr = $("cv").getBoundingClientRect(), sr = $("stage").getBoundingClientRect();
-  const e = h("div", "ft combo", `연쇄 ×${n}!`);
-  e.style.left = cr.left - sr.left + cr.width / 2 + "px";
-  e.style.top = cr.top - sr.top + cr.height * 0.3 + "px";
+  const e = h("div", "ft combo" + (n >= 6 ? " mega" : ""), n >= 8 ? `학살 ×${n}!!` : n >= 6 ? `대연쇄 ×${n}!` : `연쇄 ×${n}!`);
+  e.style.left = "50%";
+  e.style.top = "26%";
   $("floaters").querySelectorAll(".combo").forEach((x) => x.remove());
   $("floaters").appendChild(e);
   setTimeout(() => e.remove(), 1000);
+  if (n >= 6) { R.stop(0.05); R.shake = Math.max(R.shake, 0.3); }
 }
 
 // ---------------------------------------------------------------- mercy
@@ -537,7 +543,7 @@ function showEnd() {
     run.advs = [0, 1, 2, 3].map((i) => ({ id: 9000 + i, cls: ["warrior", "rogue", "mage", "cleric"][i], cell: [hx, hy], next: null, prog: 0, lane: i / 1.5 - 1, hp: 1, max: 1, courage: 1, courageMax: 1, gear: [], state: "walk", frozenT: 0, burnT: 0, poisonT: 0, hitT: 0, cheer: true, spare: null }));
     A.sfx("stamp");
   } else {
-    for (let i = 0; i < 5; i++) setTimeout(() => R.spawn("firework", 60 + Math.random() * (R.W - 120), 80 + Math.random() * 120, {}, "over"), i * 350);
+    for (let i = 0; i < 5; i++) setTimeout(() => R.spawn("firework", R.cam.x + (Math.random() - 0.5) * 220, R.cam.y - 20 + (Math.random() - 0.5) * 80, {}, "over"), i * 350);
     A.sfx("fanfare");
   }
   setTimeout(() => openModal((m) => {
@@ -753,7 +759,8 @@ function frame(ts) {
   if (hatchTick) hatchTick(dt);
   if (mode === "run" && run) {
     const paused = menuPause || (modalOpen && run.phase === "wave");
-    let k = paused ? 0 : speed * (slowT > 0 ? 0.3 : 1);
+    const feel = paused ? 1 : R.timeScale(dt);
+    let k = paused ? 0 : speed * (slowT > 0 ? 0.3 : 1) * feel;
     if (slowT > 0 && !paused) slowT -= dt;
     let simDt = dt * k;
     while (simDt > 1e-6) { const s = Math.min(simDt, 1 / 30); S.step(run, meta, s); simDt -= s; }
@@ -762,15 +769,16 @@ function frame(ts) {
     if (run.phase !== lastPhase) { lastPhase = run.phase; onPhase(run.phase); }
     const heartBpm = 60 + (1 - run.heart.hp / run.heart.max) * 90;
     if (run.phase === "wave") A.setMusic("night", heartBpm);
-    R.update(dt * (paused ? 0 : k || 1));
+    R.update(dt * (paused ? 0 : (speed * feel) || 0));
     R.draw(run);
+    R.present(run, dt);
     syncHud();
     syncMercy();
   } else if (mode === "prologue" && prologue) {
     prologue.tick(dt);
   } else if (mode === "meta") {
     const b = backdrop ?? run;
-    if (b) { R.update(dt); R.draw(b); }
+    if (b) { R.update(dt); R.draw(b); R.present(b, dt); }
   }
   requestAnimationFrame(frame);
 }
