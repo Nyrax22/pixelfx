@@ -1,0 +1,22 @@
+[
+  { "id": "p_fire",   "name": "화염의 기억",   "cost": 2,  "desc": "화염 분사구 · 불 슬라임 · 용암 방" },
+  { "id": "p_heart1", "name": "심장의 고동 I", "cost": 2,  "desc": "심장 체력 +10", "heart": 10 },
+  { "id": "p_breed1", "name": "두 번째 둥지",  "cost": 3,  "desc": "낮마다 교배 한 번 더", "breed": 1 },
+  { "id": "p_ice",    "name": "서리의 기억",   "cost": 3,  "desc": "얼음 함정 · 서리 폭발 · 얼음 동굴" },
+  { "id": "p_mana",   "name": "마나의 샘",     "cost": 4,  "desc": "시작 마나 +3 · 마나 제단", "mana": 3 },
+  { "id": "p_fear",   "name": "공포의 기억",   "cost": 4,  "desc": "공포의 석상 · 유령 · 어둠 회랑" },
+  { "id": "p_poison", "name": "독의 기억",     "cost": 5,  "desc": "독가스 함정 · 독사 · 버섯 숲" },
+  { "id": "p_earth",  "name": "대지의 기억",   "cost": 5,  "desc": "바위 낙하 · 가시벽" },
+  { "id": "p_arcane", "name": "비전의 기억",   "cost": 6,  "desc": "마법 수정 · 서고" },
+  { "id": "p_hand",   "name": "넓어진 시야",   "cost": 6,  "desc": "카드 선택지가 4장이 된다", "options": 1 },
+  { "id": "p_heart2", "name": "심장의 고동 II","cost": 7,  "desc": "심장 체력 +15", "heart": 15 },
+  { "id": "p_meteor", "name": "하늘의 분노",   "cost": 7,  "desc": "메테오" },
+  { "id": "p_eye",    "name": "감시자의 눈",   "cost": 8,  "desc": "눈알 감시자" },
+  { "id": "p_skull",  "name": "해골 군단",     "cost": 8,  "desc": "불타는 해골" },
+  { "id": "p_breed2", "name": "세 번째 둥지",  "cost": 9,  "desc": "낮마다 교배 한 번 더", "breed": 1 },
+  { "id": "p_mutate", "name": "뒤틀린 혈통",   "cost": 9,  "desc": "돌연변이 확률 세 배", "mutate": 3 },
+  { "id": "p_pulse",  "name": "심장 맥동",     "cost": 10, "desc": "심장을 때린 침입자가 되맞는다", "pulse": 4 },
+  { "id": "p_storm",  "name": "폭풍의 기억",   "cost": 10, "desc": "테슬라 기둥" },
+  { "id": "p_wisp",   "name": "도깨비불",      "cost": 11, "desc": "도깨비불 · 마나 최대 +5", "manaMax": 5 },
+  { "id": "p_awaken", "name": "수호자의 각성", "cost": 12, "desc": "모든 카드 비용 -1", "discount": 1 }
+]

@@ -1,0 +1,39 @@
+{
+  "species": {
+    "slime":   { "name": "슬라임",   "fx": "slime",        "palette": ["#061412", "#0b2f2b", "#12594a", "#1f8f4f", "#47c752", "#a6f06a", "#f0ffd2"] },
+    "bat":     { "name": "박쥐",     "fx": "bat",          "palette": ["#0c0912", "#1f1629", "#382645", "#5b3f66", "#866089", "#b88fb0", "#e8cfe0"] },
+    "frog":    { "name": "두꺼비",   "fx": "frog" },
+    "ghost":   { "name": "유령",     "fx": "ghost",        "palette": ["#10142a", "#232c52", "#3e4f86", "#6b84bb", "#a3b8e2", "#d8e4ff", "#ffffff"] },
+    "snake":   { "name": "독사",     "fx": "snake" },
+    "eyeball": { "name": "눈알",     "fx": "eyeball" },
+    "skull":   { "name": "해골",     "fx": "flying-skull" },
+    "wisp":    { "name": "도깨비불", "fx": "wisp",         "palette": ["#0a1f2e", "#0f3d52", "#14707e", "#1fa8a8", "#4fe0c8", "#a8fff0", "#ffffff"] }
+  },
+  "palettes": {
+    "fire":    ["#1a0606", "#4a0e08", "#8c1f0c", "#d4451a", "#ff8a2a", "#ffc65a", "#fff2c0"],
+    "poison":  ["#0e0614", "#2a0f3a", "#4b1a66", "#7a2fa0", "#a95fd0", "#d79af0", "#f6e0ff"],
+    "ice":     ["#0a1424", "#14304e", "#215a86", "#3a8bd8", "#7cc6f4", "#c2ecff", "#ffffff"],
+    "fear":    ["#08060e", "#18122a", "#2c2048", "#463470", "#6a54a0", "#9c86d0", "#e0d4ff"],
+    "gold":    ["#1a1004", "#3e2808", "#6e4a10", "#b07a1c", "#e8b23a", "#ffe07a", "#fff8d8"],
+    "blood":   ["#12040a", "#360814", "#64101e", "#a01c2c", "#e03a44", "#ff8a8a", "#ffe0e0"],
+    "rainbow": ["#140a26", "#2b1252", "#1f6f8f", "#2fb07a", "#e8d23a", "#ff7ab0", "#ffffff"]
+  },
+  "traits": {
+    "불":       { "adj": "불타는",       "el": "fire",   "burn": [2, 3], "palette": "fire" },
+    "날개":     { "adj": "날아다니는",   "reach": 1 },
+    "단단함":   { "adj": "단단한",       "hp": 0.5 },
+    "독":       { "adj": "독이 오른",    "el": "poison", "poison": [1, 4], "palette": "poison" },
+    "공포":     { "adj": "으스스한",     "fear": 12, "palette": "fear" },
+    "왕관":     { "adj": "왕관 쓴",      "aura": 0.3, "palette": "gold" },
+    "겁많음":   { "adj": "격하게 겁 많은", "scared": 22 },
+    "거대":     { "adj": "거대한",       "hp": 0.8, "atk": 0.3 },
+    "흡혈":     { "adj": "피를 빠는",    "leech": 0.5, "palette": "blood" },
+    "번개":     { "adj": "찌릿한",       "el": "lightning" },
+    "얼음":     { "adj": "얼어붙은",     "el": "ice", "slow": [0.4, 2], "palette": "ice" },
+    "분열":     { "adj": "쪼개지는",     "split": true },
+    "원거리":   { "adj": "멀리 보는",    "reach": 1 },
+    "치유":     { "adj": "다정한",       "heal": 2 }
+  },
+  "mutations": ["왕관", "겁많음", "거대", "분열", "흡혈", "번개"],
+  "special": { "불+날개": "날아다니는 불덩이", "독+날개": "독침 모기떼", "얼음+불": "미지근한 무언가", "공포+겁많음": "서로 무서워하는 녀석" }
+}

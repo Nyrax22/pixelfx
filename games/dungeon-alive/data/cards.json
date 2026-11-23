@@ -1,0 +1,36 @@
+{
+  "spike":   { "name": "가시 함정",   "kind": "trap",     "el": "physical",  "cost": 2, "trigger": "enter",    "rearm": 1.4, "dmg": 7,  "target": "one", "desc": "방에 들어온 침입자를 찌른다" },
+  "zap":     { "name": "번개 함정",   "kind": "trap",     "el": "lightning", "cost": 3, "trigger": "interval", "interval": 1.5, "dmg": 5, "target": "one", "desc": "방 안의 침입자 하나를 감전시킨다. 물이 찬 방에선 방 전체로 퍼진다" },
+  "flame":   { "name": "화염 분사구", "kind": "trap",     "el": "fire",      "cost": 3, "trigger": "interval", "interval": 2.2, "dmg": 4, "target": "all", "burn": [2, 3], "desc": "방 전체에 불길을 뿜고 화상을 입힌다", "unlock": "p_fire" },
+  "frost":   { "name": "얼음 함정",   "kind": "trap",     "el": "ice",       "cost": 3, "trigger": "interval", "interval": 2.5, "dmg": 3, "target": "all", "slow": [0.5, 3], "desc": "방 전체를 얼려 느리게 만든다", "unlock": "p_ice" },
+  "gas":     { "name": "독가스 함정", "kind": "trap",     "el": "poison",    "cost": 3, "trigger": "interval", "interval": 1.0, "dmg": 1.5, "target": "all", "poison": [1, 4], "desc": "방에 독가스가 차올라 계속 피해를 준다", "unlock": "p_poison" },
+  "boulder": { "name": "바위 낙하",   "kind": "trap",     "el": "physical",  "cost": 4, "trigger": "enter",    "rearm": 5,   "dmg": 16, "target": "one", "desc": "천장에서 바위가 떨어져 크게 다친다", "unlock": "p_earth" },
+
+  "arrow":   { "name": "화살 포탑",   "kind": "facility", "el": "physical",  "cost": 3, "trigger": "interval", "interval": 1.2, "dmg": 3, "target": "one", "range": 1, "desc": "이 방과 이웃한 방의 침입자를 쏜다" },
+  "crystal": { "name": "마법 수정",   "kind": "facility", "el": "arcane",    "cost": 4, "trigger": "interval", "interval": 1.8, "dmg": 6, "target": "one", "range": 2, "desc": "두 칸 떨어진 침입자까지 마법 화살로 맞힌다", "unlock": "p_arcane" },
+  "tesla":   { "name": "테슬라 기둥", "kind": "facility", "el": "lightning", "cost": 5, "trigger": "interval", "interval": 2.4, "dmg": 4, "target": "chain", "chain": 3, "range": 1, "desc": "번개가 침입자 셋을 차례로 튄다", "unlock": "p_storm" },
+  "wall":    { "name": "가시벽",      "kind": "facility", "el": "physical",  "cost": 3, "hp": 45, "blocks": true, "thorns": 1, "desc": "부수기 전엔 지나갈 수 없다. 때리면 가시에 찔린다", "unlock": "p_earth" },
+  "totem":   { "name": "공포의 석상", "kind": "facility", "el": "fear",      "cost": 3, "trigger": "interval", "interval": 1.0, "fear": 14, "target": "all", "desc": "방 안의 침입자가 점점 겁에 질린다", "unlock": "p_fear" },
+
+  "slime":   { "name": "슬라임",       "kind": "monster", "el": "physical",  "cost": 2, "species": "slime",   "hp": 20, "atk": 2, "rate": 1.0, "traits": [],               "desc": "말랑하지만 끈질기다" },
+  "bat":     { "name": "박쥐",         "kind": "monster", "el": "physical",  "cost": 2, "species": "bat",     "hp": 12, "atk": 2, "rate": 0.6, "traits": ["날개"],         "desc": "이웃한 방까지 날아가 문다" },
+  "frog":    { "name": "두꺼비",       "kind": "monster", "el": "physical",  "cost": 2, "species": "frog",    "hp": 26, "atk": 2, "rate": 1.1, "traits": ["단단함"],       "desc": "튼튼해서 길을 막아선다" },
+  "fslime":  { "name": "불 슬라임",    "kind": "monster", "el": "fire",      "cost": 3, "species": "slime",   "hp": 18, "atk": 3, "rate": 1.0, "traits": ["불"],           "desc": "닿으면 화상을 입힌다", "unlock": "p_fire" },
+  "ghost":   { "name": "유령",         "kind": "monster", "el": "fear",      "cost": 3, "species": "ghost",   "hp": 14, "atk": 1, "rate": 0.9, "traits": ["공포"],         "desc": "때릴 때마다 겁을 준다", "unlock": "p_fear" },
+  "snake":   { "name": "독사",         "kind": "monster", "el": "poison",    "cost": 3, "species": "snake",   "hp": 16, "atk": 2, "rate": 0.8, "traits": ["독"],           "desc": "물면 중독된다", "unlock": "p_poison" },
+  "eyeball": { "name": "눈알 감시자",  "kind": "monster", "el": "arcane",    "cost": 4, "species": "eyeball", "hp": 16, "atk": 3, "rate": 1.2, "traits": ["원거리"],       "desc": "이웃한 방까지 노려본다", "unlock": "p_eye" },
+  "skull":   { "name": "불타는 해골",  "kind": "monster", "el": "fire",      "cost": 4, "species": "skull",   "hp": 22, "atk": 4, "rate": 1.0, "traits": ["날개", "불"],   "desc": "날아다니며 불을 지른다", "unlock": "p_skull" },
+  "wisp":    { "name": "도깨비불",     "kind": "monster", "el": "holy",      "cost": 3, "species": "wisp",    "hp": 10, "atk": 1, "rate": 1.0, "traits": ["치유"],         "desc": "같은 방 몬스터를 치료한다", "unlock": "p_wisp" },
+
+  "strike":  { "name": "번개 강타",   "kind": "spell",    "el": "lightning", "cost": 4, "dmg": 14, "radius": 0, "desc": "한 방에 번개를 내리꽂는다. 물이 찬 방에선 두 배" },
+  "scream":  { "name": "공포의 외침", "kind": "spell",    "el": "fear",      "cost": 2, "fear": 70, "radius": 0, "desc": "방 안의 침입자를 겁에 질리게 한다" },
+  "nova":    { "name": "서리 폭발",   "kind": "spell",    "el": "ice",       "cost": 4, "dmg": 5, "freeze": 3, "radius": 0, "desc": "방 전체를 3초간 얼린다", "unlock": "p_ice" },
+  "meteor":  { "name": "메테오",      "kind": "spell",    "el": "fire",      "cost": 7, "dmg": 26, "splash": 10, "radius": 1, "desc": "방에 운석을 떨어뜨리고 이웃 방까지 태운다", "unlock": "p_meteor" },
+
+  "mend":    { "name": "심장 회복",   "kind": "support",  "el": "holy",      "cost": 3, "heal": 10, "desc": "던전의 심장을 10 회복한다" },
+  "rage":    { "name": "광폭화",      "kind": "support",  "el": "physical",  "cost": 2, "buff": 2, "dur": 12, "desc": "한 방의 몬스터를 회복하고 12초간 공격력 두 배" },
+
+  "pro_judge": { "name": "천벌의 번개", "kind": "spell",    "el": "lightning", "cost": 0, "dmg": 999, "radius": 1, "desc": "하늘이 갈라져 기사단이 있는 방과 이웃 방을 쓸어버린다", "prologue": true },
+  "pro_meteor":{ "name": "별의 낙하",   "kind": "spell",    "el": "fire",      "cost": 0, "dmg": 999, "radius": 1, "desc": "별을 떨어뜨려 방 하나와 그 주변을 불태운다", "prologue": true },
+  "pro_pillar":{ "name": "심장의 불길", "kind": "spell",    "el": "fire",      "cost": 0, "dmg": 999, "radius": 1, "desc": "심장의 불이 기둥이 되어 치솟는다", "prologue": true }
+}

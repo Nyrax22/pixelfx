@@ -1,0 +1,17 @@
+{
+  "hall":     { "name": "통로",         "desc": "아무것도 없는 돌 통로" },
+  "entrance": { "name": "입구",         "desc": "침입자가 들어오는 곳" },
+  "heart":    { "name": "심장의 방",    "desc": "던전의 심장. 부서지면 끝", "monsterCap": 2 },
+  "water":    { "name": "물이 찬 방",   "desc": "번개 피해 ×2, 방 전체로 퍼짐 · 불 피해 절반 · 조금 느려짐", "mods": { "lightning": 2, "fire": 0.5 }, "chain": "lightning", "slow": 0.15 },
+  "treasure": { "name": "보물 방",      "desc": "침입자가 보물을 먼저 노린다 · 낮마다 마나 +2", "lure": true, "loot": 2.5, "manaPerDay": 2 },
+  "nest":     { "name": "둥지",         "desc": "몬스터 3마리까지 · 몬스터가 천천히 회복", "monsterCap": 3, "regen": 1 },
+  "web":      { "name": "거미줄 방",    "desc": "침입자가 40% 느려진다", "slow": 0.4 },
+  "lava":     { "name": "용암 방",      "desc": "불 피해 ×1.6 · 머무르면 화상", "mods": { "fire": 1.6 }, "burn": 1, "unlock": "p_fire" },
+  "icecave":  { "name": "얼음 동굴",    "desc": "얼음 피해 ×1.5 · 둔화가 더 오래간다", "mods": { "ice": 1.5 }, "slow": 0.2, "slowMul": 1.5, "unlock": "p_ice" },
+  "altar":    { "name": "마나 제단",    "desc": "밤 동안 마나가 50% 빨리 찬다", "manaRegen": 0.5, "unlock": "p_mana" },
+  "dark":     { "name": "어둠 회랑",    "desc": "공포 ×2 · 도적이 함정을 못 찾는다", "mods": { "fear": 2 }, "hideTraps": true, "unlock": "p_fear" },
+  "mushroom": { "name": "버섯 숲",      "desc": "독 피해 ×2", "mods": { "poison": 2 }, "unlock": "p_poison" },
+  "library":  { "name": "서고",         "desc": "일기를 두 배로 줍는다 · 판이 끝나면 영혼 +1", "diaryMul": 2, "soulBonus": 1, "unlock": "p_arcane" },
+  "sealed":   { "name": "봉인된 문",    "desc": "놓으면 무언가가 열린다", "special": true },
+  "secret":   { "name": "비밀 방",      "desc": "오래된 책과 양초. 핵심 기록이 잠들어 있다" }
+}
