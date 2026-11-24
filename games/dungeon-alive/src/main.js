@@ -154,6 +154,18 @@ function syncHud() {
   rb.style.setProperty("--fill", Math.min(1, run.rage / run.rageNeed));
   const go = $("goBtn");
   go.hidden = !(run.phase === "day" && run.roomPicked && !placingRoom);
+  $("deckN").textContent = (run.deck?.length ?? 0) + (run.discard?.length ?? 0);
+  $("drawBar").style.width = run.phase === "wave" && run.hand.length < S.BAL.deck.hand ? (100 * (run.drawT ?? 0)) / S.BAL.deck.drawEvery + "%" : "0%";
+}
+/** The intruder under the pointer, for the heart's claw. */
+function advAt(x, y) {
+  let best = null, bd = 20;
+  for (const a of run.advs) {
+    if (a.dead || a.out || a.npc) continue;
+    const [ax, ay] = R.advXY(a), d = Math.hypot(ax - x, ay - 18 - y);
+    if (d < bd) { bd = d; best = a; }
+  }
+  return best;
 }
 function renderHand() {
   const el = $("hand");
@@ -208,7 +220,13 @@ $("cv").addEventListener("pointermove", (ev) => {
   if (mode !== "run" || !run) return;
   const [x, y] = worldFromEvent(ev);
   R.hoverBad = false;
-  R.hoverW = null; R.hoverZone = null;
+  R.hoverW = null; R.hoverZone = null; R.clawHover = null;
+  $("cv").classList.remove("claw");
+  if (selected < 0 && !placingRoom && run.phase === "wave") {
+    const a = advAt(x, y);
+    if (a) { R.clawHover = a.id; $("cv").classList.add("claw"); }
+    return;
+  }
   if (selected >= 0 && run.hand[selected]) {
     const card = run.hand[selected], def = S.cardDef(card), w = spotAt(x, y);
     R.hoverCard = def;
@@ -245,7 +263,15 @@ $("cv").addEventListener("pointerup", (ev) => {
     else { A.sfx("deny"); toast(res.why ?? "여기엔 쓸 수 없어요"); }
     return;
   }
-  // nothing selected: tell them what's here
+  // nothing selected during a fight: the heart strikes whoever was tapped
+  if (run.phase === "wave") {
+    const a = advAt(x, y);
+    if (a) {
+      if (S.claw(run, meta, a.id)) A.sfx("claw");
+      return;
+    }
+  }
+  // otherwise: tell them what's here
   const w = M.nearestWp(x, y + 12, 40);
   if (w == null) return;
   const zid = S.zoneOf(w), z = S.ZONES[zid], rm = run.rooms[zid];
@@ -297,7 +323,7 @@ addEventListener("pointerdown", () => A.initAudio(), { once: false });
 
 // ---------------------------------------------------------------- events from the rules
 const TRAP_SFX = { zap: "zap", tesla: "zap", flame: "fire", frost: "ice", spike: "spike", boulder: "boom", arrow: "arrow", crystal: "orb" };
-const SPELL_SFX = { strike: "thunder", pro_judge: "thunder", meteor: "boom", pro_meteor: "boom", pro_pillar: "fire", nova: "ice", scream: "scream" };
+const SPELL_SFX = { strike: "thunder", pro_judge: "thunder", meteor: "boom", pro_meteor: "boom", pro_pillar: "fire", nova: "ice", scream: "scream", thorn: "claw" };
 const seen = new Set();
 function handle(e) {
   switch (e.t) {
@@ -313,7 +339,7 @@ function handle(e) {
       break;
     case "flee": A.sfx("babble", 400); { const a = run.advs.find((x) => x.id === e.id); if (a) { const [x, y] = R.advXY(a); R.onText(x, y - 50, "도망친다!", "fear"); } } if (!seen.has("flee")) { seen.add("flee"); toast("겁먹은 침입자가 성문으로 달아난다. 나가기 전에 잡으면 길드에 소문이 퍼지지 않는다"); } break;
     case "spare": break;
-    case "combo": A.sfx("combo", e.n - 3); comboText(e.n); break;
+    case "combo": break;
     case "roar": break;
     case "record": A.sfx("page"); openModal((m) => showRecord(m, e.id, true)); break;
     case "diary":
@@ -323,7 +349,7 @@ function handle(e) {
     case "secret": A.sfx("secret"); banner("비밀 방이 열렸다", "벽 너머에서 푸른 빛이 새어 나온다"); break;
     case "place": A.sfx("place"); break;
     case "summon": A.sfx("summon"); break;
-    case "wave": A.sfx("horn"); banner(e.band, `대장 ${e.captain ?? "?"} · ${e.party.length}명 · 목표: 심장의 조각${e.of > 1 ? ` · ${e.n}/${e.of}진` : ""}`); break;
+    case "wave": if (!seen.has("clawHint")) { seen.add("clawHint"); setTimeout(() => hint("침입자를 직접 눌러 보세요: 바닥에서 가시가 솟아 할퀴어요 · 카드는 몇 초마다 덱에서 들어와요"), 2500); } A.sfx("horn"); banner(e.band, `대장 ${e.captain ?? "?"} · ${e.party.length}명 · 목표: 심장의 조각${e.of > 1 ? ` · ${e.n}/${e.of}진` : ""}`); break;
     case "waveClear": break;
     case "escape":
       if (!e.looter) toast(`${esc(e.name)}이(가) 살아서 나갔다.${e.learned ? ` 길드에 <b>${EL[e.learned] ?? e.learned}</b> 대처법이 퍼질 것이다.` : ""}`);
@@ -337,7 +363,23 @@ function handle(e) {
     case "shriek": A.sfx("shriek"); break;
     case "hatch": A.sfx(e.mon.mutant ? "mutant" : "hatch"); break;
     case "room": break;
+    case "draw": A.sfx("hover"); break;
+    case "streak": {
+      const T = { 2: "더블!", 3: "트리플!", 4: "쿼드라!", 5: "학살!", 6: "학살!", 7: "학살!" };
+      const txt = T[e.n] ?? "공포 그 자체";
+      streakText(txt + (e.bonus ? ` +${e.bonus}◆` : ""), e.n);
+      A.sfx("combo", Math.min(10, e.n));
+      break;
+    }
   }
+}
+function streakText(text, n) {
+  const el = h("div", "streak", "");
+  el.style.fontSize = Math.min(64, 26 + n * 5) + "px";
+  $("stage").appendChild(el);
+  kinetic(el, n >= 5 ? `*${text}*` : text, { speed: 30, quiet: true });
+  setTimeout(() => el.classList.add("go"), 700);
+  setTimeout(() => el.remove(), 1500);
 }
 function comboText(n) {
   const e = h("div", "ft combo" + (n >= 6 ? " mega" : ""), n >= 8 ? `학살 ×${n}!!` : n >= 6 ? `대연쇄 ×${n}!` : `연쇄 ×${n}!`);
@@ -411,7 +453,7 @@ function showPick() {
       e.onclick = () => { closeModal(); S.choosePick(run, meta, i); };
       ch.appendChild(e);
     });
-    if (run.first && run.day === 1 && run.wave === 0) pn.appendChild(h("div", "legend", "고른 카드는 손에 들어오고, 마나를 써서 동굴 바닥 어디에든 놓아요"));
+    if (run.first && run.day === 1 && run.wave === 0) pn.appendChild(h("div", "legend", "고른 카드는 덱에 들어와요. 마법은 쓰고 나면 다시 돌아오고, 함정과 몬스터는 한 번 설치하면 끝이에요"));
   });
 }
 

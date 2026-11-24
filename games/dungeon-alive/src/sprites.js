@@ -289,6 +289,7 @@ const ICONS = {
 };
 ICONS.pro_judge = (px) => { ICONS.strike(px); for (let i = 0; i < px.p.length; i++) if (px.p[i]) px.p[i] = i % 3 ? "#fff0a0" : "#ffd040"; };
 ICONS.pro_meteor = (px) => ICONS.meteor(px);
+ICONS.thorn = (px) => { for (const [x, h] of [[6, 12], [11, 20], [16, 15]]) for (let k = 0; k < h; k++) { const w = Math.max(1, Math.round((h - k) / 4)); px.rect(x - (w >> 1), 22 - k, w, 1, k > h - 3 ? "#ff3a4a" : k % 3 ? "#2a1220" : "#4a2232"); } px.rect(2, 22, 20, 2, "#1a0e14"); };
 ICONS.pro_pillar = (px) => { px.rect(8, 2, 8, 20, "#ff8a2a"); px.rect(10, 0, 4, 22, "#ffe26b"); px.rect(11, 0, 2, 22, "#fff6d0"); };
 
 export function cardIcon(id) {

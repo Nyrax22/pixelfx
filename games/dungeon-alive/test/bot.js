@@ -49,6 +49,8 @@ export function playRun(meta, seed, opts = {}) {
       if (run.rage >= run.rageNeed && run.advs.filter((a) => !a.dead && !a.out).length >= 4) S.roar(run, meta);
       nightTime += dt;
       if (guard % 15 === 0) botPlace(run, meta, R);
+      // a player taps intruders now and then
+      if (opts.claw !== false && guard % 24 === 0 && R.chance(0.7)) { const a = run.advs.find((x) => !x.dead && !x.out); if (a) S.claw(run, meta, a.id); }
       for (const id of [...run.mercy]) if (R.chance(0.02)) S.decideMercy(run, meta, id, R.chance(0.6));
       if (run.phase !== "wave" && run.phase !== "night_pick") { nights.push(nightTime); nightTime = 0; }
     } else if (run.phase === "dawn") {

@@ -1,4 +1,13 @@
 {
+ "thorn": {
+  "name": "핏빛 가시",
+  "kind": "spell",
+  "el": "physical",
+  "cost": 1,
+  "dmg": 6,
+  "radius": 0,
+  "desc": "바닥에서 검은 가시가 솟아 한 곳을 꿰뚫는다"
+ },
  "spike": {
   "name": "가시 함정",
   "kind": "trap",

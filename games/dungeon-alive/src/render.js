@@ -90,6 +90,7 @@ export class Renderer {
     this.camSnap = true;
     this.vw = 800; this.vh = 600; this.dpr = 1;
     this.hitStop = 0; this.slowT = 0; this.slowK = 0.3;
+    this.claws = []; this.orbs = [];
     this.impacts = []; this.rings = []; this.corpses = []; this.embers = []; this.chains = []; this.sealCircle = null; this.heartDead = false;
     this.flashColor = "255,255,255"; this.redPulse = 0; this.focus = null;
     this.fx = [];
@@ -246,8 +247,8 @@ export class Renderer {
       if (tz * dpr >= 2) tz = Math.floor(tz * dpr * 2) / (dpr * 2);
       // never show past the edge of the world when the world is wide enough to fill the screen
       { const hw = this.vw / (2 * tz), hh = this.vh / (2 * tz);
-        if (this.W > hw * 2) tx = Math.max(hw, Math.min(this.W - hw, tx));
-        if (this.H > hh * 2) ty = Math.max(hh, Math.min(this.H - hh, ty)); }
+        tx = this.W > hw * 2 ? Math.max(hw, Math.min(this.W - hw, tx)) : this.W / 2;
+        ty = this.H > hh * 2 ? Math.max(hh, Math.min(this.H - hh, ty)) : ty; }
     }
     if (this.focus) {
       // a quick punch-in toward something that matters, easing back out
@@ -267,8 +268,10 @@ export class Renderer {
     this.dx = Math.round(V.width / 2 - this.cam.x * z + sx * dpr);
     this.dy = Math.round(V.height / 2 - this.cam.y * z + sy * dpr);
     vg.setTransform(1, 0, 0, 1, 0, 0);
-    vg.fillStyle = "#05030a";
-    vg.fillRect(0, 0, V.width, V.height);
+    // beyond the edges of the world: night sky above the ground line, dark rock below it
+    const gy = Math.round(this.dy + GROUND * z);
+    vg.fillStyle = "#0c0814"; vg.fillRect(0, 0, V.width, Math.max(0, gy));
+    vg.fillStyle = "#120c12"; vg.fillRect(0, Math.max(0, gy), V.width, V.height);
     vg.imageSmoothingEnabled = false;
     vg.drawImage(this.cv, this.dx, this.dy, this.W * z, this.H * z);
     // vignette, red at the edges when the heart is hurt
@@ -421,6 +424,8 @@ export class Renderer {
         if (e.boss) { this.spawn("bigBoom", x, y + 10, {}, "over"); this.shake = 0.9; this.flash = 0.6; this.stop(0.35); this.slowmo(1.6); this.impact(x, y, 1.2); this.punch(x, y, 0.5); }
         if (e.last) { this.slowmo(1.1); this.punch(x, y, 0.35); this.impact(x, y, 0.6); }
         this.light(x, y, 40, "255,160,120", 0.5);
+        // the blood it stole comes home: a drop flies back into the heart
+        for (let i = 0; i < (e.boss ? 6 : 2); i++) this.orbs.push({ x0: x, y0: y - 6, t: -i * 0.12 - 0.35, dur: 1 + Math.random() * 0.3, bend: (Math.random() - 0.5) * 160 });
         break;
       }
       case "roar": {
@@ -486,6 +491,13 @@ export class Renderer {
       case "shriek": { const m = run.monsters.find((q) => q.id === e.mid); if (m) { const [x, y] = this.monXY(m); this.floatText(x, y - 26, "비명", "shriek"); } break; }
       case "synergy": { const [x, y] = at(e.w, -40); this.floatText(x, y, e.text, "synergy"); break; }
       case "scare": break;
+      case "claw": {
+        this.claws.push({ x: e.x, y: e.y, age: 0, flip: Math.random() < 0.5 });
+        this.spawn("hitSpark", e.x, e.y - 18, { palette: PAL.blood, height: 12 }, "over");
+        this.stop(0.035); this.shake = Math.max(this.shake, 0.18);
+        this.light(e.x, e.y - 10, 26, "255,40,60", 0.25);
+        break;
+      }
     }
   }
 
@@ -533,6 +545,7 @@ export class Renderer {
       case "pro_pillar": this.spawn("flamePillar", x, y + 4, {}, "over", 2.4); this.shake = 0.5; break;
       case "nova": this.spawn("iceSpikes", x, y, {}, "over", 1.6); this.spawn("snowflake", x, y - 4, {}, "over"); this.shake = 0.3; break;
       case "scream": this.spawn("necro", x, y - 2, {}, "over", 1.6); this.floatText(x, y - 44, "절규", "fear"); break;
+      case "thorn": for (let i = -1; i <= 1; i++) this.claws.push({ x: x + i * 9, y, age: -Math.abs(i) * 0.04, flip: i > 0 }); this.stop(0.05); this.shake = Math.max(this.shake, 0.25); break;
     }
     this.light(x, y - 20, big ? 90 : 60, "255,230,180", 0.8);
   }
@@ -575,6 +588,11 @@ export class Renderer {
       }
     }
     this.corpses = this.corpses.filter((c) => !c.done && c.age < 4);
+    for (const c of this.claws) c.age += dt;
+    this.claws = this.claws.filter((c) => c.age < 0.45);
+    for (const o of this.orbs) { o.t += dt; if (o.t >= o.dur && !o.hit) { o.hit = true; this.heartHurt = Math.max(this.heartHurt, 0.15); this.heartGlow = 0.6; } }
+    this.orbs = this.orbs.filter((o) => o.t < o.dur);
+    this.heartGlow = Math.max(0, (this.heartGlow ?? 0) - dt);
     for (const r of this.rings) r.age += dt;
     this.rings = this.rings.filter((r) => r.age < r.dur);
     if (this.focus) { this.focus.age += dt; if (this.focus.age > this.focus.dur) this.focus = null; }
@@ -587,6 +605,7 @@ export class Renderer {
 
   draw(run, ui = {}) {
     const g = this.g;
+    this.clawRun = run;
     if (this.roomsDirty) this.renderCave(run);
     g.setTransform(RS, 0, 0, RS, 0, 0);
     g.imageSmoothingEnabled = false;
@@ -643,6 +662,7 @@ export class Renderer {
     for (const s of this.shots) this.drawShot(s);
     for (const f of this.floaters) this.drawFloater(f);
     for (const c of this.corpses) this.drawCorpse(c);
+    for (const c of this.claws) this.drawClaw(c);
 
     // darkness with holes for every light
     this.drawDark(run, pulse);
@@ -657,6 +677,7 @@ export class Renderer {
     for (const r of this.rings) this.drawRing(r);
     this.drawSeal();
     for (const e of this.embers) { g.fillStyle = e.age / e.life < 0.5 ? "#ffb05a" : "#c8402a"; g.fillRect(Math.round(e.x), Math.round(e.y), 1, 1); }
+    for (const o of this.orbs) this.drawOrb(o);
     for (const n of this.nums) this.drawNum(n);
 
     // ui highlights
@@ -747,7 +768,7 @@ export class Renderer {
       // a glow behind it, stronger on the beat
       if (!this.heartDead) {
         const gl = g.createRadialGradient(hx, cy, 4, hx, cy, 90);
-        gl.addColorStop(0, `rgba(255,60,50,${0.25 + pulse * 0.35})`); gl.addColorStop(1, "rgba(255,30,40,0)");
+        gl.addColorStop(0, `rgba(255,60,50,${0.25 + pulse * 0.35 + (this.heartGlow ?? 0) * 0.5})`); gl.addColorStop(1, "rgba(255,30,40,0)");
         g.fillStyle = gl; g.fillRect(hx - 90, cy - 90, 180, 180);
       }
       g.save();
@@ -809,6 +830,31 @@ export class Renderer {
     if (a.spare === true) this.tag(x, top - 10, "♥", "#ff9ab0");
     if (a.disarmT > 0) { this.bar(Math.round(x - 8), top - 6, 16, 1 - a.disarmT / 1.6, "#ffe07a"); }
     if (a.lootT > 0) { g.fillStyle = "#ffe07a"; g.fillRect(Math.round(x - 1 + Math.sin(this.t * 10) * 6), top - 6, 2, 2); }
+  }
+  /** Black spikes of rock bursting from the floor: the heart reaching out with its own hand. */
+  drawClaw(c) {
+    if (c.age < 0) return;
+    const g = this.g, t = c.age, up = t < 0.08 ? t / 0.08 : t < 0.22 ? 1 : Math.max(0, 1 - (t - 0.22) / 0.23);
+    const spikes = [[-7, 16, -0.35], [0, 28, 0.05], [6, 20, 0.4], [-2, 12, -0.15]];
+    for (const [dx, h, lean] of spikes) {
+      const H = h * up, bx = c.x + (c.flip ? -dx : dx);
+      g.fillStyle = "#0c0710";
+      g.beginPath(); g.moveTo(bx - 3, c.y + 1); g.lineTo(bx + 3, c.y + 1); g.lineTo(bx + lean * H, c.y - H); g.fill();
+      g.fillStyle = "#3a1626";
+      g.beginPath(); g.moveTo(bx - 1, c.y); g.lineTo(bx + 1, c.y); g.lineTo(bx + lean * H, c.y - H); g.fill();
+      if (H > 4) { g.fillStyle = "#ff3a4a"; g.fillRect(Math.round(bx + lean * H) - 1, Math.round(c.y - H), 2, 2); }
+    }
+    g.fillStyle = `rgba(20,8,14,${0.6 * up})`; g.fillRect(Math.round(c.x - 10), Math.round(c.y), 20, 2);
+  }
+  drawOrb(o) {
+    if (o.t < 0) return;
+    const g = this.g, [hx, hy] = wpXY(HEART_WP), k = Math.min(1, o.t / o.dur), e = k * k * (3 - 2 * k);
+    const tx = hx, ty = hy - 64, mx = (o.x0 + tx) / 2 + o.bend, my = Math.min(o.y0, ty) - 40;
+    const x = (1 - e) * (1 - e) * o.x0 + 2 * (1 - e) * e * mx + e * e * tx, y = (1 - e) * (1 - e) * o.y0 + 2 * (1 - e) * e * my + e * e * ty;
+    g.fillStyle = "rgba(255,40,60,0.35)"; g.fillRect(Math.round(x) - 2, Math.round(y) - 2, 5, 5);
+    g.fillStyle = "#ff2a3a"; g.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+    g.fillStyle = "#ffc0c0"; g.fillRect(Math.round(x), Math.round(y) - 1, 1, 1);
+    this.lights.push({ x, y, r: 12, color: "255,40,60", life: 0.03, max: 0.03 });
   }
   tag(x, y, text, col) {
     const g = this.g, w = textWidth(text === "♥" ? "+" : text.replace(/[^\x20-\x7e]/g, "AA"), "mini");
@@ -930,6 +976,17 @@ export class Renderer {
       g.fillStyle = this.hoverBad ? "#ff6a6a" : "#ffffff";
       g.fillRect(Math.round(x) - 1, Math.round(y) - 26, 3, 20);
       g.beginPath(); g.moveTo(x - 4, y - 8); g.lineTo(x + 5, y - 8); g.lineTo(x + 0.5, y - 2); g.fill();
+    }
+    // the claw's reticle on the intruder under the pointer, with its cooldown
+    if (this.clawHover != null && this.clawRun) {
+      const a = this.clawRun.advs.find((q) => q.id === this.clawHover && !q.dead && !q.out);
+      if (a) {
+        const [x, y] = this.advXY(a), cy = y - 18, cd = this.clawRun.clawCd ?? 0, ready = cd <= 0;
+        g.strokeStyle = ready ? `rgba(255,60,80,${0.7 + 0.3 * t})` : "rgba(160,120,140,0.6)"; g.lineWidth = 1;
+        g.beginPath(); g.arc(x, cy, 13, 0, Math.PI * 2); g.stroke();
+        if (!ready) { g.strokeStyle = "rgba(255,60,80,0.9)"; g.beginPath(); g.arc(x, cy, 13, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cd / 0.9)); g.stroke(); }
+        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) { g.fillStyle = ready ? "#ff4a5a" : "#8a6a7a"; g.fillRect(Math.round(x + dx * 15 - (dy ? 0 : dx > 0 ? 0 : 3)), Math.round(cy + dy * 15 - (dx ? 0 : dy > 0 ? 0 : 3)), dy ? 1 : 3, dx ? 1 : 3); }
+      }
     }
     if (this.breach != null && ZONES[this.breach]) this.zoneOutline(ZONES[this.breach], `rgba(255,60,80,${0.5 + 0.5 * t})`, true);
   }

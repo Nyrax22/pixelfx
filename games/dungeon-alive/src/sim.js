@@ -164,9 +164,15 @@ export function newRun(meta, seed = (Math.random() * 2 ** 31) | 0) {
   run.cards.push({ uid: run.uid++, id: "spike", w: ZONES.tAB.center, cd: 0, hp: 0, disabledT: 0 });
   addMonster(run, CARDS.slime, ZONES.B.center);
   addMonster(run, CARDS.slime, ZONES.H.center);
+  // the deck: spells come back after use, buildings are spent once built
+  run.deck = withRng(run, (R) => shuffle(R, BAL.deck.start.map((id) => ({ id, uid: run.uid++ }))));
+  run.discard = [];
+  run.drawT = 0;
+  run.clawCd = 0;
+  run.streak = { n: 0, t: 0, best: 0 };
   if (!first && meta.favorite) {
     const fav = meta.lineage.find((m) => m.id === meta.favorite);
-    if (fav) run.hand.push({ id: "bred", mon: fav, uid: run.uid++ });
+    if (fav) run.deck.unshift({ id: "bred", mon: fav, uid: run.uid++ });
   }
   startNight(run, meta);
   return run;
@@ -185,9 +191,21 @@ function withRng(run, fn) {
 }
 
 // ---------------------------------------------------------------- night
+/** Draw one card into the hand; an empty draw pile is refilled from the discards. */
+export function draw(run) {
+  ensureDeck(run);
+  if (run.hand.length >= BAL.deck.hand) return null;
+  if (!run.deck.length && run.discard.length) { run.deck = withRng(run, (R) => shuffle(R, run.discard)); run.discard = []; }
+  const c = run.deck.shift();
+  if (c) { run.hand.push(c); run.events.push({ t: "draw", id: c.id }); }
+  return c;
+}
+export function ensureDeck(run) { run.deck ??= []; run.discard ??= []; run.drawT ??= 0; run.clawCd ??= 0; run.streak ??= { n: 0, t: 0, best: 0 }; }
 export function startNight(run, meta) {
+  ensureDeck(run);
   run.phase = "night_pick";
   run.wave = 0;
+  for (let i = 0; i < BAL.deck.nightDraw; i++) draw(run);
   if (run.day > 1) run.mana = Math.min(run.manaMax, Math.max(run.mana, 0) + BAL.mana.carry + powerSum(meta, "mana") * 0.5);
   run.waves = withRng(run, (R) => makeWaves(run, meta, R));
   // the guild's watch list lasts one night: tonight's parties know what last night's survivors told them
@@ -343,6 +361,8 @@ export function playCard(run, meta, handIdx, w) {
     return { ok: false, why: "밤에만 쓸 수 있어요" };
   run.mana -= cardCost(run, card);
   run.hand.splice(handIdx, 1);
+  // spells and support go back into the deck; what gets built is spent
+  if (d.kind === "spell" || d.kind === "support") { ensureDeck(run); run.discard.push(card); }
   if (d.kind === "trap" || d.kind === "facility") {
     run.cards.push({ uid: run.uid++, id: card.id, w, cd: 0.4, hp: d.hp ?? 0, disabledT: 0 });
     bump(run);
@@ -508,6 +528,12 @@ function kill(run, meta, a, src) {
   run.rage = Math.min(run.rageNeed, (run.rage ?? 0) + BAL.roar.perKill);
   run.mana = Math.min(run.manaMax, run.mana + (src.kind === "execute" ? BAL.mana.execute : BAL.mana.kill));
   run.mercy = run.mercy.filter((id) => id !== a.id);
+  ensureDeck(run);
+  const sk = run.streak;
+  sk.n = sk.t > 0 ? sk.n + 1 : 1; sk.t = BAL.streak.window; sk.best = Math.max(sk.best, sk.n);
+  const bonus = BAL.streak.bonus[sk.n];
+  if (bonus) run.mana = Math.min(run.manaMax, run.mana + bonus);
+  if (sk.n >= 2) run.events.push({ t: "streak", n: sk.n, bonus: bonus ?? 0 });
   const [x, y] = advPos(a);
   const from = src.w != null ? wpXY(src.w) : src.kind === "roar" ? wpXY(HEART_WP) : null;
   run.events.push({ t: "death", id: a.id, x, y, cls: a.cls, execute: src.kind === "execute", boss: a.boss, from, big: src.kind === "spell" || src.kind === "roar" || (CARDS[src.id]?.dmg ?? 0) >= 12, last: !run.spawnQ.length && run.advs.filter((o) => !o.dead && !o.out && !o.npc).length === 0 && run.wave === run.waves.length - 1 });
@@ -561,9 +587,28 @@ export function decideMercy(run, meta, id, spare) {
 }
 
 // ---------------------------------------------------------------- the step
+/** The heart's own hand: a spike of black rock from the floor under one intruder. */
+export function claw(run, meta, id) {
+  ensureDeck(run);
+  if (run.phase !== "wave" || run.clawCd > 0) return false;
+  const a = run.advs.find((x) => x.id === id);
+  if (!a || !targetable(a)) return false;
+  run.clawCd = BAL.claw.cd;
+  const [x, y] = advPos(a);
+  run.events.push({ t: "claw", id, x, y });
+  deal(run, meta, a, Math.round((BAL.claw.dmg + BAL.claw.perDay * (run.day - 1) + powerSum(meta, "pulse") * 0.5) * 10) / 10, "physical", { kind: "claw" });
+  if (targetable(a)) { scare(run, meta, a, BAL.claw.fear); a.frozenT = Math.max(a.frozenT, 0.15); }
+  return true;
+}
 export function step(run, meta, dt) {
   if (run.phase !== "wave") return;
+  ensureDeck(run);
   run.t += dt;
+  run.clawCd = Math.max(0, run.clawCd - dt);
+  if (run.streak.t > 0) { run.streak.t -= dt; if (run.streak.t <= 0) run.streak.n = 0; }
+  // a fresh card every few seconds while the fight lasts
+  run.drawT += dt;
+  if (run.drawT >= BAL.deck.drawEvery) { run.drawT = 0; draw(run); }
   const cb = run.combo;
   if (cb.t > 0) cb.t -= dt;
 

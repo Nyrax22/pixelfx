@@ -19,7 +19,7 @@
   "mana": {
     "start": 5,
     "max": 10,
-    "regenEvery": 5,
+    "regenEvery": 4,
     "carry": 3,
     "kill": 1,
     "execute": 2
@@ -110,7 +110,7 @@
   "souls": {
     "base": 1,
     "daysPer": 3,
-    "killsPer": 20,
+    "killsPer": 40,
     "win": 2,
     "sparedPer": 4
   },
@@ -119,11 +119,11 @@
     "slowmoTimes": 2
   },
   "horde": {
-    "hp": 0.5,
+    "hp": 0.85,
     "atk": 0.8,
-    "base": 4,
-    "perDay": 1.0,
-    "max": 14
+    "base": 5,
+    "perDay": 1.5,
+    "max": 16
   },
   "roar": {
     "need": 10,
@@ -133,5 +133,33 @@
     "fear": 45,
     "perKill": 1,
     "perHit": 0.06
+  },
+  "deck": {
+    "start": [
+      "thorn",
+      "thorn",
+      "thorn",
+      "strike",
+      "scream",
+      "spike",
+      "slime"
+    ],
+    "hand": 5,
+    "drawEvery": 5,
+    "nightDraw": 3
+  },
+  "claw": {
+    "dmg": 1.5,
+    "cd": 0.9,
+    "perDay": 0.2,
+    "fear": 5
+  },
+  "streak": {
+    "window": 2.2,
+    "bonus": {
+      "3": 1,
+      "5": 2,
+      "8": 3
+    }
   }
 }
