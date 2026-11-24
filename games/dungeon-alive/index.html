@@ -227,33 +227,81 @@ textarea.save { width: 100%; height: 90px; background: #060405; color: #c8c0e0; 
   #hint { top: 6px; font-size: 13px; }
   .paper { font-size: 21px; padding: 18px; }
 }
+
+/* ---- the defense ---- */
+.stat { display: flex; align-items: center; gap: 6px; font-family: var(--title); font-size: 22px; font-weight: 800; }
+.stat .ico { color: var(--crimson); font-size: 24px; text-shadow: 0 0 8px #ff3a5a88; animation: beat 1s infinite; display: inline-block; }
+.stat .drop { width: 14px; height: 18px; background: #d02232; border-radius: 50% 50% 50% 50% / 62% 62% 38% 38% !important; transform: rotate(180deg); box-shadow: inset -3px -3px 0 #7a0a14, 0 0 8px #ff203a88; display: inline-block; }
+#waveText { color: var(--dim); font-size: 15px; } #waveText b { color: var(--gold); font-size: 17px; }
+#relicBar { display: flex; gap: 3px; flex-wrap: wrap; max-width: 40vw; }
+#relicBar .relic { width: 26px; height: 26px; background: #140d0c; box-shadow: inset 0 0 0 1px var(--line2); display: grid; place-items: center; cursor: pointer; }
+#relicBar .relic canvas { width: 22px; height: 22px; image-rendering: pixelated; }
+.grow { flex: 1; }
+#ring { position: absolute; z-index: 8; width: 0; height: 0; }
+#ring .rb { position: absolute; left: 0; top: 0; width: 52px; height: 52px; margin: -26px 0 0 -26px; transform: translate(var(--dx), var(--dy)); background: #120a0a; border: 2px solid #000; box-shadow: inset 0 0 0 2px #6a1e26, 0 3px 0 #000; display: grid; place-items: center; animation: ringIn .16s ease-out; padding: 0; }
+#ring .rb canvas { width: 36px; height: 36px; image-rendering: pixelated; }
+#ring .rb em { font-style: normal; font-size: 24px; color: #ffd0c0; }
+#ring .rb b { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); background: #000; color: #ff7a7a; font-size: 12px; padding: 0 4px; font-family: var(--title); }
+#ring .rb.poor { filter: grayscale(.8) brightness(.6); }
+#ring .rb:hover, #ring .rb[data-armed="1"] { box-shadow: inset 0 0 0 2px #ff5a6a, 0 0 12px #ff2a3a, 0 3px 0 #000; }
+#ring .tip { position: absolute; left: 0; top: 46px; transform: translateX(-50%); min-width: 200px; background: #060405ee; border: 2px solid #000; box-shadow: 0 0 0 1px var(--line2); padding: 6px 10px; font-size: 13px; text-align: center; color: var(--text); pointer-events: none; }
+#ring .tip:empty { display: none; }
+@keyframes ringIn { from { transform: translate(0, 0) scale(.3); opacity: 0; } }
+#waveBtn { position: absolute; z-index: 7; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50% !important; border: 2px solid #000; background: conic-gradient(#ff3a4a var(--cd, 0deg), #2a0c10 0); padding: 0; box-shadow: 0 0 0 2px #000, 0 0 18px #ff203a88; animation: hornPulse 1.2s infinite; color: #fff; }
+#waveBtn span { position: absolute; inset: 5px; border-radius: 50%; background: #120808; display: grid; place-items: center; font-size: 26px; }
+#waveBtn small { position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%); background: #000; color: #ffd25a; font-size: 12px; padding: 0 4px; white-space: nowrap; font-family: var(--title); }
+#waveBtn small:empty { display: none; }
+@keyframes hornPulse { 50% { transform: scale(1.08); } }
+#abil { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); display: flex; gap: 10px; z-index: 6; }
+.ab { position: relative; width: 64px; height: 64px; border-radius: 50% !important; border: 2px solid #000; padding: 0; background: conic-gradient(#000a var(--cd, 0deg), transparent 0), #3a0c12; box-shadow: inset 0 0 0 2px #7a1e26, 0 4px 0 #000; color: #ffe0d0; }
+.ab span { font-size: 26px; display: block; margin-top: -6px; }
+.ab u { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); text-decoration: none; font-size: 11px; color: #e6c8b8; white-space: nowrap; }
+.ab i { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; font-size: 22px; font-weight: 800; color: #fff; text-shadow: 0 2px 0 #000; }
+.ab.ready { box-shadow: inset 0 0 0 2px #ff5a6a, 0 0 14px #ff203a77, 0 4px 0 #000; }
+.ab.on { background: #8a1a24; box-shadow: inset 0 0 0 2px #ffd0d0, 0 0 18px #ff203a, 0 4px 0 #000; }
+.ft.blood { color: #ff5a6a; font-family: var(--title); font-weight: 800; font-size: 16px; text-shadow: 0 2px 0 #000; }
+#hint { transition: opacity .3s; }
+.col { display: flex; flex-direction: column; gap: 10px; align-items: center; margin-top: 14px; }
+.col .btn { min-width: 220px; }
+.btn.big { font-size: 22px; padding: 12px 30px; }
+.btn.ghost { background: #140d0c; box-shadow: inset 0 0 0 1px var(--line2), 0 4px 0 #000; }
+.titlePanel { padding: 30px 40px; }
+.logoText { font-family: var(--title); font-weight: 800; font-size: clamp(34px, 6vw, 58px); margin: 0 0 6px; color: #ff3a4a; text-shadow: 0 0 24px #a0001a, 0 4px 0 #000; letter-spacing: .04em; }
+.stamp.win { border-color: var(--gold); color: var(--gold); }
+.relicCard { width: 170px !important; height: auto !important; min-height: 190px; }
+body.meta #hud, body.meta #abil, body.cine #abil, body.cine #waveBtn { visibility: hidden; }
+@media (max-width: 700px) {
+  .stat { font-size: 18px; } #waveText { font-size: 13px; } #relicBar { display: none; }
+  .ab { width: 54px; height: 54px; } .ab span { font-size: 22px; }
+  #hud { gap: 10px; }
+}
 </style>
 </head>
 <body>
 <div id="app">
   <header id="hud">
-    <div class="hp"><span class="ico">♥</span><div class="bar"><i id="hpBar"></i></div><span id="hpText"></span></div>
-    <div class="mana" id="mana"></div>
-    <div id="dayText"></div>
+    <div class="stat" id="livesBox" title="심장: 침입자가 닿을 때마다 깎여요"><span class="ico">♥</span><b id="livesN">20</b></div>
+    <div class="stat" id="bloodBox" title="피: 함정을 짓고 강화하는 데 써요"><span class="drop"></span><b id="bloodN">0</b></div>
     <div id="waveText"></div>
-    <div id="powerText"></div>
-    <button class="hbtn" id="camBtn" title="카메라: 따라가기 / 전체 보기 (C)">🎥</button>
-    <button class="hbtn" id="speedBtn" title="속도">1×</button>
+    <div id="relicBar"></div>
+    <span class="grow"></span>
+    <button class="hbtn" id="speedBtn" title="속도 (Space)">1×</button>
     <button class="hbtn" id="muteBtn" title="소리">♪</button>
     <button class="hbtn" id="menuBtn" title="메뉴">☰</button>
   </header>
   <main id="stage">
     <canvas id="cv"></canvas>
     <div id="floaters"></div>
+    <div id="ring" hidden></div>
+    <button id="waveBtn" hidden title="다음 웨이브 부르기 (W)"><span>☠</span><small></small></button>
+    <div id="abil">
+      <button class="ab" id="ab-grab" title="심장의 손: 침입자를 끌어서 던지기"><span>✋</span><i></i><u>손</u></button>
+      <button class="ab" id="ab-rockfall" title="낙석 (1)"><span>▼</span><i></i><u>낙석</u></button>
+      <button class="ab" id="ab-roll" title="굴림돌 (2)"><span>●</span><i></i><u>굴림돌</u></button>
+    </div>
     <div id="banner"></div>
     <div id="hint"></div>
-    <button id="roarBtn" hidden title="심장의 포효 (R)"><span><b>♥</b>심장의<br>포효</span></button>
   </main>
-  <footer id="tray">
-    <div id="deck" title="덱: 마법은 쓰면 덱으로 돌아오고, 함정과 몬스터는 설치하면 사라져요"><b id="deckN">0</b><span>덱</span><i><u id="drawBar"></u></i></div>
-    <div id="hand" data-empty="곧 덱에서 카드가 들어와요"></div>
-    <div id="actions"><button class="btn" id="goBtn" hidden>밤 시작</button></div>
-  </footer>
 </div>
 <div id="mercy"></div>
 <div id="toast"></div>

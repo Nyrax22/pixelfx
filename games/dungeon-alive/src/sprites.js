@@ -301,6 +301,11 @@ ICONS.rockfall = (px) => {
   for (const [x, y, w] of [[4, 7, 4], [12, 10, 5], [18, 6, 3], [7, 15, 4], [15, 18, 4]]) { px.rect(x, y, w, w, "#120c10"); px.rect(x + 1, y + 1, w - 2, w - 2, "#6a5860"); px.rect(x + 1, y + 1, 1, 1, "#9a8a90"); px.rect(x + (w >> 1), y - 3, 1, 2, "#c8b8c0"); }
   px.rect(1, 22, 22, 2, "#1a0e14");
 };
+ICONS.nest = (px) => {
+  px.oval(12, 18, 11, 6, "#0e1a0a"); px.oval(12, 17, 10, 5, "#2a4a18"); px.oval(10, 16, 6, 3, "#4a7a24");
+  for (const [x, y, r] of [[7, 14, 3], [13, 12, 4], [18, 15, 3]]) { px.oval(x, y, r, r, "#1a2a10"); px.oval(x, y, r - 1, r - 1, "#7ac83a"); px.rect(x - 1, y - 1, 1, 1, "#d8ffa0"); }
+  px.rect(2, 22, 20, 2, "#0a0e06");
+};
 ICONS.pro_pillar = (px) => { px.rect(8, 2, 8, 20, "#ff8a2a"); px.rect(10, 0, 4, 22, "#ffe26b"); px.rect(11, 0, 2, 22, "#fff6d0"); };
 
 export function cardIcon(id) {

@@ -162,9 +162,8 @@ export function newRun(meta, seed = (Math.random() * 2 ** 31) | 0) {
   const max = (first ? BAL.heart.firstRunHp : BAL.heart.hp) + powerSum(meta, "heart");
   run.heart = { hp: max, max };
   // what was left after a hundred years on the old road: one rusty trap and two slimes
-  run.cards.push({ uid: run.uid++, id: "spike", w: ZONES.tAB.center, cd: 0, hp: 0, disabledT: 0 });
-  addMonster(run, CARDS.slime, ZONES.B.center);
-  addMonster(run, CARDS.slime, ZONES.H.center);
+  if (ZONES.tAB) run.cards.push({ uid: run.uid++, id: "spike", w: ZONES.tAB.center, cd: 0, hp: 0, disabledT: 0 });
+  for (const z of ["B", "H"]) if (ZONES[z]) addMonster(run, CARDS.slime, ZONES[z].center);
   // the deck: spells come back after use, buildings are spent once built
   run.deck = withRng(run, (R) => shuffle(R, BAL.deck.start.map((id) => ({ id, uid: run.uid++ }))));
   run.discard = [];

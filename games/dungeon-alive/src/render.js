@@ -39,7 +39,9 @@ import * as firework from "../../../src/fx/explosions/firework-burst.js";
 import * as eggHatch from "../../../src/fx/spawn/egg-hatch.js";
 import * as fireflies from "../../../src/fx/weather/fireflies.js";
 import { CARDS, MON, advPos, HEART_WP, GATE_WP, ZONES, WP, wpXY, cardRadius, spellRadius, cardDef } from "./sim.js";
-import { W as MW, H as MH, GROUND } from "./map.js";
+import { W as MW, H as MH, GROUND, MAP } from "./map.js";
+const HS = MAP.heartScale ?? 1;
+const TOWER_WALL = { arrow: true, tesla: true };
 import { ceilingAbove } from "./phys.js";
 import { paintCave, decoZone } from "./cave.js";
 import { chibi, cardIcon, diaryPage, INK } from "./sprites.js";
@@ -406,7 +408,7 @@ export class Renderer {
   onEvent(e, run) {
     const at = (w, dy = 0) => { const [x, y] = wpXY(w); return [x, y + dy]; };
     const advById = (id) => run.advs.find((a) => a.id === id);
-    const HXY = () => { const [x, y] = wpXY(HEART_WP); return [x, y - 56]; };
+    const HXY = () => { const [x, y] = wpXY(HEART_WP); return [x, y - 56 * HS]; };
     switch (e.t) {
       case "dmg": {
         const x = e.x, y = e.y - 20;
@@ -498,6 +500,11 @@ export class Renderer {
       case "shriek": { const m = run.monsters.find((q) => q.id === e.mid); if (m) { const [x, y] = this.monXY(m); this.floatText(x, y - 26, "비명", "shriek"); } break; }
       case "synergy": { const [x, y] = at(e.w, -40); this.floatText(x, y, e.text, "synergy"); break; }
       case "scare": break;
+      case "upgrade": { const [x, y] = at(e.w, -14); this.spawn("collect", x, y, { palette: PAL.blood }, "over"); this.spawn("hitSpark", x, y, { palette: PAL.gold, height: 14 }, "over"); this.light(x, y, 40, "255,120,90", 0.6); this.rings.push({ x, y: y + 6, r: 30, age: 0, dur: 0.5, color: "255,90,90" }); break; }
+      case "sell": { const [x, y] = at(e.w, -8); this.spawn("poof", x, y, {}, "over"); break; }
+      case "advShot": { this.shoot(e.x, e.y - 22, e.tx, e.ty - 8, "orb"); break; }
+      case "pyre": { this.spawn("flamePillar", e.x, e.y, {}, "over", 1); this.light(e.x, e.y - 20, 50, "255,140,60", 0.6); this.shake = Math.max(this.shake, 0.3); break; }
+      case "execute": { this.spawn("necro", e.x, e.y, {}, "over", 1); break; }
       case "grab": { this.hand = { id: e.id, age: 0 }; this.stop(0.03); this.light(e.x, e.y - 12, 30, "255,40,60", 0.3); break; }
       case "fling": { if (this.hand) this.hand.release = 0.0001; if (e.speed > 300) this.slowmo(0.18); break; }
       case "tooHeavy": { const a = advById(e.id); if (a) { const [x, y] = this.advXY(a); this.floatText(x, y - 50, "너무 무겁다", "fear"); } break; }
@@ -649,7 +656,7 @@ export class Renderer {
     const ph = this.beat % 1, pulse = ph < 0.12 ? ph / 0.12 : ph < 0.3 ? 1 - (ph - 0.12) / 0.18 : ph < 0.4 ? (ph - 0.3) / 0.1 * 0.4 : ph < 0.55 ? 0.4 * (1 - (ph - 0.4) / 0.15) : 0;
     const breath = Math.sin(this.t * 1.4) * 0.5 + 0.5;
     this.drawLiving(run, pulse, breath);
-    this.drawCards(run);
+    if (run.td) { this.drawSpots(run); this.drawTowers(run); } else this.drawCards(run);
 
     // under layer: critters, puddles
     clearFrame(this.under);
@@ -714,7 +721,7 @@ export class Renderer {
     for (const n of this.nums) this.drawNum(n);
 
     // ui highlights
-    this.drawHighlights(run);
+    if (run.td) this.drawTdOverlay(run); else this.drawHighlights(run);
     if (this.mode === "golden") {
       // the golden age: warm light and drifting motes
       g.fillStyle = "rgba(255,214,140,0.10)"; g.fillRect(0, 0, this.W, this.H);
@@ -797,7 +804,7 @@ export class Renderer {
     if (im.complete && im.naturalWidth) {
       const hurt = this.heartHurt > 0 ? this.heartHurt / 0.4 : 0;
       const k = this.heartDead ? 1 : 1 + pulse * 0.05 + breath * 0.012;
-      const S = 118 * k, cy = fy - 8 - 59;
+      const S = 118 * HS * k, cy = fy - 8 - 59 * HS;
       // a glow behind it, stronger on the beat
       if (!this.heartDead) {
         const gl = g.createRadialGradient(hx, cy, 4, hx, cy, 90);
@@ -836,7 +843,7 @@ export class Renderer {
     const frame = moving ? Math.floor(this.t * 6 + a.id) % 2 : 0;
     const mood = a.state === "flee" ? "scared" : "walk";
     const spr = chibi(a.skin ?? (a.boss ? "boss" : a.cls), frame, a.cheer ? "cheer" : mood);
-    const k = a.boss ? 2 : 1;
+    const k = a.scale ?? (a.boss ? 2 : 1);
     const w = spr.width * k, fullH = spr.height * k, h = (spr.vh ?? spr.height) * k;
     const bob = moving && frame ? -1 : 0;
     const knock = a.hitT > 0 ? -this.faceOf(a) * (a.hitT / 0.18) * 5 : 0;
@@ -867,7 +874,7 @@ export class Renderer {
     // bars and badges
     const top = Math.round(y - h - 4);
     this.bar(Math.round(x - 8 * k), top, 16 * k, a.hp / a.max, a.boss ? "#ff4a5a" : "#f05a5a");
-    if (a.state !== "flee") this.bar(Math.round(x - 8 * k), top + 3, 16 * k, Math.max(0, a.courage) / a.courageMax, "#9c86d0", 1);
+    if (a.state !== "flee" && a.courageMax > 1) this.bar(Math.round(x - 8 * k), top + 3, 16 * k, Math.max(0, a.courage) / a.courageMax, "#9c86d0", 1);
     let gx = x - 8;
     for (const el of a.gear) { g.fillStyle = NUM_COL[el] ?? "#fff"; g.fillRect(Math.round(gx), top - 4, 3, 3); g.fillStyle = INK; g.fillRect(Math.round(gx) + 3, top - 4, 1, 3); gx += 5; }
     if (a.nemesis) this.tag(x, top - 10, "숙적", "#ff8a6a");
@@ -875,6 +882,71 @@ export class Renderer {
     if (a.spare === true) this.tag(x, top - 10, "♥", "#ff9ab0");
     if (a.disarmT > 0) { this.bar(Math.round(x - 8), top - 6, 16, 1 - a.disarmT / 1.6, "#ffe07a"); }
     if (a.lootT > 0) { g.fillStyle = "#ffe07a"; g.fillRect(Math.round(x - 1 + Math.sin(this.t * 10) * 6), top - 6, 2, 2); }
+  }
+  // ---- the defense: build spots, traps on them, the selected one's reach, ability aim
+  towerXY(t) {
+    const [x, y] = wpXY(t.w);
+    return TOWER_WALL[t.id] ? [Math.round(x), Math.round(y - 44)] : [Math.round(x), Math.round(y)];
+  }
+  drawSpots(run) {
+    const g = this.g, t = this.t;
+    for (const S of this.spots ?? []) {
+      if (run.cards.some((c) => c.spot === S.i)) continue;
+      const [x, y] = wpXY(S.w), sel = this.sel?.spot === S.i, glow = 0.5 + 0.5 * Math.sin(t * 3 + S.i);
+      g.fillStyle = "#0a0608"; g.fillRect(Math.round(x) - 11, Math.round(y) - 1, 22, 4);
+      g.fillStyle = sel ? "#ff5a6a" : `rgba(200,40,60,${0.45 + glow * 0.4})`;
+      g.fillRect(Math.round(x) - 9, Math.round(y), 18, 2);
+      for (const dx of [-6, 0, 6]) g.fillRect(Math.round(x) + dx - 1, Math.round(y) - 3 - (dx ? 0 : 2), 2, 3 + (dx ? 0 : 2));
+      if (run.phase === "build" || sel) { g.strokeStyle = `rgba(255,80,100,${sel ? 0.9 : 0.25 + glow * 0.3})`; g.lineWidth = 1; g.strokeRect(Math.round(x) - 13.5, Math.round(y) - 26.5, 27, 30); }
+      this.lights.push({ x, y: y - 4, r: 16, color: "255,40,60", life: 0.03, max: 0.03 });
+    }
+  }
+  drawTowers(run) {
+    const g = this.g;
+    for (const tw of run.cards) {
+      const [x, y] = this.towerXY(tw), wall = TOWER_WALL[tw.id];
+      const ic = cardIcon(tw.id === "nest" ? "nest" : tw.id), S = 24 + tw.lvl * 4;
+      const pop = this.spikeT?.[tw.w] > 0 && tw.id === "spike" ? -6 : 0;
+      if (wall) {
+        // an iron bracket bolted into the back wall
+        g.fillStyle = "#0a0608"; g.fillRect(x - 3, y + 6, 6, 38);
+        g.fillStyle = "#2a1c1c"; g.fillRect(x - 2, y + 6, 4, 38);
+        g.fillStyle = "#0a0608"; g.fillRect(x - S / 2 - 2, y - S / 2 - 2, S + 4, S + 4);
+        g.fillStyle = tw.lvl === 3 ? "#5a1018" : "#24161a"; g.fillRect(x - S / 2, y - S / 2, S, S);
+        g.drawImage(ic, x - S / 2 + 2, y - S / 2 + 2, S - 4, S - 4);
+      } else {
+        g.fillStyle = "rgba(0,0,0,0.45)"; g.fillRect(x - S / 2, y - 1, S, 3);
+        g.drawImage(ic, x - S / 2, y - S + 2 + pop, S, S);
+      }
+      // level marks
+      for (let i = 0; i < tw.lvl; i++) { const px = x - (tw.lvl - 1) * 3 + i * 6, py = wall ? y + S / 2 + 3 : y + 3; g.fillStyle = "#000"; g.fillRect(px - 2, py - 1, 4, 4); g.fillStyle = "#ff4a5a"; g.fillRect(px - 1, py, 2, 2); }
+      if (tw.lvl === 3) this.lights.push({ x, y: wall ? y : y - 10, r: 22, color: "255,60,60", life: 0.03, max: 0.03 });
+    }
+  }
+  drawTdOverlay(run) {
+    const g = this.g, t = 0.5 + 0.5 * Math.sin(this.t * 6);
+    const s = this.sel;
+    if (s?.r) {
+      g.strokeStyle = "rgba(255,90,110,0.85)"; g.lineWidth = 1; g.setLineDash([3, 3]);
+      g.beginPath(); g.ellipse(s.x, s.y, s.r, s.r * 0.7, 0, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+      g.fillStyle = "rgba(255,60,80,0.08)"; g.fill();
+    }
+    const a = this.aim;
+    if (a) {
+      g.strokeStyle = `rgba(255,${a.kind === "roll" ? 200 : 120},90,${0.6 + 0.4 * t})`; g.lineWidth = 1.5;
+      g.beginPath(); g.ellipse(a.x, a.y, 30, 12, 0, 0, Math.PI * 2); g.stroke();
+      if (a.kind === "roll") { g.beginPath(); g.moveTo(a.x, a.y - 6); g.lineTo(a.x - 34, a.y - 6); g.lineTo(a.x - 28, a.y - 11); g.moveTo(a.x - 34, a.y - 6); g.lineTo(a.x - 28, a.y - 1); g.stroke(); }
+    }
+    // the grab reticle on whoever is under the pointer
+    if (this.clawHover != null) {
+      const q = run.advs.find((o) => o.id === this.clawHover && !o.dead && !o.out);
+      if (q) {
+        const [x, y] = this.advXY(q), cy = y - 18, cd = run.cd?.grab ?? 0;
+        g.strokeStyle = cd <= 0 ? `rgba(255,60,80,${0.7 + 0.3 * t})` : "rgba(160,120,140,0.6)"; g.lineWidth = 1;
+        g.beginPath(); g.arc(x, cy, 15, 0, Math.PI * 2); g.stroke();
+        if (cd > 0) { g.strokeStyle = "rgba(255,60,80,0.9)"; g.beginPath(); g.arc(x, cy, 15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cd / 6)); g.stroke(); }
+      }
+    }
   }
   // ---- gore that stays: blood on the back walls of the hollows, never on solid rock
   splat(x, y, n, dx, dy, spread) {
