@@ -13,6 +13,7 @@ mkdirSync(out, { recursive: true });
 const opts = {
   entryPoints: [join(here, "src/main.js")], bundle: true, format: "esm", minify: true, write: false,
   target: ["es2020", "safari15"], legalComments: "none", logLevel: "warning",
+  loader: { ".webp": "dataurl", ".jpg": "dataurl", ".png": "dataurl" },
 };
 function emit(res) {
   const js = res.outputFiles[0].text.replace(/<\/script/g, "<\\/script");

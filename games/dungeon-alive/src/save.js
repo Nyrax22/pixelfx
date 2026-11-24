@@ -38,7 +38,7 @@ export function load() {
   let best = null;
   for (let i = 0; i < 3; i++) { const r = read(i); if (r && (!best || r.at > best.at)) best = r; }
   if (!best) return { meta: newMeta(), run: null };
-  return { meta: { ...newMeta(), ...best.meta }, run: best.run };
+  return { meta: { ...newMeta(), ...best.meta }, run: best.run?.v === 2 ? best.run : null };
 }
 export function exportSave(meta, run) {
   const body = JSON.stringify({ meta, run, at: Date.now() });
@@ -49,7 +49,7 @@ export function importSave(text) {
     const rec = JSON.parse(decodeURIComponent(escape(atob(text.trim()))));
     if (sum(rec.body) !== rec.sum) return null;
     const d = JSON.parse(rec.body);
-    return { meta: { ...newMeta(), ...d.meta }, run: d.run };
+    return { meta: { ...newMeta(), ...d.meta }, run: d.run?.v === 2 ? d.run : null };
   } catch { return null; }
 }
 export function wipe() {

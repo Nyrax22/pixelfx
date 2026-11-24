@@ -8,11 +8,9 @@ import BAL from "../data/balance.json";
 import POWERS from "../data/powers.json";
 import MON from "../data/monsters.json";
 import STORY from "../data/story.json";
+import { WP, ZONES, HEART_WP, ENT_WP, GATE_WP, zoneOf, zoneLinks, distW, wpXY } from "./map.js";
 
-export { CARDS, ROOMS, BAL, POWERS, MON, STORY };
-
-export const COLS = BAL.grid.cols, ROWS = BAL.grid.rows;
-export const ENT = BAL.grid.entrance, HEART = BAL.grid.heart;
+export { CARDS, ROOMS, BAL, POWERS, MON, STORY, WP, ZONES, HEART_WP, ENT_WP, GATE_WP, zoneOf, wpXY };
 
 // ---------------------------------------------------------------- random
 export function makeRng(seed) {
@@ -96,73 +94,76 @@ function traitLine(traits) {
   return traits.length ? traits.map((t) => "#" + t).join(" ") : "평범한 몬스터";
 }
 
-// ---------------------------------------------------------------- grid helpers
-export const key = (c, r) => r * COLS + c;
-export const inGrid = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS;
-export const room = (run, c, r) => (inGrid(c, r) ? run.rooms[key(c, r)] : null);
-const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-export function neighbors(run, c, r) {
-  const out = [];
-  for (const [dc, dr] of N4) if (room(run, c + dc, r + dr)) out.push([c + dc, r + dr]);
-  return out;
-}
-const dist = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+// ---------------------------------------------------------------- the cave
+// Rooms are zones of the hand-drawn cave (chambers, tunnels, the gate, the heart's hall).
+// Everything stands on a waypoint `w`; distances are in world pixels.
+export const roomOf = (run, w) => (w == null ? null : run.rooms[zoneOf(w)] ?? null);
+export const isOpenW = (run, w) => !!run.rooms[zoneOf(w)]?.open;
 export const isFixed = (rm) => rm && (rm.type === "entrance" || rm.type === "heart");
+const dW = (a, b) => distW(a, b);
+const R_TRAP = 12, R_ZONE = 34, R_MELEE = 20, R_REACH = 64, R_SPELL = 30, R_SPLASH = 78, R_FEAR = 90, R_HEAL = 50;
+export const cardRadius = (d) => (d.trigger === "enter" ? R_TRAP : d.range ? R_ZONE + d.range * 60 : R_ZONE);
+export const spellRadius = (d) => (d.radius ? R_SPLASH : R_SPELL);
 
-/** A* over rooms. Rooms the guild knows to be deadly cost more, so parties walk around them when they can. */
-export function findPath(run, from, to, avoid = true) {
-  const start = key(...from), goal = key(...to);
-  const open = new Map([[start, 0]]), came = new Map(), g = new Map([[start, 0]]);
-  while (open.size) {
-    let cur = -1, best = Infinity;
-    for (const [k, f] of open) if (f < best) { best = f; cur = k; }
-    if (cur === goal) break;
-    open.delete(cur);
-    const c = cur % COLS, r = (cur / COLS) | 0;
-    for (const [nc, nr] of neighbors(run, c, r)) {
-      const nk = key(nc, nr), rm = run.rooms[nk];
-      let cost = 1;
-      if (avoid && run.guild.known[nk] && rm.card) cost += 4;
-      const ng = g.get(cur) + cost;
-      if (ng < (g.get(nk) ?? Infinity)) {
-        g.set(nk, ng); came.set(nk, cur);
-        open.set(nk, ng + dist([nc, nr], to));
-      }
+/** Tunnels are open when both ends are. */
+function refreshTunnels(run) {
+  for (const z of Object.values(ZONES)) if (z.kind === "tunnel") run.rooms[z.id].open = !!(run.rooms[z.join[0]]?.open && run.rooms[z.join[1]]?.open);
+  run.ver = (run.ver ?? 0) + 1;
+}
+const fields = new WeakMap();
+/** Walking distance from every waypoint to the goal. Zones the guild knows are deadly cost more, so parties walk around them when they can. */
+export function field(run, goal, avoid = true) {
+  let c = fields.get(run);
+  if (!c || c.ver !== run.ver) { c = { ver: run.ver, f: {} }; fields.set(run, c); }
+  const k = goal + ":" + (avoid ? 1 : 0);
+  if (c.f[k]) return c.f[k];
+  const n = WP.length, dist = new Float64Array(n).fill(Infinity), done = new Uint8Array(n);
+  const danger = {};
+  if (avoid) for (const cd of run.cards) { const z = zoneOf(cd.w); if (run.guild.known[z]) danger[z] = true; }
+  dist[goal] = 0;
+  for (;;) {
+    let u = -1, best = Infinity;
+    for (let i = 0; i < n; i++) if (!done[i] && dist[i] < best) { best = dist[i]; u = i; }
+    if (u < 0) break;
+    done[u] = 1;
+    for (const v of WP[u].nb) {
+      if (done[v] || !isOpenW(run, v)) continue;
+      const nd = best + dW(u, v) + (danger[zoneOf(v)] ? 24 : 0);
+      if (nd < dist[v]) dist[v] = nd;
     }
   }
-  if (!came.has(goal) && start !== goal) return null;
-  const path = [];
-  for (let k = goal; k !== start; k = came.get(k)) path.unshift([k % COLS, (k / COLS) | 0]);
-  return path;
+  return (c.f[k] = dist);
 }
+function nextToward(run, here, goal, avoid) {
+  const f = field(run, goal, avoid);
+  let best = null, bd = f[here];
+  for (const nb of WP[here].nb) if (isOpenW(run, nb) && f[nb] < bd) { bd = f[nb]; best = nb; }
+  return best;
+}
+const bump = (run) => { run.ver = (run.ver ?? 0) + 1; };
 
 // ---------------------------------------------------------------- runs
 export function newRun(meta, seed = (Math.random() * 2 ** 31) | 0) {
   const first = meta.runs === 0;
   const R = makeRng(seed);
-  const rooms = new Array(COLS * ROWS).fill(null);
+  const rooms = {};
+  for (const z of Object.values(ZONES)) rooms[z.id] = { type: { entrance: "entrance", heart: "heart", secret: "secret" }[z.kind] ?? "hall", open: !z.closed };
   const run = {
-    seed, rs: R.state, first, day: 1, maxDays: first ? 3 : 7, phase: "night_pick", t: 0,
+    v: 2, ver: 1, seed, rs: R.state, first, day: 1, maxDays: first ? 3 : 7, phase: "night_pick", t: 0,
     heart: { hp: 0, max: 0 }, mana: BAL.mana.start + powerSum(meta, "mana"), manaMax: BAL.mana.max + powerSum(meta, "manaMax"),
-    regenT: 0, hand: [], rooms, monsters: [], advs: [], wave: 0, waves: [], spawnQ: [], spawnT: 0, gapT: 0,
+    regenT: 0, hand: [], rooms, cards: [], monsters: [], advs: [], wave: 0, waves: [], spawnQ: [], spawnT: 0, gapT: 0,
     kills: 0, spared: 0, executed: 0, nemeses: [], guild: { gear: {}, known: {} }, diaries: [], recordsFound: [],
     events: [], uid: 1, pick: null, roomOffer: null, pendingRoom: null, breedsLeft: 0, mercy: [], mercyShown: 0,
     combo: { n: 0, t: 0, last: null }, discount: powerSum(meta, "discount"), options: BAL.night.pickOptions + powerSum(meta, "options"),
     breach: {}, stats: { dmg: 0, hits: 0 }, rage: 0, rageNeed: meta.runs === 0 ? BAL.roar.firstNeed : BAL.roar.need, roars: 0, bossDown: false, result: null, firstKillDone: false, speed: 1,
   };
+  refreshTunnels(run);
   const max = (first ? BAL.heart.firstRunHp : BAL.heart.hp) + powerSum(meta, "heart");
   run.heart = { hp: max, max };
-  rooms[key(...ENT)] = { type: "entrance", card: null };
-  rooms[key(...HEART)] = { type: "heart", card: null };
-  // the old road: along the top floor, then down the stairwell to the heart
-  const road = [];
-  for (let c = ENT[0] + 1; c <= HEART[0]; c++) road.push([c, ENT[1]]);
-  for (let r = ENT[1] + 1; r < HEART[1]; r++) road.push([HEART[0], r]);
-  for (const [c, r] of road) rooms[key(c, r)] = { type: "hall", card: null };
-  // what was left after a hundred years: one rusty trap and two slimes
-  rooms[key(...road[1])].card = { id: "spike", cd: 0 };
-  addMonster(run, CARDS.slime, ...road[3]);
-  addMonster(run, CARDS.slime, ...road[road.length - 2]);
+  // what was left after a hundred years on the old road: one rusty trap and two slimes
+  run.cards.push({ uid: run.uid++, id: "spike", w: ZONES.tAB.center, cd: 0, hp: 0, disabledT: 0 });
+  addMonster(run, CARDS.slime, ZONES.B.center);
+  addMonster(run, CARDS.slime, ZONES.H.center);
   if (!first && meta.favorite) {
     const fav = meta.lineage.find((m) => m.id === meta.favorite);
     if (fav) run.hand.push({ id: "bred", mon: fav, uid: run.uid++ });
@@ -282,7 +283,7 @@ function makeAdv(run, meta, cls, R, nemesis = null) {
   return {
     id: run.uid++, cls, name, town, lvl: nemesis ? nemesis.lvl : 1, nemesis: !!nemesis, boss: cls === "boss",
     hp, max: hp, atk: C.atk * atkMul, rate: C.rate, speed: C.speed, courage: C.courage, courageMax: C.courage,
-    gear, cell: [...ENT], next: null, prog: 0, state: "walk", cd: 0.5, healT: 1, disarmT: 0, disarmCell: null,
+    gear, cell: ENT_WP, next: null, prog: 0, zone: "entrance", trig: [], seen: [], state: "walk", cd: 0.5, healT: 1, disarmT: 0, disarmCard: null,
     lootT: 0, looted: false, slowT: 0, slowK: 0, burnT: 0, burnDps: 0, poisonT: 0, poisonDps: 0, frozenT: 0,
     dmgBy: {}, srcBy: {}, spare: null, mercyT: 0, lane: R.next() * 2 - 1, face: 1, hitT: 0, dead: false, out: false,
     diary: makeDiary(R, cls, name, town),
@@ -294,79 +295,81 @@ function makeDiary(R, cls, name, town) {
 }
 
 // ---------------------------------------------------------------- playing cards
-/** Where card could go: "room" cells, or null for no target. */
+/** Every waypoint a card could go on, or null when it needs no target. */
 export function cardTargets(run, card) {
   const d = cardDef(card), out = [];
   if (d.kind === "support" && d.heal) return null;
-  for (let r = 0; r < ROWS; r++)
-    for (let c = 0; c < COLS; c++) if (canPlay(run, card, c, r).ok) out.push([c, r]);
+  for (const w of WP) if (canPlay(run, card, w.id).ok) out.push(w.id);
   return out;
 }
-export function canPlay(run, card, c, r) {
-  const d = cardDef(card), rm = room(run, c, r);
+export const cardAt = (run, w, r = 14) => run.cards.find((c) => dW(c.w, w) < r) ?? null;
+export function canPlay(run, card, w) {
+  const d = cardDef(card);
   if (cardCost(run, card) > run.mana) return { ok: false, why: "마나가 모자라요" };
   if (d.kind === "support" && d.heal) return { ok: true };
-  if (!rm) return { ok: false, why: "방이 아닌 곳이에요" };
+  const rm = roomOf(run, w);
+  if (!rm || !rm.open) return { ok: false, why: "무너진 곳이에요" };
   if (d.kind === "trap" || d.kind === "facility") {
     if (isFixed(rm) || rm.type === "secret" || rm.type === "sealed") return { ok: false, why: "여기엔 놓을 수 없어요" };
-    if (rm.card) return { ok: false, why: "이미 무언가 놓여 있어요" };
+    if (cardAt(run, w, 16)) return { ok: false, why: "바로 옆에 이미 무언가 있어요" };
+    if (dW(w, GATE_WP) < 30) return { ok: false, why: "문 앞은 너무 밝아요" };
     return { ok: true };
   }
   if (d.kind === "monster") {
     if (rm.type === "entrance") return { ok: false, why: "입구에는 둘 수 없어요" };
     const cap = ROOMS[rm.type].monsterCap ?? 2;
-    if (monstersIn(run, c, r).length >= cap) return { ok: false, why: "방이 꽉 찼어요" };
+    if (run.monsters.filter((m) => m.hp > 0 && zoneOf(m.w) === zoneOf(w)).length >= cap) return { ok: false, why: "이 방은 꽉 찼어요" };
+    if (run.monsters.some((m) => m.hp > 0 && dW(m.w, w) < 10)) return { ok: false, why: "너무 붙어 있어요" };
     return { ok: true };
   }
   if (d.kind === "support" && d.buff) {
-    if (!monstersIn(run, c, r).length) return { ok: false, why: "몬스터가 있는 방에 써요" };
+    if (!monstersNear(run, w, 40).length) return { ok: false, why: "몬스터 곁에 써요" };
     return { ok: true };
   }
   return { ok: true };
 }
-export function playCard(run, meta, handIdx, c, r) {
+export function playCard(run, meta, handIdx, w) {
   const card = run.hand[handIdx];
   if (!card) return { ok: false };
-  const chk = canPlay(run, card, c, r);
+  const chk = canPlay(run, card, w);
   if (!chk.ok) return chk;
   const d = cardDef(card);
   if (run.phase !== "wave" && run.phase !== "night_pick" && run.phase !== "prologue" && d.kind !== "trap" && d.kind !== "facility" && d.kind !== "monster")
     return { ok: false, why: "밤에만 쓸 수 있어요" };
   run.mana -= cardCost(run, card);
   run.hand.splice(handIdx, 1);
-  const rm = room(run, c, r);
   if (d.kind === "trap" || d.kind === "facility") {
-    rm.card = { id: card.id, cd: 0.4, hp: d.hp ?? 0, disabledT: 0 };
-    run.events.push({ t: "place", c, r, id: card.id });
+    run.cards.push({ uid: run.uid++, id: card.id, w, cd: 0.4, hp: d.hp ?? 0, disabledT: 0 });
+    bump(run);
+    run.events.push({ t: "place", w, id: card.id });
   } else if (d.kind === "monster") {
-    const m = addMonster(run, card.id === "bred" ? card.mon : d, c, r);
-    run.events.push({ t: "summon", c, r, m });
+    const m = addMonster(run, card.id === "bred" ? card.mon : d, w);
+    run.events.push({ t: "summon", w, m });
   } else if (d.kind === "spell") {
-    castSpell(run, meta, d, c, r, card.id);
+    castSpell(run, meta, d, w, card.id);
   } else if (d.kind === "support") {
     if (d.heal) {
       run.heart.hp = Math.min(run.heart.max, run.heart.hp + d.heal);
-      run.events.push({ t: "fx", id: "heal", c: HEART[0], r: HEART[1] });
+      run.events.push({ t: "fx", id: "heal", w: HEART_WP });
     } else if (d.buff) {
-      for (const m of monstersIn(run, c, r)) { m.buffT = d.dur; m.hp = Math.min(m.max, m.hp + m.max * 0.5); }
-      run.events.push({ t: "fx", id: "rage", c, r });
+      for (const m of monstersNear(run, w, 40)) { m.buffT = d.dur; m.hp = Math.min(m.max, m.hp + m.max * 0.5); }
+      run.events.push({ t: "fx", id: "rage", w });
     }
   }
   run.events.push({ t: "sfx", name: "play" });
   return { ok: true };
 }
 
-function castSpell(run, meta, d, c, r, id) {
-  run.events.push({ t: "spell", id, c, r });
-  const hit = (cc, rr, dmg) => {
-    for (const a of advsIn(run, cc, rr)) {
-      if (dmg) deal(run, meta, a, dmg, d.el, { kind: "spell", id, key: key(c, r) });
-      if (d.freeze) a.frozenT = Math.max(a.frozenT, d.freeze);
-      if (d.fear) scare(run, meta, a, d.fear);
-    }
-  };
-  hit(c, r, d.dmg);
-  if (d.radius) for (const [nc, nr] of neighbors(run, c, r)) hit(nc, nr, d.splash ?? d.dmg);
+function castSpell(run, meta, d, w, id) {
+  run.events.push({ t: "spell", id, w });
+  const [x, y] = wpXY(w);
+  for (const a of advsNearXY(run, x, y, spellRadius(d))) {
+    const direct = Math.hypot(advPos(a)[0] - x, advPos(a)[1] - y) <= R_SPELL;
+    const dmg = direct ? d.dmg : d.splash ?? d.dmg;
+    if (dmg) deal(run, meta, a, dmg, d.el, { kind: "spell", id, w });
+    if (d.freeze) a.frozenT = Math.max(a.frozenT, d.freeze);
+    if (d.fear) scare(run, meta, a, d.fear);
+  }
 }
 
 /** The heart's own blow: everyone in the dungeon, once the rage meter is full. */
@@ -384,19 +387,21 @@ export function roar(run, meta) {
 }
 
 // ---------------------------------------------------------------- monsters
-export function monstersIn(run, c, r) {
-  return run.monsters.filter((m) => m.c === c && m.r === r && m.hp > 0);
+export function monstersNear(run, w, r) {
+  return run.monsters.filter((m) => m.hp > 0 && dW(m.w, w) <= r);
 }
-export function addMonster(run, spec, c, r) {
+export function monstersInZone(run, zid) {
+  return run.monsters.filter((m) => m.hp > 0 && zoneOf(m.w) === zid);
+}
+export function addMonster(run, spec, w) {
   const traits = spec.traits ?? [];
   let hpK = 1, atkK = 1;
   for (const t of traits) { hpK += MON.traits[t]?.hp ?? 0; atkK += MON.traits[t]?.atk ?? 0; }
-  const slot = [0, 1, 2].find((s) => !run.monsters.some((m) => m.hp > 0 && m.c === c && m.r === r && m.slot === s)) ?? 0;
   const hp = Math.round(spec.hp * hpK);
   const m = {
     id: run.uid++, species: spec.species, name: spec.name, traits: [...traits], palette: spec.palette ?? null,
     mutant: !!spec.mutant, lineageId: spec.lineageId ?? spec.id ?? null, el: spec.el ?? "physical",
-    hp, max: hp, atk: spec.atk * atkK, rate: spec.rate ?? 1, cd: 0.5, c, r, slot, buffT: 0, healT: 1, hitT: 0, atkT: 0, split: false,
+    hp, max: hp, atk: spec.atk * atkK, rate: spec.rate ?? 1, cd: 0.5, w, buffT: 0, healT: 1, hitT: 0, atkT: 0, split: false,
   };
   run.monsters.push(m);
   return m;
@@ -407,31 +412,36 @@ function monsterEl(m) {
   return m.el ?? "physical";
 }
 function reachOf(m) {
-  return m.traits.some((t) => MON.traits[t]?.reach) ? 1 : 0;
+  return m.traits.some((t) => MON.traits[t]?.reach) ? R_REACH : R_MELEE;
 }
 
 // ---------------------------------------------------------------- adventurers
+/** World position of an adventurer's feet. */
 export function advPos(a) {
-  if (!a.next) return [a.cell[0], a.cell[1]];
-  return [a.cell[0] + (a.next[0] - a.cell[0]) * a.prog, a.cell[1] + (a.next[1] - a.cell[1]) * a.prog];
+  const A = WP[a.cell];
+  if (a.next == null) return [A.x, A.y];
+  const B = WP[a.next];
+  return [A.x + (B.x - A.x) * a.prog, A.y + (B.y - A.y) * a.prog];
 }
-/** The room an adventurer counts as being in. */
+/** The waypoint an adventurer counts as standing on. */
 export function advCell(a) {
-  return a.next && a.prog >= 0.5 ? a.next : a.cell;
+  return a.next != null && a.prog >= 0.5 ? a.next : a.cell;
 }
 const active = (a) => !a.dead && !a.out;
 const targetable = (a) => active(a) && a.spare !== true && !a.npc;
-export function advsIn(run, c, r) {
-  return run.advs.filter((a) => targetable(a) && advCell(a)[0] === c && advCell(a)[1] === r);
+function advsNearXY(run, x, y, r) {
+  return run.advs.filter((a) => { if (!targetable(a)) return false; const [ax, ay] = advPos(a); return Math.hypot(ax - x, ay - y) <= r; });
 }
-function advsNear(run, c, r, range) {
-  return run.advs.filter((a) => targetable(a) && dist(advCell(a), [c, r]) <= range);
+export function advsNear(run, w, r) {
+  const [x, y] = wpXY(w);
+  return advsNearXY(run, x, y, r);
 }
+const advDist = (a, w) => { const [x, y] = advPos(a), [wx, wy] = wpXY(w); return Math.hypot(x - wx, y - wy); };
+const zoneOfAdv = (a) => zoneOf(advCell(a));
 
 function deal(run, meta, a, amount, el, src) {
   if (!targetable(a) || amount <= 0) return 0;
-  const [c, r] = advCell(a);
-  const rm = room(run, c, r);
+  const rm = run.rooms[zoneOfAdv(a)];
   let dmg = amount;
   const mods = ROOMS[rm?.type]?.mods;
   if (mods && mods[el]) dmg *= mods[el];
@@ -443,21 +453,22 @@ function deal(run, meta, a, amount, el, src) {
   a.dmgBy[el] = (a.dmgBy[el] ?? 0) + dmg;
   const sk = src.kind === "card" ? (CARDS[src.id]?.kind === "trap" ? "trap" : "facility") : src.kind;
   a.srcBy[sk] = (a.srcBy[sk] ?? 0) + dmg;
-  if (src.key != null) (a.hitRooms ??= new Set()).add(src.key);
+  if (src.w != null) (a.hitZones ??= new Set()).add(zoneOf(src.w));
   a.courage -= dmg * BAL.fear.dmgToCourage;
   run.stats.dmg += dmg; run.stats.hits++;
   if (src.kind !== "status" && src.kind !== "roar") run.rage = Math.min(run.rageNeed, (run.rage ?? 0) + BAL.roar.perHit);
+  const [x, y] = advPos(a);
   if (src.kind === "status") {
     // burns and poison tick every frame: show them as one number per whole point
     a.dot = (a.dot ?? 0) + dmg;
-    if (a.dot >= 1) { run.events.push({ t: "dmg", id: a.id, amount: Math.floor(a.dot), el, dot: true, x: advPos(a)[0], y: advPos(a)[1] }); a.dot -= Math.floor(a.dot); }
+    if (a.dot >= 1) { run.events.push({ t: "dmg", id: a.id, amount: Math.floor(a.dot), el, dot: true, x, y }); a.dot -= Math.floor(a.dot); }
     if (a.hp <= 0) kill(run, meta, a, src);
     else checkFlee(run, a);
     return dmg;
   }
-  run.events.push({ t: "dmg", id: a.id, amount: dmg, el, boosted: mods?.[el] > 1, x: advPos(a)[0], y: advPos(a)[1] });
+  run.events.push({ t: "dmg", id: a.id, amount: dmg, el, boosted: mods?.[el] > 1, x, y });
   // a combo is several different sources landing on the party in quick succession
-  const cb = run.combo, sid = src.kind + ":" + (src.id ?? src.mid ?? "") + ":" + (src.key ?? "");
+  const cb = run.combo, sid = src.kind + ":" + (src.id ?? src.mid ?? "") + ":" + (src.w ?? "");
   if (cb.t > 0 && cb.last !== sid) { cb.n++; if (cb.n >= 3) run.events.push({ t: "combo", n: cb.n }); }
   else if (cb.t <= 0) cb.n = 1;
   cb.last = sid; cb.t = 1.1;
@@ -467,7 +478,7 @@ function deal(run, meta, a, amount, el, src) {
 }
 function scare(run, meta, a, amount) {
   if (!targetable(a)) return;
-  const rm = room(run, ...advCell(a));
+  const rm = run.rooms[zoneOfAdv(a)];
   let f = amount * (ROOMS[rm?.type]?.mods?.fear ?? 1);
   if (a.gear.includes("fear")) f *= 1 - BAL.gear.resist;
   a.courage -= f;
@@ -495,11 +506,11 @@ function kill(run, meta, a, src) {
   run.mana = Math.min(run.manaMax, run.mana + (src.kind === "execute" ? BAL.mana.execute : BAL.mana.kill));
   run.mercy = run.mercy.filter((id) => id !== a.id);
   const [x, y] = advPos(a);
-  const from = src.key != null ? [src.key % COLS, (src.key / COLS) | 0] : src.kind === "roar" ? HEART : null;
+  const from = src.w != null ? wpXY(src.w) : src.kind === "roar" ? wpXY(HEART_WP) : null;
   run.events.push({ t: "death", id: a.id, x, y, cls: a.cls, execute: src.kind === "execute", boss: a.boss, from, big: src.kind === "spell" || src.kind === "roar" || (CARDS[src.id]?.dmg ?? 0) >= 12, last: !run.spawnQ.length && run.advs.filter((o) => !o.dead && !o.out && !o.npc).length === 0 && run.wave === run.waves.length - 1 });
-  for (const o of run.advs) if (active(o) && o !== a && dist(advCell(o), advCell(a)) <= 2) { o.courage -= BAL.fear.allyDeath; checkFlee(run, o); }
+  for (const o of run.advs) if (active(o) && o !== a && Math.hypot(advPos(o)[0] - x, advPos(o)[1] - y) <= R_FEAR) { o.courage -= BAL.fear.allyDeath; checkFlee(run, o); }
   // the diary page that flutters down
-  const libs = run.rooms.some((rm) => rm?.type === "library") ? 2 : 1;
+  const libs = Object.values(run.rooms).some((rm) => rm.open && rm.type === "library") ? 2 : 1;
   if (run.first && !run.firstKillDone) {
     run.firstKillDone = true;
     grantRecord(run, meta, "k_grandma");
@@ -520,13 +531,14 @@ function escape(run, meta, a) {
   a.out = true;
   if (!a.looter) { run.spared++; meta.sparedTotal++; }
   run.mercy = run.mercy.filter((id) => id !== a.id);
-  // the survivor reports to the guild: what hurt the most, and which rooms to avoid
+  // the survivor reports to the guild: what hurt the most, and which places to avoid
   const top = Object.entries(a.dmgBy).sort((p, q) => q[1] - p[1])[0];
   if (top) run.guild.gear[top[0]] = (run.guild.gear[top[0]] ?? 0) + 1;
   const srcTop = Object.entries(a.srcBy).sort((p, q) => q[1] - p[1])[0];
   if (srcTop?.[0] === "trap") run.guild.gear.trap = (run.guild.gear.trap ?? 0) + 1;
   if (srcTop?.[0] === "monster") run.guild.gear.monster = (run.guild.gear.monster ?? 0) + 1;
-  for (const k of a.hitRooms ?? []) run.guild.known[k] = true;
+  for (const z of a.hitZones ?? []) run.guild.known[z] = true;
+  bump(run);
   run.nemeses.push({ name: a.name, cls: a.cls === "boss" ? "warrior" : a.cls, town: a.town, lvl: a.lvl + 1, gear: top ? [top[0]] : [] });
   run.events.push({ t: "escape", id: a.id, name: a.name, learned: top?.[0] ?? null, looter: !!a.looter });
   if (meta.sparedTotal >= 5 && !a.looter) grantRecord(run, meta, "k_letter");
@@ -553,7 +565,7 @@ export function step(run, meta, dt) {
   if (cb.t > 0) cb.t -= dt;
 
   // mana trickles in during a wave; altars make it faster
-  const altar = run.rooms.filter((rm) => rm?.type === "altar").length * (ROOMS.altar.manaRegen ?? 0);
+  const altar = Object.values(run.rooms).filter((rm) => rm.open && rm.type === "altar").length * (ROOMS.altar.manaRegen ?? 0);
   run.regenT += dt * (1 + altar);
   if (run.regenT >= BAL.mana.regenEvery) { run.regenT -= BAL.mana.regenEvery; run.mana = Math.min(run.manaMax, run.mana + 1); }
 
@@ -570,7 +582,7 @@ export function step(run, meta, dt) {
   }
 
   for (const a of run.advs) if (active(a) && !a.npc) updateAdv(run, meta, a, dt);
-  for (const [k, rm] of run.rooms.entries()) if (rm?.card) updateCard(run, meta, rm, k % COLS, (k / COLS) | 0, dt);
+  for (const cd of [...run.cards]) updateCard(run, meta, cd, dt);
   for (const m of run.monsters) if (m.hp > 0) updateMonster(run, meta, m, dt);
   run.monsters = run.monsters.filter((m) => m.hp > 0 || m.deadT > 0);
   for (const m of run.monsters) if (m.hp <= 0) m.deadT -= dt;
@@ -602,7 +614,7 @@ function updateAdv(run, meta, a, dt) {
   if (a.burnT > 0) { a.burnT -= dt; deal(run, meta, a, a.burnDps * dt, "fire", { kind: "status", id: "burn" }); }
   if (a.poisonT > 0) { a.poisonT -= dt; deal(run, meta, a, a.poisonDps * dt, "poison", { kind: "status", id: "poison" }); if (a.poisonT <= 0) a.poisonDps = 0; }
   if (!active(a)) return;
-  const here = advCell(a), rm = room(run, ...here), RD = ROOMS[rm?.type] ?? {};
+  const here = advCell(a), rm = roomOf(run, here), RD = ROOMS[rm?.type] ?? {};
   if (RD.burn && a.burnT <= 0) { a.burnT = 1; a.burnDps = RD.burn; }
   if (a.slowT > 0) a.slowT -= dt;
   if (a.frozenT > 0) { a.frozenT -= dt; return; }
@@ -613,7 +625,8 @@ function updateAdv(run, meta, a, dt) {
     a.healT -= dt;
     if (a.healT <= 0) {
       a.healT = BAL.classes.cleric.healEvery;
-      const near = run.advs.filter((o) => active(o) && o.state !== "flee" && dist(advCell(o), here) <= 1);
+      const [cx, cy] = advPos(a);
+      const near = run.advs.filter((o) => active(o) && o.state !== "flee" && Math.hypot(advPos(o)[0] - cx, advPos(o)[1] - cy) <= R_HEAL);
       const low = near.sort((p, q) => p.hp / p.max - q.hp / q.max)[0];
       if (low && low.hp < low.max) {
         low.hp = Math.min(low.max, low.hp + BAL.classes.cleric.heal * (1 + 0.15 * (run.day - 1)));
@@ -624,39 +637,44 @@ function updateAdv(run, meta, a, dt) {
   }
 
   const fleeing = a.state === "flee";
-  if (a.prog === 0) {
-    // standing in the middle of a room: is something holding us here?
-    if (fleeing && here[0] === ENT[0] && here[1] === ENT[1]) return escape(run, meta, a);
+  if (a.next == null) {
+    // standing on a waypoint: is something holding us here?
+    if (fleeing && here === ENT_WP) return escape(run, meta, a);
     if (!fleeing) {
       if (a.disarmT > 0) {
         a.disarmT -= dt;
-        if (a.disarmT <= 0 && rm?.card) { rm.card.disabledT = 14; run.events.push({ t: "disarmed", c: here[0], r: here[1] }); }
+        const cd = run.cards.find((c) => c.uid === a.disarmCard);
+        if (a.disarmT <= 0 && cd) { cd.disabledT = 14; run.events.push({ t: "disarmed", w: cd.w }); }
         return;
       }
       if (a.lootT > 0) {
         a.lootT -= dt;
-        if (a.lootT <= 0) { a.looted = true; run.events.push({ t: "looted", id: a.id, c: here[0], r: here[1] }); }
+        if (a.lootT <= 0) { a.looted = true; run.events.push({ t: "looted", id: a.id, w: here }); }
         return;
       }
-      const mons = monstersIn(run, ...here);
+      const mons = monstersNear(run, here, 16);
       if (mons.length) return fight(run, meta, a, mons);
-      if (rm.type === "heart") return hitHeart(run, meta, a);
+      if (dW(here, HEART_WP) <= 30) return hitHeart(run, meta, a);
     }
-    const goal = fleeing ? ENT : goalOf(run, a);
-    const path = findPath(run, here, goal, !fleeing);
-    if (!path || !path.length) {
-      if (!fleeing && rm.type === "treasure" && !a.looted) a.lootT = ROOMS.treasure.loot;
+    const goal = fleeing ? ENT_WP : goalOf(run, a);
+    const nxt = nextToward(run, here, goal, !fleeing);
+    if (nxt == null) {
+      if (!fleeing && rm?.type === "treasure" && !a.looted) a.lootT = ROOMS.treasure.loot;
       return;
     }
-    const nxt = path[0];
-    // a wall in this room blocks the way forward until it breaks
-    if (!fleeing && rm.card && CARDS[rm.card.id]?.blocks && rm.card.hp > 0) return hitWall(run, meta, a, rm, here);
+    // a wall across the path blocks the way forward until it breaks
+    if (!fleeing) {
+      const wall = run.cards.find((c) => CARDS[c.id]?.blocks && c.hp > 0 && dW(c.w, nxt) < 8 && dW(c.w, nxt) < dW(c.w, here));
+      if (wall) return hitWall(run, meta, a, wall);
+    }
     a.next = nxt;
-    a.face = nxt[0] > here[0] ? 1 : nxt[0] < here[0] ? -1 : a.face;
+    a.len = Math.max(1, dW(here, nxt));
+    const dx = WP[nxt].x - WP[here].x;
+    if (Math.abs(dx) > 0.5) a.face = dx > 0 ? 1 : -1;
   }
-  // walking
+  // walking: about 45 pixels a second for an ordinary pace
   const slow = Math.max(a.slowT > 0 ? a.slowK : 0, RD.slow ?? 0);
-  a.prog += dt * a.speed * (fleeing ? 1.35 : 1) * (1 - slow);
+  a.prog += (dt * a.speed * 100 * (fleeing ? 1.35 : 1) * (1 - slow)) / (a.len ?? 6);
   if (a.prog >= 1) {
     a.cell = a.next; a.next = null; a.prog = 0;
     onEnter(run, meta, a);
@@ -666,55 +684,66 @@ function goalOf(run, a) {
   if (!a.looted) {
     // greed: the nearest unlooted treasure room first
     let best = null, bd = Infinity;
-    for (const [k, rm] of run.rooms.entries()) if (rm?.type === "treasure") {
-      const p = [k % COLS, (k / COLS) | 0], d = dist(p, a.cell);
-      if (d < bd) { bd = d; best = p; }
+    for (const z of Object.values(ZONES)) {
+      const rm = run.rooms[z.id];
+      if (!rm.open || rm.type !== "treasure") continue;
+      const f = field(run, z.center, true)[a.cell];
+      if (f < bd) { bd = f; best = z.center; }
     }
-    if (best) return best;
+    if (best != null) return best;
   }
-  return HEART;
+  return HEART_WP;
 }
 function onEnter(run, meta, a) {
-  const [c, r] = a.cell, rm = room(run, c, r);
-  run.breach[key(c, r)] = (run.breach[key(c, r)] ?? 0) + 1;
-  if (a.state !== "flee" && rm.type === "treasure" && !a.looted) a.lootT = ROOMS.treasure.loot;
-  if (!rm.card || rm.card.disabledT > 0) return;
-  const d = CARDS[rm.card.id];
-  // a rogue spots traps and tries to take them apart
-  if (a.cls === "rogue" && a.state !== "flee" && d.kind === "trap" && !ROOMS[rm.type].hideTraps) {
-    const p = BAL.classes.rogue.disarm + (a.gear.includes("trap") ? 0.4 : 0);
-    if (withRng(run, (R) => R.chance(p))) {
-      a.disarmT = BAL.classes.rogue.disarmTime;
-      run.events.push({ t: "disarm", id: a.id, c, r });
-      return;
+  const w = a.cell, z = zoneOf(w), rm = run.rooms[z];
+  if (z !== a.zone) { a.zone = z; run.breach[z] = (run.breach[z] ?? 0) + 1; }
+  if (a.state !== "flee" && rm.type === "treasure" && !a.looted && w === ZONES[z].center) a.lootT = ROOMS.treasure.loot;
+  a.trig = a.trig.filter((uid) => { const c = run.cards.find((q) => q.uid === uid); return c && dW(c.w, w) < 20; });
+  for (const cd of run.cards) {
+    if (cd.disabledT > 0) continue;
+    const d = CARDS[cd.id], dist = dW(cd.w, w);
+    // a rogue spots traps as they come up and tries to take them apart
+    if (a.cls === "rogue" && a.state !== "flee" && d.kind === "trap" && dist < 24 && !a.seen.includes(cd.uid) && !ROOMS[run.rooms[zoneOf(cd.w)].type].hideTraps) {
+      a.seen.push(cd.uid);
+      const p = BAL.classes.rogue.disarm + (a.gear.includes("trap") ? 0.4 : 0);
+      if (withRng(run, (R) => R.chance(p))) {
+        a.disarmT = BAL.classes.rogue.disarmTime;
+        a.disarmCard = cd.uid;
+        run.events.push({ t: "disarm", id: a.id, w: cd.w });
+        return;
+      }
     }
-  }
-  if (d.trigger === "enter" && rm.card.cd <= 0 && a.spare !== true) {
-    rm.card.cd = d.rearm;
-    run.events.push({ t: "trap", id: rm.card.id, c, r, target: a.id });
-    deal(run, meta, a, d.dmg, d.el, { kind: "card", id: rm.card.id, key: key(c, r) });
+    if (d.trigger === "enter" && dist <= R_TRAP && cd.cd <= 0 && a.spare !== true && !a.trig.includes(cd.uid)) {
+      cd.cd = d.rearm;
+      a.trig.push(cd.uid);
+      run.events.push({ t: "trap", id: cd.id, w: cd.w, target: a.id });
+      deal(run, meta, a, d.dmg, d.el, { kind: "card", id: cd.id, w: cd.w });
+    }
   }
 }
 function fight(run, meta, a, mons) {
   if (a.cd > 0) return;
   a.cd = a.rate;
   const m = mons.sort((p, q) => p.hp - q.hp)[0];
+  const tx = WP[m.w].x - advPos(a)[0];
+  if (Math.abs(tx) > 0.5) a.face = tx > 0 ? 1 : -1;
   let dmg = a.atk * (a.gear.includes("monster") ? 1.5 : 1);
   hurtMonster(run, meta, m, dmg, a);
   run.events.push({ t: "advHit", id: a.id, mid: m.id, cls: a.cls });
 }
-function hitWall(run, meta, a, rm, [c, r]) {
+function hitWall(run, meta, a, cd) {
   if (a.cd > 0) return;
   a.cd = a.rate;
-  rm.card.hp -= a.atk;
-  const d = CARDS[rm.card.id];
-  if (d.thorns) deal(run, meta, a, d.thorns, "physical", { kind: "card", id: rm.card.id, key: key(c, r) });
-  run.events.push({ t: "wallHit", c, r, id: a.id });
-  if (rm.card.hp <= 0) { rm.card = null; run.events.push({ t: "wallBreak", c, r }); }
+  cd.hp -= a.atk;
+  const d = CARDS[cd.id];
+  if (d.thorns) deal(run, meta, a, d.thorns, "physical", { kind: "card", id: cd.id, w: cd.w });
+  run.events.push({ t: "wallHit", w: cd.w, id: a.id });
+  if (cd.hp <= 0) { run.cards = run.cards.filter((c) => c !== cd); bump(run); run.events.push({ t: "wallBreak", w: cd.w }); }
 }
 function hitHeart(run, meta, a) {
   if (a.cd > 0) return;
   a.cd = a.boss ? 2 : a.rate;
+  a.face = WP[HEART_WP].x > advPos(a)[0] ? 1 : -1;
   // the first run is the tutorial: the heart comes close to breaking but holds
   const floor = run.first ? Math.ceil(run.heart.max * BAL.heart.firstRunFloor) : 0;
   const dmg = Math.round((BAL.classes[a.cls].heart ?? 4) * (1 + 0.1 * (run.day - 1)));
@@ -734,15 +763,16 @@ function hurtMonster(run, meta, m, dmg, by) {
   run.events.push({ t: "monHit", mid: m.id, amount: dmg });
   if (has(m, "겁많음")) {
     // the scaredy monster's shriek frightens the party more than it frightens itself
-    for (const a of advsIn(run, m.c, m.r)) scare(run, meta, a, MON.traits["겁많음"].scared);
+    for (const a of advsNear(run, m.w, 30)) scare(run, meta, a, MON.traits["겁많음"].scared);
     run.events.push({ t: "shriek", mid: m.id });
   }
   if (m.hp <= 0) {
     m.deadT = 0.01;
-    run.events.push({ t: "monDeath", mid: m.id, c: m.c, r: m.r });
+    run.events.push({ t: "monDeath", mid: m.id, w: m.w });
     if (has(m, "분열") && !m.split) {
       for (let i = 0; i < 2; i++) {
-        const kid = addMonster(run, { species: m.species, name: "작은 " + m.name, traits: m.traits.filter((t) => t !== "분열"), palette: m.palette, hp: Math.max(4, Math.round(m.max * 0.3)), atk: m.atk * 0.5, rate: m.rate }, m.c, m.r);
+        const nb = WP[m.w].nb[i] ?? m.w;
+        const kid = addMonster(run, { species: m.species, name: "작은 " + m.name, traits: m.traits.filter((t) => t !== "분열"), palette: m.palette, hp: Math.max(4, Math.round(m.max * 0.3)), atk: m.atk * 0.5, rate: m.rate }, nb);
         kid.split = true;
       }
     }
@@ -754,27 +784,28 @@ function updateMonster(run, meta, m, dt) {
   m.hitT = Math.max(0, m.hitT - dt);
   m.atkT = Math.max(0, m.atkT - dt);
   if (m.buffT > 0) m.buffT -= dt;
-  const rm = room(run, m.c, m.r);
+  const rm = roomOf(run, m.w);
   if (ROOMS[rm.type].regen) m.hp = Math.min(m.max, m.hp + ROOMS[rm.type].regen * dt);
   if (has(m, "치유")) {
     m.healT -= dt;
     if (m.healT <= 0) {
       m.healT = 2;
-      for (const o of monstersIn(run, m.c, m.r)) o.hp = Math.min(o.max, o.hp + MON.traits["치유"].heal);
-      run.events.push({ t: "fx", id: "monHeal", c: m.c, r: m.r });
+      for (const o of monstersNear(run, m.w, 40)) o.hp = Math.min(o.max, o.hp + MON.traits["치유"].heal);
+      run.events.push({ t: "fx", id: "monHeal", w: m.w });
     }
   }
   if (m.cd > 0) return;
-  const targets = advsNear(run, m.c, m.r, reachOf(m));
+  const targets = advsNear(run, m.w, reachOf(m));
   if (!targets.length) return;
   m.cd = m.rate;
   m.atkT = 0.25;
-  const a = targets.sort((p, q) => dist(advCell(p), [m.c, m.r]) - dist(advCell(q), [m.c, m.r]) || p.hp - q.hp)[0];
-  const crowns = monstersIn(run, m.c, m.r).filter((o) => o !== m && has(o, "왕관")).length;
+  const a = targets.sort((p, q) => advDist(p, m.w) - advDist(q, m.w) || p.hp - q.hp)[0];
+  m.face = advPos(a)[0] > WP[m.w].x ? 1 : -1;
+  const crowns = monstersNear(run, m.w, 40).filter((o) => o !== m && has(o, "왕관")).length;
   let dmg = m.atk * (m.buffT > 0 ? 2 : 1) * (1 + crowns * MON.traits["왕관"].aura);
   const el = monsterEl(m);
   run.events.push({ t: "monAtk", mid: m.id, target: a.id, el, x: advPos(a)[0], y: advPos(a)[1] });
-  const done = deal(run, meta, a, dmg, el, { kind: "monster", mid: m.id, key: key(m.c, m.r) });
+  const done = deal(run, meta, a, dmg, el, { kind: "monster", mid: m.id, w: m.w });
   for (const t of m.traits) {
     const T = MON.traits[t];
     if (T.burn) { a.burnT = T.burn[1]; a.burnDps = Math.max(a.burnDps, T.burn[0]); }
@@ -785,31 +816,30 @@ function updateMonster(run, meta, m, dt) {
   }
 }
 
-function updateCard(run, meta, rm, c, r, dt) {
-  const card = rm.card, d = CARDS[card.id];
-  if (card.disabledT > 0) { card.disabledT -= dt; return; }
-  card.cd -= dt;
-  if (d.trigger !== "interval" || card.cd > 0) return;
-  const RD = ROOMS[rm.type];
-  const range = d.range ?? 0;
-  let targets = range ? advsNear(run, c, r, range) : advsIn(run, c, r);
-  if (!targets.length) { card.cd = 0; return; }
-  card.cd = d.interval;
-  const src = { kind: "card", id: card.id, key: key(c, r) };
+function updateCard(run, meta, cd, dt) {
+  const d = CARDS[cd.id];
+  if (cd.disabledT > 0) { cd.disabledT -= dt; return; }
+  cd.cd -= dt;
+  if (d.trigger !== "interval" || cd.cd > 0) return;
+  const z = zoneOf(cd.w), RD = ROOMS[run.rooms[z].type];
+  let targets = advsNear(run, cd.w, cardRadius(d));
   let mode = d.target;
   // water carries lightning to everyone in the room
   const chained = RD.chain && RD.chain === d.el && mode === "one";
-  if (chained) mode = "all";
-  if (mode === "one") targets = [targets.sort((p, q) => dist(advCell(p), [c, r]) - dist(advCell(q), [c, r]) || p.hp - q.hp)[0]];
-  if (mode === "chain") targets = targets.sort((p, q) => dist(advCell(p), [c, r]) - dist(advCell(q), [c, r])).slice(0, d.chain);
-  run.events.push({ t: "trap", id: card.id, c, r, targets: targets.map((a) => a.id), chained, positions: targets.map(advPos) });
-  if (chained && targets.length) run.events.push({ t: "synergy", c, r, text: "물 + 번개! 피해 ×2" });
+  if (chained) { mode = "all"; targets = run.advs.filter((a) => targetable(a) && zoneOfAdv(a) === z); }
+  if (!targets.length) { cd.cd = 0; return; }
+  cd.cd = d.interval;
+  const src = { kind: "card", id: cd.id, w: cd.w };
+  if (mode === "one") targets = [targets.sort((p, q) => advDist(p, cd.w) - advDist(q, cd.w) || p.hp - q.hp)[0]];
+  if (mode === "chain") targets = targets.sort((p, q) => advDist(p, cd.w) - advDist(q, cd.w)).slice(0, d.chain);
+  run.events.push({ t: "trap", id: cd.id, w: cd.w, targets: targets.map((a) => a.id), chained, positions: targets.map(advPos) });
+  if (chained && targets.length) run.events.push({ t: "synergy", w: cd.w, text: "물 + 번개! 피해 ×2" });
   for (const a of targets) {
     if (d.dmg) deal(run, meta, a, d.dmg, d.el, src);
     if (!targetable(a)) continue;
     if (d.fear) scare(run, meta, a, d.fear);
     if (d.burn) { a.burnT = d.burn[1]; a.burnDps = Math.max(a.burnDps, d.burn[0]); }
-    if (d.poison) { a.poisonT = d.poison[1] * (ROOMS[rm.type].mods?.poison ?? 1); a.poisonDps = Math.min(5, a.poisonDps + d.poison[0]); }
+    if (d.poison) { a.poisonT = d.poison[1] * (RD.mods?.poison ?? 1); a.poisonDps = Math.min(5, a.poisonDps + d.poison[0]); }
     if (d.slow) { a.slowT = d.slow[1] * (RD.slowMul ?? 1); a.slowK = Math.max(a.slowK, d.slow[0]); }
   }
 }
@@ -832,10 +862,10 @@ function endNight(run, meta, survived) {
     return;
   }
   // dawn: settle up, heal the monsters, count the treasure
-  const treasure = run.rooms.filter((rm) => rm?.type === "treasure").length * ROOMS.treasure.manaPerDay;
+  const treasure = Object.values(run.rooms).filter((rm) => rm.open && rm.type === "treasure").length * ROOMS.treasure.manaPerDay;
   run.mana = Math.min(run.manaMax, run.mana + treasure);
   for (const m of run.monsters) if (m.hp > 0) m.hp = m.max;
-  for (const rm of run.rooms) if (rm?.card) { rm.card.disabledT = 0; if (CARDS[rm.card.id].hp) rm.card.hp = Math.max(rm.card.hp, CARDS[rm.card.id].hp * 0.5); }
+  for (const cd of run.cards) { cd.disabledT = 0; if (CARDS[cd.id].hp) cd.hp = Math.max(cd.hp, CARDS[cd.id].hp * 0.5); }
   run.dawn = { day: run.day, treasure, diaries: run.diaries.filter((d) => d.day === run.day).length, spared: run.spared, rumor: rumorOf(run) };
   run.phase = "dawn";
   run.events.push({ t: "dawn" });
@@ -861,30 +891,31 @@ function roomOptions(run, meta, R) {
   const pool = Object.keys(ROOMS).filter((id) => !["hall", "entrance", "heart", "secret", "sealed"].includes(id) && unlocked(meta, ROOMS[id]));
   const out = shuffle(R, pool).slice(0, BAL.room.options);
   const sealedLeft = !meta.records.includes("k_mage1") || (meta.powers.length >= 8 && !meta.records.includes("k_abyss"));
-  if (sealedLeft && !run.rooms.some((rm) => rm?.type === "sealed") && R.chance(0.25)) out[R.int(out.length)] = "sealed";
+  if (sealedLeft && !Object.values(run.rooms).some((rm) => rm.type === "sealed") && R.chance(0.25)) out[R.int(out.length)] = "sealed";
   return out;
 }
+/** Chambers a room card could go into: an empty one, or a collapsed one next to the open cave (digging it out). */
 export function roomTargets(run, type) {
-  const out = [];
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (canPlaceRoom(run, type, c, r)) out.push([c, r]);
-  return out;
+  return Object.keys(ZONES).filter((z) => canPlaceRoom(run, type, z));
 }
-export function canPlaceRoom(run, type, c, r) {
-  const rm = room(run, c, r);
-  if (rm) return rm.type === "hall";
-  if (!inGrid(c, r)) return false;
-  return neighbors(run, c, r).some(([nc, nr]) => room(run, nc, nr).type !== "secret");
+export function canPlaceRoom(run, type, zid) {
+  const z = ZONES[zid], rm = run.rooms[zid];
+  if (!z || z.kind !== "chamber") return false;
+  if (rm.open) return rm.type === "hall";
+  return zoneLinks(zid).some(({ other }) => run.rooms[other]?.open && ZONES[other].kind !== "secret");
 }
-export function placeRoom(run, meta, type, c, r) {
-  if (!canPlaceRoom(run, type, c, r)) return false;
-  const old = room(run, c, r);
-  run.rooms[key(c, r)] = { type, card: old?.card ?? null };
+export function placeRoom(run, meta, type, zid) {
+  if (!canPlaceRoom(run, type, zid)) return false;
+  const dug = !run.rooms[zid].open;
+  run.rooms[zid] = { type, open: true };
+  refreshTunnels(run);
   run.roomPicked = true;
-  run.events.push({ t: "room", c, r, type });
-  if (type === "sealed") openSecret(run, meta, c, r, sealedRecord(meta));
+  run.events.push({ t: "room", z: zid, type, dug });
+  if (type === "sealed") openSecret(run, meta, zid, sealedRecord(meta));
   for (const cb of STORY.combos) {
     if (meta.records.includes(cb.record)) continue;
-    if (comboAt(run, cb.rooms)) { const at = comboAt(run, cb.rooms); openSecret(run, meta, at[0], at[1], cb.record); }
+    const at = comboAt(run, cb.rooms);
+    if (at) openSecret(run, meta, at, cb.record);
   }
   return true;
 }
@@ -894,17 +925,19 @@ function sealedRecord(meta) {
   return null;
 }
 function comboAt(run, [a, b]) {
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-    if (room(run, c, r)?.type !== a) continue;
-    for (const [nc, nr] of neighbors(run, c, r)) if (room(run, nc, nr).type === b) return [c, r];
+  for (const z of Object.keys(ZONES)) {
+    if (!run.rooms[z].open || run.rooms[z].type !== a) continue;
+    // two rooms count as neighbours when one tunnel joins them
+    for (const { other } of zoneLinks(z)) if (run.rooms[other]?.open && run.rooms[other].type === b) return z;
   }
   return null;
 }
-function openSecret(run, meta, c, r, record) {
-  // the wall splits and blue light leaks out: a secret room in the rock next door
-  const spot = N4.map(([dc, dr]) => [c + dc, r + dr]).find(([x, y]) => inGrid(x, y) && !room(run, x, y));
-  if (spot) run.rooms[key(...spot)] = { type: "secret", card: null };
-  run.events.push({ t: "secret", c: spot?.[0] ?? c, r: spot?.[1] ?? r, record });
+function openSecret(run, meta, near, record) {
+  // the wall splits and blue light leaks out: a hidden prayer room in the rock
+  const hidden = Object.values(ZONES).filter((z) => z.kind === "secret" && !run.rooms[z.id].open);
+  const pick = hidden.find((z) => zoneLinks(z.id).some(({ other }) => other === near)) ?? hidden[0];
+  if (pick) { run.rooms[pick.id].open = true; refreshTunnels(run); }
+  run.events.push({ t: "secret", z: pick?.id ?? near, record });
   grantRecord(run, meta, record);
 }
 
@@ -966,7 +999,7 @@ function finishRun(run, meta, win) {
   const S = BAL.souls;
   const days = win ? run.day : run.day - 1;
   let souls = S.base + Math.floor(days / S.daysPer) + Math.floor(run.kills / S.killsPer) + (win ? S.win : 0) + Math.floor(run.spared / S.sparedPer);
-  if (run.rooms.some((rm) => rm?.type === "library")) souls += ROOMS.library.soulBonus;
+  if (Object.values(run.rooms).some((rm) => rm.open && rm.type === "library")) souls += ROOMS.library.soulBonus;
   meta.souls += souls;
   meta.runs++;
   meta.killedTotal += run.kills;

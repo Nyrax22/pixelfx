@@ -7,6 +7,7 @@ import { cardIcon, chibi } from "./sprites.js";
 import * as A from "./audio.js";
 import { save, load, exportSave, importSave, wipe } from "./save.js";
 import { playPrologue } from "./prologue.js";
+import * as M from "./map.js";
 
 const $ = (id) => document.getElementById(id);
 function h(tag, cls, html) {
@@ -165,7 +166,7 @@ function selectCard(i) {
   if (!run || mode !== "run") return;
   A.initAudio();
   if (placingRoom) return;
-  if (selected === i) { selected = -1; R.highlights = []; R.range = []; handSig = ""; return; }
+  if (selected === i) { selected = -1; clearAim(); handSig = ""; return; }
   const card = run.hand[i];
   if (!card) return;
   const def = S.cardDef(card);
@@ -173,76 +174,83 @@ function selectCard(i) {
   if ((def.kind === "spell" || def.kind === "support") && run.phase !== "wave" && run.phase !== "night_pick") { A.sfx("deny"); toast("마법과 회복 카드는 밤에 써요"); return; }
   const tg = S.cardTargets(run, card);
   if (tg === null) {
-    const r = S.playCard(run, meta, i, 0, 0);
+    const r = S.playCard(run, meta, i, null);
     if (!r.ok) { toast(r.why); A.sfx("deny"); }
     handSig = "";
     return;
   }
   A.sfx("hover");
   selected = i;
-  R.highlights = tg;
+  clearAim();
+  R.targets = tg; R.hoverCard = def;
   handSig = "";
-  if (!tg.length) toast("놓을 수 있는 방이 없어요");
+  if (!tg.length) toast("놓을 수 있는 곳이 없어요");
 }
 
 // ---------------------------------------------------------------- canvas input
-function cellFromEvent(ev) {
+function worldFromEvent(ev) {
   const cr = $("cv").getBoundingClientRect();
-  const [x, y] = R.screenToWorld(ev.clientX - cr.left, ev.clientY - cr.top);
-  return R.cellAt(x, y);
+  return R.screenToWorld(ev.clientX - cr.left, ev.clientY - cr.top);
 }
-function rangeCells(c, r, range) {
-  const out = [];
-  for (let y = 0; y < S.ROWS; y++) for (let x = 0; x < S.COLS; x++) if (Math.abs(x - c) + Math.abs(y - r) <= range && S.room(run, x, y)) out.push([x, y]);
-  return out;
+/** The floor spot under the pointer: people point at the middle of a tunnel, so look a little below. */
+function spotAt(x, y) {
+  const valid = R.targets ? new Set(R.targets) : null;
+  let w = valid ? M.nearestWp(x, y + 12, 30, (p) => valid.has(p.id)) : null;
+  if (w == null) w = M.nearestWp(x, y + 12, 30, (p) => S.isOpenW(run, p.id));
+  return w;
 }
+function clearAim() { R.targets = null; R.zoneTargets = []; R.hoverW = null; R.hoverZone = null; R.hoverCard = null; }
 $("cv").addEventListener("pointermove", (ev) => {
   if (mode !== "run" || !run) return;
-  const cell = cellFromEvent(ev);
-  R.hover = cell;
-  R.range = [];
+  const [x, y] = worldFromEvent(ev);
   R.hoverBad = false;
-  if (!cell) return;
+  R.hoverW = null; R.hoverZone = null;
   if (selected >= 0 && run.hand[selected]) {
-    const card = run.hand[selected], def = S.cardDef(card);
-    R.hoverBad = !S.canPlay(run, card, ...cell).ok;
-    if (def.range) R.range = rangeCells(cell[0], cell[1], def.range);
-    if (def.kind === "spell" && def.radius) R.range = rangeCells(cell[0], cell[1], 1);
-    const rm = S.room(run, ...cell);
-    if (rm && !R.hoverBad) hint(synergyHint(def, rm) || "빛나는 방을 눌러 놓으세요 · 카드를 다시 누르면 취소");
+    const card = run.hand[selected], def = S.cardDef(card), w = spotAt(x, y);
+    R.hoverCard = def;
+    if (w == null) return;
+    R.hoverW = w;
+    R.hoverBad = !S.canPlay(run, card, w).ok;
+    const rm = S.roomOf(run, w);
+    if (rm && !R.hoverBad) hint(synergyHint(def, rm) || "빛나는 바닥 어디든 눌러 놓으세요 · 카드를 다시 누르면 취소");
   } else if (placingRoom) {
-    R.hoverBad = !S.canPlaceRoom(run, placingRoom, ...cell);
+    R.hoverZone = M.zoneAtXY(x, y, (z) => z.kind === "chamber");
+    R.hoverBad = R.hoverZone ? !S.canPlaceRoom(run, placingRoom, R.hoverZone) : false;
   }
 });
-$("cv").addEventListener("pointerleave", () => { R.hover = null; R.range = []; });
+$("cv").addEventListener("pointerleave", () => { R.hoverW = null; R.hoverZone = null; });
 $("cv").addEventListener("pointerup", (ev) => {
   A.initAudio();
-  if (mode === "prologue") return prologue?.tap(cellFromEvent(ev));
+  const [x, y] = worldFromEvent(ev);
+  if (mode === "prologue") return prologue?.tap(x, y);
   if (mode !== "run" || !run) return;
-  const cell = cellFromEvent(ev);
-  if (!cell) return;
   if (placingRoom) {
-    if (S.placeRoom(run, meta, placingRoom, ...cell)) {
+    const z = M.zoneAtXY(x, y, (q) => R.zoneTargets.includes(q.id)) ?? M.zoneAtXY(x, y, (q) => q.kind === "chamber");
+    if (z && S.placeRoom(run, meta, placingRoom, z)) {
       A.sfx("room");
       placingRoom = null;
-      R.highlights = [];
+      clearAim();
       dayReady();
-    } else { A.sfx("deny"); toast("통로나 방 옆의 빈 바위에만 놓을 수 있어요"); }
+    } else { A.sfx("deny"); toast("빛나는 석실에만 놓을 수 있어요 · 무너진 석실은 열린 동굴과 이어져 있어야 파낼 수 있어요"); }
     return;
   }
   if (selected >= 0) {
-    const res = S.playCard(run, meta, selected, ...cell);
-    if (res.ok) { selected = -1; R.highlights = []; R.range = []; handSig = ""; hint(""); }
+    const w = spotAt(x, y);
+    const res = w == null ? { ok: false, why: "동굴 바닥을 눌러 주세요" } : S.playCard(run, meta, selected, w);
+    if (res.ok) { selected = -1; clearAim(); handSig = ""; hint(""); }
     else { A.sfx("deny"); toast(res.why ?? "여기엔 쓸 수 없어요"); }
     return;
   }
   // nothing selected: tell them what's here
-  const rm = S.room(run, ...cell);
+  const w = M.nearestWp(x, y + 12, 40);
+  if (w == null) return;
+  const zid = S.zoneOf(w), z = S.ZONES[zid], rm = run.rooms[zid];
   if (!rm) return;
+  if (!rm.open) { toast(`<b>${esc(z.name ?? "무너진 굴")}</b> · 무너져 막혀 있다. 낮에 방 카드를 놓으면 파낼 수 있다`); return; }
   const D = S.ROOMS[rm.type];
-  let txt = `<b>${esc(D.name)}</b> · ${esc(D.desc)}`;
-  if (rm.card) { const cd = S.CARDS[rm.card.id]; txt += `<br>${esc(cd.name)}: ${esc(cd.desc)}${rm.card.disabledT > 0 ? " <span style='color:#ff8a6a'>(해제됨)</span>" : ""}`; }
-  for (const m of S.monstersIn(run, ...cell)) txt += `<br>${esc(m.name ?? S.MON.species[m.species].name)} ${Math.ceil(m.hp)}/${m.max}${m.traits.length ? " · " + m.traits.map((t) => "#" + t).join(" ") : ""}`;
+  let txt = `<b>${esc(z.name && rm.type === "hall" ? z.name : D.name)}</b> · ${esc(D.desc)}`;
+  for (const cd of run.cards.filter((c) => M.distW(c.w, w) < 30)) { const d = S.CARDS[cd.id]; txt += `<br>${esc(d.name)}: ${esc(d.desc)}${cd.disabledT > 0 ? " <span style='color:#ff8a6a'>(해제됨)</span>" : ""}`; }
+  for (const m of S.monstersNear(run, w, 30)) txt += `<br>${esc(m.name ?? S.MON.species[m.species].name)} ${Math.ceil(m.hp)}/${m.max}${m.traits.length ? " · " + m.traits.map((t) => "#" + t).join(" ") : ""}`;
   toast(txt);
 });
 function synergyHint(def, rm) {
@@ -254,7 +262,7 @@ function synergyHint(def, rm) {
 }
 addEventListener("keydown", (ev) => {
   if (mode !== "run" || !run || modalOpen) return;
-  if (ev.key === "Escape") { selected = -1; R.highlights = placingRoom ? R.highlights : []; handSig = ""; }
+  if (ev.key === "Escape" && !placingRoom) { selected = -1; clearAim(); handSig = ""; }
   const n = parseInt(ev.key, 10);
   if (n >= 1 && n <= 9) selectCard(n - 1);
   if (ev.key === " ") { ev.preventDefault(); toggleSpeed(); }
@@ -278,7 +286,7 @@ $("roarBtn").onclick = () => { A.initAudio(); doRoar(); };
 $("goBtn").onclick = () => {
   if (!run || run.phase !== "day") return;
   A.initAudio();
-  selected = -1; R.highlights = [];
+  selected = -1; clearAim();
   S.startNight(run, meta);
 };
 addEventListener("pointerdown", () => A.initAudio(), { once: false });
@@ -319,7 +327,7 @@ function handle(e) {
       break;
     case "loot": A.sfx("coin"); break;
     case "disarm":
-      R.onText(...R.gw(e.c, e.r).map((v, i) => v - (i ? 26 : 0)), "해제 중…", "warn");
+      R.onText(S.wpXY(e.w)[0], S.wpXY(e.w)[1] - 44, "해제 중…", "warn");
       if (!seen.has("disarm")) { seen.add("disarm"); toast("도적이 함정을 해제하려 한다! 해제하는 동안은 무방비 상태다"); }
       break;
     case "shriek": A.sfx("shriek"); break;
@@ -364,7 +372,7 @@ function syncMercy() {
 
 // ---------------------------------------------------------------- phases
 function onPhase(ph) {
-  selected = -1; R.highlights = []; R.range = []; handSig = "";
+  selected = -1; clearAim(); handSig = "";
   switch (ph) {
     case "night_pick":
       R.nightTarget = 1;
@@ -399,7 +407,7 @@ function showPick() {
       e.onclick = () => { closeModal(); S.choosePick(run, meta, i); };
       ch.appendChild(e);
     });
-    if (run.first && run.day === 1 && run.wave === 0) pn.appendChild(h("div", "legend", "고른 카드는 손에 들어오고, 마나를 써서 방에 놓아요"));
+    if (run.first && run.day === 1 && run.wave === 0) pn.appendChild(h("div", "legend", "고른 카드는 손에 들어오고, 마나를 써서 동굴 바닥 어디에든 놓아요"));
   });
 }
 
@@ -520,15 +528,16 @@ function showRoomDraft() {
   openModal((m) => {
     const pn = m.appendChild(h("div", "panel"));
     pn.appendChild(h("h2", "", `${run.day}일째 낮: 던전 설계`));
-    pn.appendChild(h("div", "sub", "방 카드 한 장을 골라 던전에 붙이세요"));
+    pn.appendChild(h("div", "sub", "방 카드 한 장을 골라 석실에 새기거나, 무너진 굴을 파내세요"));
     const ch = pn.appendChild(h("div", "choices"));
     run.roomOffer.forEach((type) => {
       const e = roomCardEl(type);
       e.onclick = () => {
         closeModal();
         placingRoom = type;
-        R.highlights = S.roomTargets(run, type);
-        hint(`${S.ROOMS[type].name}: 통로를 바꾸거나 방 옆 바위를 파서 놓으세요`);
+        clearAim();
+        R.zoneTargets = S.roomTargets(run, type);
+        hint(`${S.ROOMS[type].name}: 빈 석실을 바꾸거나, 무너진 석실을 파내서 새 길을 여세요`);
         A.sfx("pick");
       };
       ch.appendChild(e);
@@ -542,8 +551,8 @@ function showEnd() {
   R.breach = res.breach;
   if (!res.win) {
     // the party celebrates: they got the treasure
-    const [hx, hy] = [S.HEART[0], S.HEART[1]];
-    run.advs = [0, 1, 2, 3].map((i) => ({ id: 9000 + i, cls: ["warrior", "rogue", "mage", "cleric"][i], cell: [hx, hy], next: null, prog: 0, lane: i / 1.5 - 1, hp: 1, max: 1, courage: 1, courageMax: 1, gear: [], state: "walk", frozenT: 0, burnT: 0, poisonT: 0, hitT: 0, cheer: true, spare: null }));
+    const K = S.ZONES.K.wps, hx = S.wpXY(S.HEART_WP)[0];
+    run.advs = [0, 1, 2, 3].map((i) => ({ id: 9000 + i, cls: ["warrior", "rogue", "mage", "cleric"][i], cell: K[[1, 4, K.length - 5, K.length - 2][i]], next: null, prog: 0, lane: 0, face: S.WP[K[[1, 4, K.length - 5, K.length - 2][i]]].x < hx ? 1 : -1, hp: 1, max: 1, courage: 1, courageMax: 1, gear: [], state: "walk", frozenT: 0, burnT: 0, poisonT: 0, hitT: 0, cheer: true, spare: null }));
     A.sfx("stamp");
   } else {
     for (let i = 0; i < 5; i++) setTimeout(() => R.spawn("firework", R.cam.x + (Math.random() - 0.5) * 220, R.cam.y - 20 + (Math.random() - 0.5) * 80, {}, "over"), i * 350);
@@ -648,7 +657,7 @@ function showHelp(back) {
     pn.appendChild(h("div", "", `<div style="text-align:left;line-height:1.6;font-size:15px">
       ♥ 침입자가 심장에 닿으면 한 대 치고 보물을 들고 달아나요. 심장이 부서지면 끝.<br>
       🌙 밤이 시작될 때와 웨이브를 막을 때마다 방어 카드 3장 중 1장을 골라요.<br>
-      ◆ 카드는 마나를 써서 방에 놓아요. 마나는 밤 동안 천천히 차고, 침입자를 쓰러뜨리면 더 들어와요.<br>
+      ◆ 카드는 마나를 써서 동굴 바닥 어디에든 놓아요. 칸은 없어요. 원이 효과 범위예요. 마나는 밤 동안 천천히 차고, 침입자를 쓰러뜨리면 더 들어와요.<br>
       ☀ 낮에는 몬스터를 교배하고, 방 카드로 던전을 넓혀요. 방과 카드가 맞물리면 더 강해져요.<br>
       🕊 겁먹은 모험가는 살려 보낼 수도, 끝장낼 수도 있어요. 살아 나간 자는 길드에 대처법을 알려요.<br>
       ✦ 이기든 지든 영혼을 얻고, 봉인당한 힘 20개를 하나씩 되찾아요.<br>
@@ -796,6 +805,7 @@ function startPrologue(after) {
     done() {
       document.body.classList.remove("cine");
       meta.seenPrologue = true;
+      meta.prologueV = 2;
       save(meta, null);
       prologue = null;
       after();
@@ -805,7 +815,7 @@ function startPrologue(after) {
       const fade = () => { R.gray = Math.max(0, 1 - (performance.now() - t0) / 3500); if (R.gray > 0) requestAnimationFrame(fade); };
       requestAnimationFrame(fade);
       if (mode === "run") {
-        subtitle("기억은 흐릿하다. 인간에게 배신당했다는 감정만이 선명하다.");
+        subtitle("이번에는 사랑받으려 하지 않겠다. 두려움을 새기겠다.");
         setTimeout(() => subtitle(""), 4200);
       }
     },
@@ -816,11 +826,11 @@ function startPrologue(after) {
 function boot() {
   // fonts load without blocking the first frame
   document.querySelectorAll('link[media="print"]').forEach((l) => (l.media = "all"));
-  if (/skipprologue/.test(location.search)) meta.seenPrologue = true;
+  if (/skipprologue/.test(location.search)) { meta.seenPrologue = true; meta.prologueV = 2; }
   fit();
   requestAnimationFrame(frame);
-  if (!meta.seenPrologue) {
-    startPrologue(() => startRun());
+  if (!meta.seenPrologue || (meta.prologueV ?? 1) < 2) {
+    startPrologue(() => (run && run.phase !== "end" ? resumeRun(run) : startRun()));
   } else if (run && run.phase !== "end") {
     resumeRun(run);
     toast("지난 판을 이어서 해요");
