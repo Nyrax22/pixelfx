@@ -244,6 +244,10 @@ export class Renderer {
         rate = 2.2;
       }
       if (tz * dpr >= 2) tz = Math.floor(tz * dpr * 2) / (dpr * 2);
+      // never show past the edge of the world when the world is wide enough to fill the screen
+      { const hw = this.vw / (2 * tz), hh = this.vh / (2 * tz);
+        if (this.W > hw * 2) tx = Math.max(hw, Math.min(this.W - hw, tx));
+        if (this.H > hh * 2) ty = Math.max(hh, Math.min(this.H - hh, ty)); }
     }
     if (this.focus) {
       // a quick punch-in toward something that matters, easing back out
@@ -331,6 +335,16 @@ export class Renderer {
         g.fillStyle = i % 2 ? "#c8d0e0" : "#8a92a8";
         if (i % 2) g.fillRect(x - 1, y - 2, 3, 4); else g.fillRect(x - 2, y - 1, 4, 3);
         g.fillStyle = "#14161f"; g.fillRect(x, y, 1, 1);
+      }
+      // the chains drink: beads of blood climbing from the heart up toward the sky
+      if (this.chainDrain && ch.t >= 1) {
+        const L = Math.hypot(ch.x1 - ch.x0, ch.y1 - ch.y0);
+        for (let k = 0; k < 6; k++) {
+          const s = 1 - ((this.t * 0.35 + k / 6 + ch.x0 * 0.001) % 1), x = ch.x0 + (ch.x1 - ch.x0) * s, y = ch.y0 + (ch.y1 - ch.y0) * s;
+          g.fillStyle = "#ff2a3a"; g.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+          g.fillStyle = "#ffb0b0"; g.fillRect(Math.round(x), Math.round(y) - 1, 1, 1);
+          if (L) this.lights.push({ x, y, r: 10, color: "255,40,60", life: 0.03, max: 0.03 });
+        }
       }
     }
   }
@@ -468,7 +482,7 @@ export class Renderer {
         if (e.id === "monHeal") { const [x, y] = at(e.w, -6); this.spawn("collect", x, y, { palette: ["#0a1f2e", "#0f3d52", "#14707e", "#1fa8a8", "#4fe0c8", "#a8fff0", "#e0fff8", "#ffffff"] }, "over"); }
         break;
       case "loot": { const a = advById(e.id); if (a) { const [x, y] = this.advXY(a); this.spawn("coinSpin", x, y - 46, {}, "over", 1.2); } break; }
-      case "spawn": { const [x, y] = this.gateXY; this.spawn("poof", x, y + 22, { palette: ["#06040a", "#140a1a", "#24142c", "#3a2442", "#5a3a5e", "#8a6a8a"] }, "over"); if (e.boss) this.shake = 0.5; break; }
+      case "spawn": if (e.boss) this.shake = 0.5; break;
       case "shriek": { const m = run.monsters.find((q) => q.id === e.mid); if (m) { const [x, y] = this.monXY(m); this.floatText(x, y - 26, "비명", "shriek"); } break; }
       case "synergy": { const [x, y] = at(e.w, -40); this.floatText(x, y, e.text, "synergy"); break; }
       case "scare": break;

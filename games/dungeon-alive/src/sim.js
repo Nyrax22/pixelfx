@@ -250,17 +250,22 @@ export function choosePick(run, meta, i) {
   return true;
 }
 
+const BANDS = ["왕국 토벌대", "잿빛 늑대 용병단", "성광 기사단 분대", "붉은 방패단", "심장 사냥꾼 조합", "왕실 채굴단 호위대"];
 function beginWave(run, meta) {
   const party = run.waves[run.wave];
   run.phase = "wave";
   run.spawnT = 0.6;
-  run.spawnQ = withRng(run, (R) => party.map((cls) => makeAdv(run, meta, cls, R)));
+  // they march in order: shields in front, healers at the back
+  const ORDER = { boss: 0, warrior: 1, rogue: 2, mage: 3, cleric: 4 };
+  run.spawnQ = withRng(run, (R) => [...party].sort((a, b) => ORDER[a] - ORDER[b]).map((cls) => makeAdv(run, meta, cls, R)));
+  run.spawnQ.forEach((a, i) => (a.lane = ((i % 3) - 1) * 0.8));
   // a nemesis sometimes joins: someone you let go, back with better gear
   if (!run.first && run.nemeses.length && withRng(run, (R) => R.chance(0.5))) {
     const n = run.nemeses.shift();
     run.spawnQ.push(withRng(run, (R) => makeAdv(run, meta, n.cls, R, n)));
   }
-  run.events.push({ t: "wave", n: run.wave + 1, of: run.waves.length, party: run.spawnQ.map((a) => a.cls) });
+  const band = withRng(run, (R) => R.pick(BANDS));
+  run.events.push({ t: "wave", n: run.wave + 1, of: run.waves.length, party: run.spawnQ.map((a) => a.cls), band, captain: run.spawnQ[0]?.name });
 }
 
 function makeAdv(run, meta, cls, R, nemesis = null) {
@@ -492,9 +497,7 @@ function checkFlee(run, a) {
   if (a.courage <= 0 || low) {
     a.state = "flee";
     a.spare = null;
-    a.mercyT = BAL.mercy.timeout;
     a.disarmT = 0; a.lootT = 0;
-    run.mercy.push(a.id);
     run.events.push({ t: "flee", id: a.id, name: a.name, cls: a.cls });
   }
 }
@@ -576,7 +579,7 @@ export function step(run, meta, dt) {
       const a = run.spawnQ.shift();
       run.advs.push(a);
       // they come in clumps: sometimes two at once, then a breath
-      run.spawnT = withRng(run, (R) => (R.chance(0.35) ? 0.08 : BAL.night.spawnGap * (0.6 + R.next() * 0.9)));
+      run.spawnT = BAL.night.spawnGap * 0.7;
       run.events.push({ t: "spawn", id: a.id, cls: a.cls, boss: a.boss, nemesis: a.nemesis, name: a.name });
     }
   }

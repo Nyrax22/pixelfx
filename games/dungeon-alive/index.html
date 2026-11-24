@@ -114,9 +114,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 #story img.on { opacity: 1; }
 #story img.go { transform: scale(var(--kz, 1.16)) translate(var(--kx, 0), var(--ky, 0)); }
 #story img.px { image-rendering: pixelated; }
+#story canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #story::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 50%, #000d 100%); }
 body.cine #subtitle { z-index: 21; font-family: var(--title); font-size: clamp(17px, 2.6vw, 26px); letter-spacing: .03em; }
-#subtitle .say { color: #ffd9c8; font-style: italic; }
+#subtitle.speech { color: #ffd9c8; font-style: italic; }
 #curtain { position: fixed; inset: 0; background: #000; z-index: 19; pointer-events: none; opacity: 0; transition: opacity 1.2s; display: flex; align-items: center; justify-content: center; font-size: 34px; color: #e8e0ff; }
 #curtain.on { opacity: 1; pointer-events: auto; }
 body.cine #hud, body.cine #tray { visibility: hidden; }
@@ -249,7 +250,7 @@ textarea.save { width: 100%; height: 90px; background: #0b0814; color: #c8c0e0; 
 <div id="subtitle"></div>
 <div class="abyss" id="abyss"><i style="left:44%"></i><i style="left:53%"></i></div>
 <div id="curtain"></div>
-<div id="story"><img alt=""><img alt=""></div>
+<div id="story"><canvas id="storyCv"></canvas></div>
 <div id="epic"></div>
 <div id="title"><div class="logo"></div><div class="tag">봉인된 심장의 복수</div></div>
 <script type="module" src="./src/main.js"></script>

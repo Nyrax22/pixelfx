@@ -101,6 +101,8 @@ export function sfx(name, arg = 0) {
     case "slam": tone(50, t, 0.5, { type: "sine", vol: 0.8, slide: 0.4 }); noise(t, 0.35, { vol: 0.5, freq: 260, type: "lowpass" }); tone(midi(arg || 48), t, 0.8, { type: "sawtooth", vol: 0.06 }); break;
     case "rumble": noise(t, 3.5, { vol: 0.5, freq: 90, type: "lowpass" }); tone(32, t, 3.5, { type: "sine", vol: 0.5, attack: 0.8 }); break;
     case "boomBig": noise(t, 1.4, { vol: 0.7, freq: 500, type: "lowpass", sweep: 0.12 }); tone(48, t, 1.2, { type: "sine", vol: 0.8, slide: 0.35 }); break;
+    case "ink": noise(t, 0.06, { vol: 0.06, freq: 500 + Math.random() * 300, type: "lowpass" }); tone(110 + Math.random() * 20, t, 0.07, { type: "sine", vol: 0.05, slide: 0.7 }); break;
+    case "key": tone(45, t, 0.9, { type: "sine", vol: 0.6, slide: 0.5 }); noise(t, 0.5, { vol: 0.35, freq: 180, type: "lowpass" }); tone(midi(38), t, 1.1, { type: "sawtooth", vol: 0.05 }); break;
     case "chime": [0, 7, 12, 19].forEach((n, i) => tone(midi(84 + n), t + i * 0.09, 1.2, { type: "sine", vol: 0.08 })); break;
   }
 }

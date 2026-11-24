@@ -8,6 +8,9 @@ import * as A from "./audio.js";
 import { save, load, exportSave, importSave, wipe } from "./save.js";
 import { playPrologue } from "./prologue.js";
 import * as M from "./map.js";
+import { kinetic, setKineticSound, KINETIC_CSS } from "./kinetic.js";
+{ const st = document.createElement("style"); st.textContent = KINETIC_CSS; document.head.appendChild(st); }
+setKineticSound((n) => A.sfx(n));
 
 const $ = (id) => document.getElementById(id);
 function h(tag, cls, html) {
@@ -66,12 +69,13 @@ function toast(text, onClick) {
 }
 function banner(text, sub = "") {
   const b = $("banner");
-  b.innerHTML = esc(text) + (sub ? `<small>${esc(sub)}</small>` : "");
+  b.innerHTML = `<span class="bt"></span>` + (sub ? `<small>${esc(sub)}</small>` : "");
+  kinetic(b.querySelector(".bt"), text, { speed: 45, quiet: true });
   b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
 }
 let hintText = "";
 function hint(t) { if (t !== hintText) { hintText = t; $("hint").textContent = t; } }
-function subtitle(t) { $("subtitle").style.opacity = t ? 1 : 0; if (t) $("subtitle").textContent = t; }
+function subtitle(t) { $("subtitle").style.opacity = t ? 1 : 0; if (t) kinetic($("subtitle"), t, { speed: 45 }); }
 
 function openModal(build, { force = false } = {}) {
   if (modalOpen && !force) { modalQueue.push(build); return; }
@@ -307,7 +311,7 @@ function handle(e) {
       if (e.boss) banner("봉인 기사 단장", "백 년 전 그날의 기사가 돌아왔다");
       else if (e.nemesis) toast(`<b style="color:#ff8a6a">숙적 ${esc(e.name)}</b>이(가) 더 강해져서 돌아왔다!`);
       break;
-    case "flee": A.sfx("babble", 400); showMercy(e); break;
+    case "flee": A.sfx("babble", 400); { const a = run.advs.find((x) => x.id === e.id); if (a) { const [x, y] = R.advXY(a); R.onText(x, y - 50, "도망친다!", "fear"); } } if (!seen.has("flee")) { seen.add("flee"); toast("겁먹은 침입자가 성문으로 달아난다. 나가기 전에 잡으면 길드에 소문이 퍼지지 않는다"); } break;
     case "spare": break;
     case "combo": A.sfx("combo", e.n - 3); comboText(e.n); break;
     case "roar": break;
@@ -319,7 +323,7 @@ function handle(e) {
     case "secret": A.sfx("secret"); banner("비밀 방이 열렸다", "벽 너머에서 푸른 빛이 새어 나온다"); break;
     case "place": A.sfx("place"); break;
     case "summon": A.sfx("summon"); break;
-    case "wave": A.sfx("wave"); banner(`웨이브 ${e.n}/${e.of}`, e.party.map(CLS).join(" · ")); break;
+    case "wave": A.sfx("horn"); banner(e.band, `대장 ${e.captain ?? "?"} · ${e.party.length}명 · 목표: 심장의 조각${e.of > 1 ? ` · ${e.n}/${e.of}진` : ""}`); break;
     case "waveClear": break;
     case "escape":
       if (!e.looter) toast(`${esc(e.name)}이(가) 살아서 나갔다.${e.learned ? ` 길드에 <b>${EL[e.learned] ?? e.learned}</b> 대처법이 퍼질 것이다.` : ""}`);
@@ -418,7 +422,7 @@ function showDawn() {
     pn.appendChild(h("h2", "", `${d.day}일째 밤을 버텼다`));
     pn.appendChild(h("div", "sub", "던전의 심장이 조금 더 단단해졌다"));
     const st = pn.appendChild(h("div", "stat"));
-    st.innerHTML = `<span>보물 방 마나</span><b>+${d.treasure}</b><span>주운 일기</span><b>${d.diaries}장</b><span>살려 보낸 모험가</span><b>${d.spared}명</b><span>쓰러뜨린 침입자</span><b>${run.kills}명</b>`;
+    st.innerHTML = `<span>보물 방 마나</span><b>+${d.treasure}</b><span>주운 일기</span><b>${d.diaries}장</b><span>도망쳐 나간 모험가</span><b>${d.spared}명</b><span>쓰러뜨린 침입자</span><b>${run.kills}명</b>`;
     pn.appendChild(h("div", "rumor", esc(d.rumor)));
     const row = pn.appendChild(h("div", "row"));
     const b = row.appendChild(h("button", "btn", "낮이 밝았다 ☀"));
@@ -659,7 +663,7 @@ function showHelp(back) {
       🌙 밤이 시작될 때와 웨이브를 막을 때마다 방어 카드 3장 중 1장을 골라요.<br>
       ◆ 카드는 마나를 써서 동굴 바닥 어디에든 놓아요. 칸은 없어요. 원이 효과 범위예요. 마나는 밤 동안 천천히 차고, 침입자를 쓰러뜨리면 더 들어와요.<br>
       ☀ 낮에는 몬스터를 교배하고, 방 카드로 던전을 넓혀요. 방과 카드가 맞물리면 더 강해져요.<br>
-      🕊 겁먹은 모험가는 살려 보낼 수도, 끝장낼 수도 있어요. 살아 나간 자는 길드에 대처법을 알려요.<br>
+      🏃 겁먹은 모험가는 성문으로 달아나요. 살아 나간 자는 길드에 대처법을 알리니, 나가기 전에 붙잡으세요.<br>
       ✦ 이기든 지든 영혼을 얻고, 봉인당한 힘 20개를 하나씩 되찾아요.<br>
       <span class="legend">단축키: 1~9 카드 고르기 · Esc 취소 · Space 속도</span></div>`));
     pn.appendChild(h("div", "row")).appendChild(h("button", "btn", "알겠어")).onclick = () => { closeModal(); back?.(); };
@@ -678,7 +682,7 @@ function showMeta() {
     const pn = m.appendChild(h("div", "panel"));
     pn.style.minWidth = "min(560px, 100%)";
     pn.appendChild(h("h2", "", "봉인의 방"));
-    pn.appendChild(h("div", "sub", `영혼 <b style="color:#c8b0ff">${meta.souls}</b> · ${meta.runs}번째 판을 마쳤다 · 살려 보낸 모험가 ${meta.sparedTotal}명`));
+    pn.appendChild(h("div", "sub", `영혼 <b style="color:#c8b0ff">${meta.souls}</b> · ${meta.runs}번째 판을 마쳤다 · 도망친 모험가 ${meta.sparedTotal}명`));
     const pw = pn.appendChild(h("div", "pw"));
     for (const p of S.POWERS) pw.appendChild(h("span", meta.powers.includes(p.id) ? "on" : "")).title = meta.powers.includes(p.id) ? p.name : "???";
     const nx = S.nextPower(meta);
@@ -815,7 +819,7 @@ function startPrologue(after) {
       const fade = () => { R.gray = Math.max(0, 1 - (performance.now() - t0) / 3500); if (R.gray > 0) requestAnimationFrame(fade); };
       requestAnimationFrame(fade);
       if (mode === "run") {
-        subtitle("이번에는 사랑받으려 하지 않겠다. 두려움을 새기겠다.");
+        subtitle("봉인이 약해졌다. 빼앗긴 것을 되찾을 시간이다.");
         setTimeout(() => subtitle(""), 4200);
       }
     },
