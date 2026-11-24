@@ -119,11 +119,11 @@
     "slowmoTimes": 2
   },
   "horde": {
-    "hp": 0.85,
+    "hp": 0.95,
     "atk": 0.8,
-    "base": 5,
-    "perDay": 1.5,
-    "max": 16
+    "base": 6,
+    "perDay": 2,
+    "max": 18
   },
   "roar": {
     "need": 10,
@@ -138,10 +138,10 @@
     "start": [
       "thorn",
       "thorn",
-      "thorn",
-      "strike",
+      "roll",
+      "roll",
+      "rockfall",
       "scream",
-      "spike",
       "slime"
     ],
     "hand": 5,
@@ -161,5 +161,18 @@
       "5": 2,
       "8": 3
     }
+  },
+  "phys": {
+    "flingMax": 560,
+    "grabCd": 5,
+    "holdMax": 2.2,
+    "perDay": 0.12,
+    "fallT": 230,
+    "fallK": 0.07,
+    "wallT": 170,
+    "wallK": 0.06,
+    "bowlV": 220,
+    "bowlK": 0.03,
+    "daze": 0.7
   }
 }

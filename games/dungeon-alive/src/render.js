@@ -40,6 +40,7 @@ import * as eggHatch from "../../../src/fx/spawn/egg-hatch.js";
 import * as fireflies from "../../../src/fx/weather/fireflies.js";
 import { CARDS, MON, advPos, HEART_WP, GATE_WP, ZONES, WP, wpXY, cardRadius, spellRadius, cardDef } from "./sim.js";
 import { W as MW, H as MH, GROUND } from "./map.js";
+import { ceilingAbove } from "./phys.js";
 import { paintCave, decoZone } from "./cave.js";
 import { chibi, cardIcon, diaryPage, INK } from "./sprites.js";
 import heartUrl from "../assets/heart.webp";
@@ -120,6 +121,7 @@ export class Renderer {
     this.g.imageSmoothingEnabled = false;
     const mk = (w = MW, h = MH) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
     this.caveCv = mk(MW * RS, MH * RS); this.darkCv = mk(); this.underCv = mk(); this.overCv = mk();
+    this.goreCv = mk(); this.goreG = this.goreCv.getContext("2d"); this.drips = []; this.caveMask = null; this.goreRun = null;
     this.under = createFrame(MW, MH); this.over = createFrame(MW, MH);
     this.underImg = new ImageData(MW, MH); this.overImg = new ImageData(MW, MH);
   }
@@ -134,6 +136,7 @@ export class Renderer {
   /** World position of an adventurer's feet, spread a little along the floor so a crowd reads as a crowd. */
   advXY(a) {
     const [x, y] = advPos(a);
+    if (a.fly) return [x, y];
     if (a.next == null) return [x + a.lane * 4, y];
     const A = WP[a.cell], B = WP[a.next], L = Math.hypot(B.x - A.x, B.y - A.y) || 1;
     return [x + ((B.x - A.x) / L) * a.lane * 5, y + ((B.y - A.y) / L) * a.lane * 5];
@@ -371,7 +374,8 @@ export class Renderer {
   // ---- the cave itself, repainted when it changes
   renderCave(run) {
     const p = paintCave(run, this.mode === "golden" ? "golden" : "normal");
-    this.torches = p.torches; this.gateXY = p.gate;
+    this.torches = p.torches; this.gateXY = p.gate; this.caveMask = p.mask;
+    if (this.goreRun !== run) { this.goreRun = run; this.goreG.clearRect(0, 0, MW, MH); this.drips = []; }
     const g = this.caveCv.getContext("2d");
     g.imageSmoothingEnabled = false;
     g.clearRect(0, 0, this.caveCv.width, this.caveCv.height);
@@ -418,7 +422,10 @@ export class Renderer {
         const dir = Math.sign(x - fx0) || (Math.random() < 0.5 ? -1 : 1);
         const pow = e.boss ? 0.6 : e.big ? 1.7 : 1.1;
         // the body gets thrown, spins, lands, and the soul leaves it
-        this.corpses.push({ spr: chibi(e.cls === "boss" ? "boss" : e.cls, 0, "scared"), k: e.boss ? 2 : 1, x, y: e.y, h: 4, vx: dir * (45 + Math.random() * 45) * pow, vh: (110 + Math.random() * 70) * pow, rot: 0, vr: dir * (7 + Math.random() * 7) * pow, bounces: 0, age: 0 });
+        const fv = e.fv;
+        this.corpses.push({ spr: chibi(e.cls === "boss" ? "boss" : e.cls, 0, "scared"), k: e.boss ? 2 : 1, x, y: e.y, h: 4, vx: fv ? fv[0] * 0.5 : dir * (45 + Math.random() * 45) * pow, vh: fv ? Math.max(60, -fv[1] * 0.4) : (110 + Math.random() * 70) * pow, rot: 0, vr: (fv ? Math.sign(fv[0] || 1) * 14 : dir * (7 + Math.random() * 7)) * pow, bounces: 0, age: 0 });
+        this.splat(x, e.y - 6, e.big || fv ? 70 : 40, 0, -0.3, 16);
+        this.pool(x, e.y, e.boss ? 16 : 9);
         if (e.execute) this.spawn("necro", x, y + 10, {}, "over", 1.2);
         if (e.big) this.stop(0.06);
         if (e.boss) { this.spawn("bigBoom", x, y + 10, {}, "over"); this.shake = 0.9; this.flash = 0.6; this.stop(0.35); this.slowmo(1.6); this.impact(x, y, 1.2); this.punch(x, y, 0.5); }
@@ -491,6 +498,28 @@ export class Renderer {
       case "shriek": { const m = run.monsters.find((q) => q.id === e.mid); if (m) { const [x, y] = this.monXY(m); this.floatText(x, y - 26, "비명", "shriek"); } break; }
       case "synergy": { const [x, y] = at(e.w, -40); this.floatText(x, y, e.text, "synergy"); break; }
       case "scare": break;
+      case "grab": { this.hand = { id: e.id, age: 0 }; this.stop(0.03); this.light(e.x, e.y - 12, 30, "255,40,60", 0.3); break; }
+      case "fling": { if (this.hand) this.hand.release = 0.0001; if (e.speed > 300) this.slowmo(0.18); break; }
+      case "tooHeavy": { const a = advById(e.id); if (a) { const [x, y] = this.advXY(a); this.floatText(x, y - 50, "너무 무겁다", "fear"); } break; }
+      case "slam": {
+        const k = Math.min(1, (e.v - 150) / 400), wall = e.kind === "wall", roof = e.kind === "roof";
+        const sx = wall ? e.x + Math.sign(e.vx || 1) * -3 : e.x, sy = wall ? e.y - 9 : roof ? e.y - 16 : e.y - 1;
+        this.splat(sx, sy, 60 + k * 220, wall ? -Math.sign(e.vx || 1) * 0.25 : 0, wall ? 0 : roof ? 0.4 : -0.5, 10 + k * 20);
+        if (wall) for (let i = 0; i < 2 + k * 4; i++) this.drips.push({ x: Math.round(sx + (Math.random() - 0.5) * 8), y: Math.round(sy + (Math.random() - 0.5) * 6), len: 0, max: 4 + Math.random() * (10 + k * 22), sp: 6 + Math.random() * 10 });
+        this.spawn("bluntHit", e.x, sy, {}, "over");
+        this.spawn("hitSpark", e.x, sy, { palette: PAL.blood, height: 10 + k * 8 }, "over");
+        this.shake = Math.max(this.shake, 0.2 + k * 0.6);
+        this.stop(0.04 + k * 0.1);
+        if (k > 0.55) { this.impact(e.x, sy, k * 0.7); this.punch(e.x, sy, k * 0.25); }
+       
+        break;
+      }
+      case "bowl": { this.spawn("bluntHit", e.x, e.y - 10, {}, "over"); this.shake = Math.max(this.shake, 0.3); this.stop(0.05); if (this.t - (this.bowlT ?? -9) > 0.8) { this.bowlT = this.t; this.floatText(e.x, e.y - 44, "볼링!", "synergy"); } break; }
+      case "land": break;
+      case "abyss": { this.floatText(e.x, 560, "심연으로", "fear"); break; }
+      case "rumble": { this.shake = Math.max(this.shake, 0.35); for (let i = 0; i < 14; i++) this.embers.push({ x: e.x + (Math.random() - 0.5) * 50, y: ceilingAbove(run.rooms, e.x, e.y - 4) + 2, vx: 0, vy: 30 + Math.random() * 60, age: 0, life: 0.6 + Math.random() * 0.5, dust: true }); break; }
+      case "rockHit": { this.spawn("bluntHit", e.x, e.y - 16, {}, "over"); this.splat(e.x, e.y - 12, 26, 0, -0.4, 10); this.shake = Math.max(this.shake, 0.25); this.stop(0.05); break; }
+      case "rockBreak": { this.spawn("dirtBoom", e.x, e.y, {}, "over", 0.7); if (e.kind === "roll") { this.shake = Math.max(this.shake, 0.35); } break; }
       case "claw": {
         this.claws.push({ x: e.x, y: e.y, age: 0, flip: Math.random() < 0.5 });
         this.spawn("hitSpark", e.x, e.y - 18, { palette: PAL.blood, height: 12 }, "over");
@@ -611,6 +640,8 @@ export class Renderer {
     g.imageSmoothingEnabled = false;
     this.drawSky();
     g.drawImage(this.caveCv, 0, 0, this.W, this.H);
+    this.growDrips();
+    g.drawImage(this.goreCv, 0, 0, this.W, this.H);
 
     const lowHp = run.heart.hp / Math.max(1, run.heart.max);
     const bpm = 56 + (1 - lowHp) * 90 + (run.phase === "wave" ? 20 : 0);
@@ -659,6 +690,8 @@ export class Renderer {
     // adventurers, back to front
     const advs = run.advs.filter((a) => !a.dead && !a.out).sort((p, q) => this.advXY(p)[1] - this.advXY(q)[1]);
     for (const a of advs) this.drawAdv(a, run);
+    for (const r of run.rocks ?? []) this.drawRock(r);
+    this.drawHand(run);
     for (const s of this.shots) this.drawShot(s);
     for (const f of this.floaters) this.drawFloater(f);
     for (const c of this.corpses) this.drawCorpse(c);
@@ -676,7 +709,7 @@ export class Renderer {
     if (this.pulses) for (const p of this.pulses) { g.strokeStyle = `rgba(200,90,255,${1 - p.age / 0.8})`; g.lineWidth = 1; g.beginPath(); g.ellipse(p.x, p.y, 6 + p.age * (p.r ?? 40), 2 + p.age * (p.r ?? 40) * 0.3, 0, 0, Math.PI * 2); g.stroke(); }
     for (const r of this.rings) this.drawRing(r);
     this.drawSeal();
-    for (const e of this.embers) { g.fillStyle = e.age / e.life < 0.5 ? "#ffb05a" : "#c8402a"; g.fillRect(Math.round(e.x), Math.round(e.y), 1, 1); }
+    for (const e of this.embers) { g.fillStyle = e.dust ? (e.age / e.life < 0.5 ? "#8a7a80" : "#4a3e44") : e.age / e.life < 0.5 ? "#ffb05a" : "#c8402a"; g.fillRect(Math.round(e.x), Math.round(e.y), 1, e.dust ? 2 : 1); }
     for (const o of this.orbs) this.drawOrb(o);
     for (const n of this.nums) this.drawNum(n);
 
@@ -810,12 +843,24 @@ export class Renderer {
     // shadow
     g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(Math.round(x - 6 * k), Math.round(y - 1), 12 * k, 2);
     g.save();
+    if (a.fly) {
+      // tumbling: spin with the flight, wriggle in the hand
+      const f = a.fly, rot = f.held ? Math.sin(this.t * 22 + a.id) * 0.35 : Math.atan2(f.vy, f.vx * 0.6 + 1e-3) * 0.6 + (Math.hypot(f.vx, f.vy) > 200 ? this.t * 14 * Math.sign(f.vx || 1) : 0);
+      g.translate(Math.round(x), Math.round(y - fullH / 2));
+      g.rotate(rot);
+      if (this.faceOf(a) < 0) g.scale(-1, 1);
+      g.drawImage(chibi(a.skin ?? (a.boss ? "boss" : a.cls), 0, "scared"), -w / 2, -fullH / 2, w, fullH);
+      g.restore();
+      if (!f.held && Math.hypot(f.vx, f.vy) > 260) { g.fillStyle = "rgba(255,255,255,0.25)"; for (let i = 1; i < 4; i++) g.fillRect(Math.round(x - f.vx * 0.012 * i) - 1, Math.round(y - 10 - f.vy * 0.012 * i), 2, 2); }
+      return;
+    }
     g.translate(Math.round(x + knock), Math.round(y + bob));
     if (this.faceOf(a) < 0) g.scale(-1, 1);
     g.drawImage(spr, -w / 2, -fullH, w, fullH);
     g.restore();
     if (a.hitT > 0) { g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.7; g.save(); g.translate(Math.round(x), Math.round(y)); if (this.faceOf(a) < 0) g.scale(-1, 1); g.drawImage(spr, -w / 2, -fullH, w, fullH); g.restore(); g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; }
-    if (a.frozenT > 0) { g.fillStyle = "rgba(150,220,255,0.45)"; g.fillRect(Math.round(x - w / 2), Math.round(y - h), w, h); }
+    if (a.dazeT > 0) { for (let i = 0; i < 3; i++) { const t = this.t * 7 + (i * Math.PI * 2) / 3; g.fillStyle = i ? "#ffe07a" : "#fff6c0"; g.fillRect(Math.round(x + Math.cos(t) * 7) - 1, Math.round(y - h - 3 + Math.sin(t) * 2), 2, 2); } }
+    else if (a.frozenT > 0) { g.fillStyle = "rgba(150,220,255,0.45)"; g.fillRect(Math.round(x - w / 2), Math.round(y - h), w, h); }
     if (a.burnT > 0 && Math.floor(this.t * 12) % 2) { g.fillStyle = "#ff8a2a"; g.fillRect(Math.round(x - 3 + Math.random() * 6), Math.round(y - h + 4), 2, 2); }
     if (a.poisonT > 0 && Math.floor(this.t * 8) % 3 === 0) { g.fillStyle = "#a6f06a"; g.fillRect(Math.round(x + 4), Math.round(y - h - 1), 2, 2); }
     if (a.npc || a.cheer) return;
@@ -830,6 +875,92 @@ export class Renderer {
     if (a.spare === true) this.tag(x, top - 10, "♥", "#ff9ab0");
     if (a.disarmT > 0) { this.bar(Math.round(x - 8), top - 6, 16, 1 - a.disarmT / 1.6, "#ffe07a"); }
     if (a.lootT > 0) { g.fillStyle = "#ffe07a"; g.fillRect(Math.round(x - 1 + Math.sin(this.t * 10) * 6), top - 6, 2, 2); }
+  }
+  // ---- gore that stays: blood on the back walls of the hollows, never on solid rock
+  splat(x, y, n, dx, dy, spread) {
+    const g = this.goreG, M = this.caveMask, C = ["#3a0408", "#58060c", "#7a0a12", "#9a1018", "#5a0a10", "#2a0206"];
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, r = Math.pow(Math.random(), 1.6) * spread;
+      const px = Math.round(x + Math.cos(a) * r + dx * r), py = Math.round(y + Math.sin(a) * r * 0.75 + dy * r);
+      if (px < 0 || py < 0 || px >= MW || py >= MH || (M && M[py * MW + px] !== 1)) continue;
+      g.fillStyle = C[(Math.random() * C.length) | 0];
+      g.fillRect(px, py, r < spread * 0.35 && Math.random() < 0.5 ? 2 : 1, 1);
+    }
+  }
+  pool(x, y, w) {
+    const g = this.goreG, M = this.caveMask;
+    for (let i = -w; i <= w; i++) for (let k = 0; k < 3; k++) {
+      const px = Math.round(x + i), py = Math.round(y - k);
+      if (Math.abs(i) > w - k * 2 - Math.random() * 3) continue;
+      if (px < 0 || py < 0 || px >= MW || py >= MH || (M && M[py * MW + px] !== 1)) continue;
+      g.fillStyle = k === 0 ? "#4a0408" : "#6a080e"; g.fillRect(px, py, 1, 1);
+    }
+  }
+  growDrips() {
+    if (!this.drips.length) return;
+    const g = this.goreG, M = this.caveMask, dt = 1 / 60;
+    for (const d of this.drips) {
+      const before = Math.floor(d.len);
+      d.len = Math.min(d.max, d.len + d.sp * dt);
+      d.sp *= 0.99;
+      for (let k = before; k <= Math.floor(d.len); k++) {
+        const py = d.y + k;
+        if (py >= MH || (M && M[py * MW + d.x] !== 1)) { d.len = d.max; break; }
+        g.fillStyle = k === Math.floor(d.len) ? "#8a0c14" : "#4a0408"; g.fillRect(d.x, py, 1, 1);
+      }
+    }
+    this.drips = this.drips.filter((d) => d.len < d.max);
+  }
+  drawRock(r) {
+    if (r.t < 0) return;
+    const g = this.g;
+    if (r.kind === "roll") {
+      const R = 7, cx = Math.round(r.x), cy = Math.round(r.y - R), a = r.x / R;
+      g.fillStyle = "rgba(0,0,0,0.4)"; g.fillRect(cx - R, Math.round(r.y), R * 2, 2);
+      g.fillStyle = "#1a1418"; g.beginPath(); g.arc(cx, cy, R + 1, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#4a3a40"; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#6a5860"; g.beginPath(); g.arc(cx - 2, cy - 2, R - 3, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#2a2028";
+      for (let i = 0; i < 3; i++) { const t = a + (i * Math.PI * 2) / 3; g.fillRect(Math.round(cx + Math.cos(t) * 4) - 1, Math.round(cy + Math.sin(t) * 4) - 1, 2, 2); }
+      g.fillStyle = "#ff3a4a"; g.fillRect(Math.round(cx + Math.cos(a + 1) * 2), Math.round(cy + Math.sin(a + 1) * 2), 1, 1);
+    } else {
+      const cx = Math.round(r.x), cy = Math.round(r.y);
+      g.fillStyle = "#120c10"; g.fillRect(cx - 3, cy - 5, 6, 6);
+      g.fillStyle = "#5a4850"; g.fillRect(cx - 2, cy - 4, 4, 4);
+      g.fillStyle = "#8a7880"; g.fillRect(cx - 2, cy - 4, 2, 1);
+      g.fillStyle = "rgba(200,180,190,0.25)"; g.fillRect(cx - 1, cy - 12, 2, 6);
+    }
+  }
+  /** The heart's hand: a sinew of black flesh reaching out of the ceiling to the held intruder. */
+  drawHand(run) {
+    const hd = this.hand;
+    if (!hd) return;
+    hd.age += 1 / 60;
+    const a = run.advs.find((q) => q.id === hd.id);
+    if (hd.release != null) hd.release += 1 / 60;
+    if (!a || (hd.release != null && hd.release > 0.25)) { this.hand = null; return; }
+    const g = this.g, [x, y] = a.fly && !hd.release ? this.advXY(a) : (hd.last ?? this.advXY(a));
+    hd.last = [x, y];
+    // out of the ceiling when there is one close above, else up out of the ground below
+    const ceil = ceilingAbove(run.rooms, x, y - 20, 130);
+    const top = y - 20 - ceil < 128 ? ceil + 1 : Math.max(GROUND + 2, y + 40), k = hd.release ? 1 - hd.release / 0.25 : Math.min(1, hd.age / 0.08);
+    const ty = top + (y - 14 - top) * k;
+    const segs = 14;
+    let px = x, py = top;
+    for (let i = 1; i <= segs; i++) {
+      const t = i / segs, sy = top + (ty - top) * t, sx = x + Math.sin(this.t * 9 + t * 6) * 4 * Math.sin(t * Math.PI);
+      const wdt = Math.max(1, Math.round(5 - t * 3));
+      g.strokeStyle = "#0a0408"; g.lineWidth = wdt + 2; g.beginPath(); g.moveTo(px, py); g.lineTo(sx, sy); g.stroke();
+      g.strokeStyle = i % 3 ? "#3a0e1c" : "#5a1424"; g.lineWidth = wdt; g.beginPath(); g.moveTo(px, py); g.lineTo(sx, sy); g.stroke();
+      px = sx; py = sy;
+    }
+    // fingers closing around the body
+    if (!hd.release) {
+      g.fillStyle = "#1a0810";
+      for (const dx of [-6, -2, 3, 7]) g.fillRect(Math.round(x + dx), Math.round(ty - 1), 2, 7 + (dx === -2 || dx === 3 ? 2 : 0));
+      g.fillStyle = "#ff2a3a"; g.fillRect(Math.round(x) - 1, Math.round(top + 3), 2, 1); g.fillRect(Math.round(x) + 2, Math.round(top + 3), 1, 1);
+      this.lights.push({ x, y: ty, r: 18, color: "255,30,50", life: 0.03, max: 0.03 });
+    }
   }
   /** Black spikes of rock bursting from the floor: the heart reaching out with its own hand. */
   drawClaw(c) {
@@ -985,6 +1116,9 @@ export class Renderer {
         g.strokeStyle = ready ? `rgba(255,60,80,${0.7 + 0.3 * t})` : "rgba(160,120,140,0.6)"; g.lineWidth = 1;
         g.beginPath(); g.arc(x, cy, 13, 0, Math.PI * 2); g.stroke();
         if (!ready) { g.strokeStyle = "rgba(255,60,80,0.9)"; g.beginPath(); g.arc(x, cy, 13, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cd / 0.9)); g.stroke(); }
+        const gcd = this.clawRun.grabCd ?? 0, gmax = 5;
+        g.strokeStyle = gcd <= 0 ? `rgba(255,200,210,${0.35 + 0.3 * t})` : "rgba(120,90,110,0.4)";
+        g.setLineDash([2, 3]); g.beginPath(); g.arc(x, cy, 18, 0, Math.PI * 2 * (1 - gcd / gmax)); g.stroke(); g.setLineDash([]);
         for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) { g.fillStyle = ready ? "#ff4a5a" : "#8a6a7a"; g.fillRect(Math.round(x + dx * 15 - (dy ? 0 : dx > 0 ? 0 : 3)), Math.round(cy + dy * 15 - (dx ? 0 : dy > 0 ? 0 : 3)), dy ? 1 : 3, dx ? 1 : 3); }
       }
     }

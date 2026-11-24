@@ -240,7 +240,7 @@ export function paintCave(run, mode = "normal") {
     if (!rm?.open || z.kind !== "chamber" && z.kind !== "secret") continue;
     decoZone(g, rm.type, z.x0 - 4, z.x1 + 4, Math.round(z.y), z.h, z.x0);
   }
-  return { canvas: cv, torches, gate };
+  return { canvas: cv, torches, gate, mask: inside };
 }
 function zoneAtPixel(x, y) {
   let best = null, bd = Infinity;

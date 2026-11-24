@@ -290,6 +290,17 @@ const ICONS = {
 ICONS.pro_judge = (px) => { ICONS.strike(px); for (let i = 0; i < px.p.length; i++) if (px.p[i]) px.p[i] = i % 3 ? "#fff0a0" : "#ffd040"; };
 ICONS.pro_meteor = (px) => ICONS.meteor(px);
 ICONS.thorn = (px) => { for (const [x, h] of [[6, 12], [11, 20], [16, 15]]) for (let k = 0; k < h; k++) { const w = Math.max(1, Math.round((h - k) / 4)); px.rect(x - (w >> 1), 22 - k, w, 1, k > h - 3 ? "#ff3a4a" : k % 3 ? "#2a1220" : "#4a2232"); } px.rect(2, 22, 20, 2, "#1a0e14"); };
+ICONS.roll = (px) => {
+  px.rect(1, 21, 22, 2, "#1a0e14");
+  px.oval(13, 13, 9, 9, "#120c10"); px.oval(13, 13, 8, 8, "#4a3a40"); px.oval(11, 11, 5, 5, "#6a5860"); px.oval(10, 10, 2, 2, "#8a7a80");
+  px.rect(15, 15, 2, 2, "#2a2028"); px.rect(9, 16, 2, 1, "#2a2028"); px.rect(16, 8, 1, 2, "#2a2028");
+  for (const y of [9, 13, 17]) px.rect(0, y, 3, 1, "#c8b8c0");
+};
+ICONS.rockfall = (px) => {
+  px.rect(0, 0, 24, 3, "#1a1014"); px.rect(3, 3, 4, 2, "#1a1014"); px.rect(14, 3, 5, 3, "#1a1014");
+  for (const [x, y, w] of [[4, 7, 4], [12, 10, 5], [18, 6, 3], [7, 15, 4], [15, 18, 4]]) { px.rect(x, y, w, w, "#120c10"); px.rect(x + 1, y + 1, w - 2, w - 2, "#6a5860"); px.rect(x + 1, y + 1, 1, 1, "#9a8a90"); px.rect(x + (w >> 1), y - 3, 1, 2, "#c8b8c0"); }
+  px.rect(1, 22, 22, 2, "#1a0e14");
+};
 ICONS.pro_pillar = (px) => { px.rect(8, 2, 8, 20, "#ff8a2a"); px.rect(10, 0, 4, 22, "#ffe26b"); px.rect(11, 0, 2, 22, "#fff6d0"); };
 
 export function cardIcon(id) {

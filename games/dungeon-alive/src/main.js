@@ -61,6 +61,7 @@ function confirmBtn(btn, ask, action) {
   };
   return btn;
 }
+function shakeEl(el) { if (!el) return; el.classList.remove("nope"); void el.offsetWidth; el.classList.add("nope"); }
 function toast(text, onClick) {
   const e = h("div", "tt", text);
   if (onClick) e.onclick = onClick;
@@ -186,7 +187,7 @@ function selectCard(i) {
   const card = run.hand[i];
   if (!card) return;
   const def = S.cardDef(card);
-  if (S.cardCost(run, card) > run.mana) { A.sfx("deny"); toast(`마나가 모자라요 (${S.cardCost(run, card)} 필요)`); return; }
+  if (S.cardCost(run, card) > run.mana) { A.sfx("deny"); shakeEl($("mana")); shakeEl($("hand").children[i]); return; }
   if ((def.kind === "spell" || def.kind === "support") && run.phase !== "wave" && run.phase !== "night_pick") { A.sfx("deny"); toast("마법과 회복 카드는 밤에 써요"); return; }
   const tg = S.cardTargets(run, card);
   if (tg === null) {
@@ -216,7 +217,32 @@ function spotAt(x, y) {
   return w;
 }
 function clearAim() { R.targets = null; R.zoneTargets = []; R.hoverW = null; R.hoverZone = null; R.hoverCard = null; }
+// press on an intruder and drag: the heart's hand lifts them; let go to throw. A short tap claws.
+let press = null;
+function heldAdv() { return run?.advs.find((a) => a.fly?.held) ?? null; }
+$("cv").addEventListener("pointerdown", (ev) => {
+  if (mode !== "run" || !run || run.phase !== "wave" || selected >= 0 || placingRoom) return;
+  const [x, y] = worldFromEvent(ev), a = advAt(x, y);
+  if (!a) return;
+  press = { id: a.id, sx: ev.clientX, sy: ev.clientY, grabbed: false, samples: [[x, y, performance.now()]] };
+  try { $("cv").setPointerCapture(ev.pointerId); } catch {}
+});
 $("cv").addEventListener("pointermove", (ev) => {
+  if (press && mode === "run" && run) {
+    const [x, y] = worldFromEvent(ev), now = performance.now();
+    if (!press.grabbed && Math.hypot(ev.clientX - press.sx, ev.clientY - press.sy) > 7) {
+      const r = S.grab(run, meta, press.id);
+      if (r.ok) { press.grabbed = true; A.sfx("grab"); hint(""); seenGrab = true; }
+      else if (r.why === "cd") { R.onText(x, y - 30, "손이 아직 지쳐 있다", "warn"); press = null; return; }
+      else { press = null; return; }
+    }
+    if (press.grabbed) {
+      S.holdAt(run, x, y + 12);
+      press.samples.push([x, y, now]);
+      while (press.samples.length > 2 && now - press.samples[0][2] > 90) press.samples.shift();
+    }
+    return;
+  }
   if (mode !== "run" || !run) return;
   const [x, y] = worldFromEvent(ev);
   R.hoverBad = false;
@@ -262,6 +288,16 @@ $("cv").addEventListener("pointerup", (ev) => {
     if (res.ok) { selected = -1; clearAim(); handSig = ""; hint(""); }
     else { A.sfx("deny"); toast(res.why ?? "여기엔 쓸 수 없어요"); }
     return;
+  }
+  // a throw ends here: the hand lets go with the pointer's speed
+  if (press) {
+    const p = press; press = null;
+    if (p.grabbed) {
+      const s0 = p.samples[0], s1 = p.samples[p.samples.length - 1], dtm = Math.max(16, s1[2] - s0[2]) / 1000;
+      const vx = ((s1[0] - s0[0]) / dtm) * 1.15, vy = ((s1[1] - s0[1]) / dtm) * 1.15;
+      if (S.fling(run, meta, vx, vy) && Math.hypot(vx, vy) > 200) A.sfx("whoosh");
+      return;
+    }
   }
   // nothing selected during a fight: the heart strikes whoever was tapped
   if (run.phase === "wave") {
@@ -325,6 +361,8 @@ addEventListener("pointerdown", () => A.initAudio(), { once: false });
 const TRAP_SFX = { zap: "zap", tesla: "zap", flame: "fire", frost: "ice", spike: "spike", boulder: "boom", arrow: "arrow", crystal: "orb" };
 const SPELL_SFX = { strike: "thunder", pro_judge: "thunder", meteor: "boom", pro_meteor: "boom", pro_pillar: "fire", nova: "ice", scream: "scream", thorn: "claw" };
 const seen = new Set();
+const laterRecords = [];
+let seenGrab = false;
 function handle(e) {
   switch (e.t) {
     case "dmg": if (!e.dot) A.sfx("hit"); break;
@@ -341,7 +379,16 @@ function handle(e) {
     case "spare": break;
     case "combo": break;
     case "roar": break;
-    case "record": A.sfx("page"); openModal((m) => showRecord(m, e.id, true)); break;
+    case "record":
+      // never stop a fight for reading: records wait for dawn
+      if (run.phase === "wave") { laterRecords.push(e.id); break; }
+      A.sfx("page"); openModal((m) => showRecord(m, e.id, true)); break;
+    case "slam": A.sfx(e.v > 400 ? "thudBig" : "thud"); break;
+    case "bowl": A.sfx("thud"); break;
+    case "rumble": A.sfx("crumble"); break;
+    case "rockHit": A.sfx("thud"); break;
+    case "rockBreak": if (e.kind === "roll") A.sfx("crumble"); break;
+    case "tooHeavy": A.sfx("deny"); break;
     case "diary":
       A.sfx("page");
       toast(`📜 ${esc(e.diary.name)}의 일기를 주웠다 <small>(누르면 읽기)</small>`, () => openModal((m) => showDiary(m, e.diary, true)));
@@ -349,7 +396,7 @@ function handle(e) {
     case "secret": A.sfx("secret"); banner("비밀 방이 열렸다", "벽 너머에서 푸른 빛이 새어 나온다"); break;
     case "place": A.sfx("place"); break;
     case "summon": A.sfx("summon"); break;
-    case "wave": if (!seen.has("clawHint")) { seen.add("clawHint"); setTimeout(() => hint("침입자를 직접 눌러 보세요: 바닥에서 가시가 솟아 할퀴어요 · 카드는 몇 초마다 덱에서 들어와요"), 2500); } A.sfx("horn"); banner(e.band, `대장 ${e.captain ?? "?"} · ${e.party.length}명 · 목표: 심장의 조각${e.of > 1 ? ` · ${e.n}/${e.of}진` : ""}`); break;
+    case "wave": if (!seen.has("clawHint")) { seen.add("clawHint"); setTimeout(() => { if (!seenGrab) hint("침입자를 꾹 눌러 끌어 보세요: 심장의 손이 붙잡아요. 벽이나 바닥에 세게 던질수록 크게 다쳐요 · 짧게 누르면 할퀴기"); }, 2200); } A.sfx("horn"); banner(e.band, `대장 ${e.captain ?? "?"} · ${e.party.length}명 · 목표: 심장의 조각${e.of > 1 ? ` · ${e.n}/${e.of}진` : ""}`); break;
     case "waveClear": break;
     case "escape":
       if (!e.looter) toast(`${esc(e.name)}이(가) 살아서 나갔다.${e.learned ? ` 길드에 <b>${EL[e.learned] ?? e.learned}</b> 대처법이 퍼질 것이다.` : ""}`);
@@ -818,13 +865,14 @@ function frame(ts) {
   if (mode === "run" && run) {
     const paused = menuPause || (modalOpen && run.phase === "wave");
     const feel = paused ? 1 : R.timeScale(dt);
-    let k = paused ? 0 : speed * (slowT > 0 ? 0.3 : 1) * feel;
+    let k = paused ? 0 : speed * (slowT > 0 ? 0.3 : 1) * feel * (heldAdv() ? 0.45 : 1);
     if (slowT > 0 && !paused) slowT -= dt;
     let simDt = dt * k;
     while (simDt > 1e-6) { const s = Math.min(simDt, 1 / 30); S.step(run, meta, s); simDt -= s; }
     for (const e of run.events) { R.onEvent(e, run); handle(e); }
     run.events.length = 0;
     if (run.phase !== lastPhase) { lastPhase = run.phase; onPhase(run.phase); }
+    if (laterRecords.length && run.phase !== "wave" && !modalOpen) { const id = laterRecords.shift(); A.sfx("page"); openModal((m) => showRecord(m, id, true)); }
     const heartBpm = 60 + (1 - run.heart.hp / run.heart.max) * 90;
     if (run.phase === "wave") A.setMusic("night", heartBpm);
     R.update(dt * (paused ? 0 : (speed * feel) || 0));

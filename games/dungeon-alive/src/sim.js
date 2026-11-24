@@ -8,9 +8,10 @@ import BAL from "../data/balance.json";
 import POWERS from "../data/powers.json";
 import MON from "../data/monsters.json";
 import STORY from "../data/story.json";
-import { WP, ZONES, HEART_WP, ENT_WP, GATE_WP, zoneOf, zoneLinks, distW, wpXY } from "./map.js";
+import { WP, ZONES, HEART_WP, ENT_WP, GATE_WP, zoneOf, zoneLinks, distW, wpXY, nearestWp } from "./map.js";
+import { flyStep, hollowAt, ceilingAbove } from "./phys.js";
 
-export { CARDS, ROOMS, BAL, POWERS, MON, STORY, WP, ZONES, HEART_WP, ENT_WP, GATE_WP, zoneOf, wpXY };
+export { CARDS, ROOMS, BAL, POWERS, MON, STORY, WP, ZONES, HEART_WP, ENT_WP, GATE_WP, zoneOf, wpXY, hollowAt };
 
 // ---------------------------------------------------------------- random
 export function makeRng(seed) {
@@ -200,7 +201,7 @@ export function draw(run) {
   if (c) { run.hand.push(c); run.events.push({ t: "draw", id: c.id }); }
   return c;
 }
-export function ensureDeck(run) { run.deck ??= []; run.discard ??= []; run.drawT ??= 0; run.clawCd ??= 0; run.streak ??= { n: 0, t: 0, best: 0 }; }
+export function ensureDeck(run) { run.deck ??= []; run.discard ??= []; run.drawT ??= 0; run.clawCd ??= 0; run.grabCd ??= 0; run.rocks ??= []; run.streak ??= { n: 0, t: 0, best: 0 }; }
 export function startNight(run, meta) {
   ensureDeck(run);
   run.phase = "night_pick";
@@ -222,9 +223,9 @@ function makeWaves(run, meta, R) {
   };
   // parties come as hordes: many weak bodies, so traps that hit a room at once feel like they should
   if (run.first) {
-    if (d === 1) return [party(4, ["warrior", "rogue"])];
-    if (d === 2) return [party(6, ["warrior", "rogue", "cleric"]), party(6, ["warrior", "mage"])];
-    return [party(7, ["rogue", "mage"]), party(9, ["warrior", "cleric", "mage"])];
+    if (d === 1) return [party(7, ["warrior", "rogue", "mage"])];
+    if (d === 2) return [party(8, ["warrior", "rogue", "cleric"]), party(8, ["warrior", "mage"])];
+    return [party(9, ["rogue", "mage"]), party(11, ["warrior", "cleric", "mage"])];
   }
   const nW = d <= 2 ? 2 : 3;
   const size = Math.min(H.max, Math.round(H.base + d * H.perDay + (act(meta) - 1)));
@@ -388,12 +389,15 @@ export function playCard(run, meta, handIdx, w) {
 function castSpell(run, meta, d, w, id) {
   run.events.push({ t: "spell", id, w });
   const [x, y] = wpXY(w);
+  if (d.spawn === "roll") return spawnBoulder(run, w, d);
+  if (d.spawn === "rockfall") return spawnRockfall(run, w, d);
   for (const a of advsNearXY(run, x, y, spellRadius(d))) {
     const direct = Math.hypot(advPos(a)[0] - x, advPos(a)[1] - y) <= R_SPELL;
     const dmg = direct ? d.dmg : d.splash ?? d.dmg;
     if (dmg) deal(run, meta, a, dmg, d.el, { kind: "spell", id, w });
     if (d.freeze) a.frozenT = Math.max(a.frozenT, d.freeze);
     if (d.fear) scare(run, meta, a, d.fear);
+    if (d.knock && targetable(a) && !a.fly) { const [ax] = advPos(a); launch(run, a, Math.sign(ax - x || 1) * d.knock * 0.35, -d.knock); }
   }
 }
 
@@ -443,6 +447,7 @@ function reachOf(m) {
 // ---------------------------------------------------------------- adventurers
 /** World position of an adventurer's feet. */
 export function advPos(a) {
+  if (a.fly) return [a.fly.x, a.fly.y];
   const A = WP[a.cell];
   if (a.next == null) return [A.x, A.y];
   const B = WP[a.next];
@@ -536,7 +541,9 @@ function kill(run, meta, a, src) {
   if (sk.n >= 2) run.events.push({ t: "streak", n: sk.n, bonus: bonus ?? 0 });
   const [x, y] = advPos(a);
   const from = src.w != null ? wpXY(src.w) : src.kind === "roar" ? wpXY(HEART_WP) : null;
-  run.events.push({ t: "death", id: a.id, x, y, cls: a.cls, execute: src.kind === "execute", boss: a.boss, from, big: src.kind === "spell" || src.kind === "roar" || (CARDS[src.id]?.dmg ?? 0) >= 12, last: !run.spawnQ.length && run.advs.filter((o) => !o.dead && !o.out && !o.npc).length === 0 && run.wave === run.waves.length - 1 });
+  const fv = a.fly ? [a.fly.vx, a.fly.vy] : null;
+  a.fly = null;
+  run.events.push({ t: "death", id: a.id, x, y, fv, src: src.kind, cls: a.cls, execute: src.kind === "execute", boss: a.boss, from, big: src.kind === "spell" || src.kind === "roar" || (CARDS[src.id]?.dmg ?? 0) >= 12, last: !run.spawnQ.length && run.advs.filter((o) => !o.dead && !o.out && !o.npc).length === 0 && run.wave === run.waves.length - 1 });
   for (const o of run.advs) if (active(o) && o !== a && Math.hypot(advPos(o)[0] - x, advPos(o)[1] - y) <= R_FEAR) { o.courage -= BAL.fear.allyDeath; checkFlee(run, o); }
   // the diary page that flutters down
   const libs = Object.values(run.rooms).some((rm) => rm.open && rm.type === "library") ? 2 : 1;
@@ -586,6 +593,153 @@ export function decideMercy(run, meta, id, spare) {
   }
 }
 
+// ---------------------------------------------------------------- bodies in the air
+const PH = () => BAL.phys;
+/** Knock an intruder off its feet with a velocity (world units per second). */
+export function launch(run, a, vx, vy) {
+  if (!targetable(a)) return;
+  const heavy = a.boss ? 0.35 : a.cls === "warrior" ? 0.8 : 1;
+  const [x, y] = advPos(a);
+  if (a.fly) { a.fly.vx += vx * heavy; a.fly.vy = Math.min(a.fly.vy, vy * heavy); a.fly.ground = false; return; }
+  a.fly = { x, y: y - 1, vx: vx * heavy, vy: vy * heavy, t: 0, peak: y, hit: [] };
+  a.next = null; a.prog = 0;
+}
+/** The heart's hand closes around an intruder. */
+export function grab(run, meta, id) {
+  ensureDeck(run);
+  if (run.phase !== "wave" || run.grabCd > 0 || run.advs.some((o) => o.fly?.held)) return { ok: false, why: "cd" };
+  const a = run.advs.find((x) => x.id === id);
+  if (!a || !targetable(a)) return { ok: false };
+  if (a.boss) { run.events.push({ t: "tooHeavy", id }); return { ok: false, why: "heavy" }; }
+  const [x, y] = advPos(a);
+  a.fly = { x, y, vx: 0, vy: 0, t: 0, peak: y, hit: [], held: true, holdT: 0 };
+  a.next = null; a.prog = 0;
+  scare(run, meta, a, 10);
+  run.events.push({ t: "grab", id, x, y });
+  return { ok: true };
+}
+/** Drag the held intruder toward (x, y) (feet), never through rock. */
+export function holdAt(run, x, y) {
+  const a = run.advs.find((o) => o.fly?.held);
+  if (!a) return false;
+  const f = a.fly, open = (px, py) => hollowAt(run.rooms, px, py) && hollowAt(run.rooms, px, py - 12);
+  const dx = x - f.x, dy = y - f.y, L = Math.hypot(dx, dy), steps = Math.ceil(L / 2);
+  for (let i = 1; i <= steps; i++) {
+    const px = f.x + (dx * 1) / steps, py = f.y + (dy * 1) / steps;
+    if (open(px, py)) { f.x = px; f.y = py; }
+    else if (open(px, f.y)) f.x = px;
+    else if (open(f.x, py)) f.y = py;
+    else break;
+  }
+  f.peak = Math.min(f.peak, f.y);
+  return true;
+}
+/** Let go: the held intruder flies with the hand's velocity. */
+export function fling(run, meta, vx, vy) {
+  const a = run.advs.find((o) => o.fly?.held);
+  if (!a) return false;
+  const f = a.fly, sp = Math.hypot(vx, vy), max = PH().flingMax, k = sp > max ? max / sp : 1;
+  const heavy = a.cls === "warrior" ? 0.8 : 1;
+  f.vx = vx * k * heavy; f.vy = vy * k * heavy; f.held = false; f.ground = false; f.t = 0; f.peak = f.y;
+  run.grabCd = PH().grabCd;
+  run.events.push({ t: "fling", id: a.id, x: f.x, y: f.y, speed: sp * k });
+  return true;
+}
+function flyAdv(run, meta, a, dt) {
+  const f = a.fly, P = PH();
+  if (f.held) {
+    f.holdT += dt;
+    if (f.holdT > P.holdMax) fling(run, meta, 0, 0);
+    return;
+  }
+  f.t += dt;
+  const scale = 1 + P.perDay * (run.day - 1);
+  const hit = (kind, v) => {
+    if (!targetable(a)) return;
+    const thr = kind === "floor" ? P.fallT : P.wallT;
+    if (v <= thr) return;
+    const dmg = Math.round((v - thr) * (kind === "floor" ? P.fallK : P.wallK) * scale * 10) / 10;
+    run.events.push({ t: "slam", id: a.id, kind, v, x: f.x, y: f.y, vx: f.vx, vy: f.vy });
+    if (dmg > 0) deal(run, meta, a, dmg, "physical", { kind: "slam" });
+  };
+  const air = flyStep(run.rooms, f, dt, hit, { height: 16 });
+  if (!targetable(a)) { if (a.fly) a.fly = null; return; }
+  f.peak = Math.min(f.peak, f.y);
+  // a fast body bowls over whoever it hits
+  const sp = Math.hypot(f.vx, f.vy);
+  if (sp > P.bowlV) {
+    for (const o of run.advs) {
+      if (o === a || !targetable(o) || f.hit.includes(o.id)) continue;
+      const [ox, oy] = advPos(o);
+      if (Math.abs(ox - f.x) < 10 && Math.abs(oy - 8 - (f.y - 8)) < 14) {
+        f.hit.push(o.id);
+        run.events.push({ t: "bowl", id: o.id, x: ox, y: oy });
+        deal(run, meta, o, Math.round(sp * P.bowlK * scale * 10) / 10, "physical", { kind: "slam" });
+        if (targetable(o)) launch(run, o, f.vx * 0.7, -140 - sp * 0.15);
+        f.vx *= 0.75;
+      }
+    }
+  }
+  if (f.y > 600) { run.events.push({ t: "abyss", id: a.id, x: f.x }); return kill(run, meta, a, { kind: "slam" }); }
+  if (!air || f.t > 5) {
+    // back on the floor: pick up the nearest walkable spot and get up, dazed
+    const w = nearestWp(f.x, f.y, 40, (p) => isOpenW(run, p.id)) ?? nearestWp(f.x, f.y, Infinity, (p) => isOpenW(run, p.id));
+    a.fly = null;
+    a.cell = w; a.next = null; a.prog = 0;
+    a.frozenT = Math.max(a.frozenT, P.daze); a.dazeT = Math.max(a.dazeT ?? 0, P.daze);
+    run.events.push({ t: "land", id: a.id });
+    onEnter(run, meta, a);
+  }
+}
+
+// rolling boulders and falling rocks: the cave itself as a weapon
+function spawnBoulder(run, w, d) {
+  ensureDeck(run);
+  const f = field(run, ENT_WP, false);
+  let dir = 0, bd = f[w];
+  for (const nb of WP[w].nb) if (isOpenW(run, nb) && f[nb] < bd) { bd = f[nb]; dir = Math.sign(WP[nb].x - WP[w].x); }
+  if (!dir) dir = -1;
+  const [x, y] = wpXY(w);
+  run.rocks.push({ kind: "roll", x, y: y - 1, vx: dir * d.speed, vy: 0, ground: true, t: 0, hit: [], dmg: d.dmg, knock: d.knock, id: run.uid++ });
+}
+function spawnRockfall(run, w, d) {
+  ensureDeck(run);
+  const [x, y] = wpXY(w);
+  for (let i = 0; i < d.count; i++) {
+    const rx = x + (i - (d.count - 1) / 2) * 9 + withRng(run, (R) => R.next() * 6 - 3);
+    if (!hollowAt(run.rooms, rx, y - 4)) continue;
+    const top = ceilingAbove(run.rooms, rx, y - 4) + 3;
+    run.rocks.push({ kind: "drop", x: rx, y: top, vx: 0, vy: 0, t: -i * 0.09 - withRng(run, (R) => R.next() * 0.06), hit: [], dmg: d.dmg, stun: d.stun, id: run.uid++ });
+  }
+  run.events.push({ t: "rumble", x, y });
+}
+function stepRocks(run, meta, dt) {
+  for (const r of run.rocks) {
+    r.t += dt;
+    if (r.t < 0) continue;
+    let gone = false;
+    const hit = (kind, v) => { if (r.kind === "roll" ? kind === "wall" : true) gone = true; };
+    const air = flyStep(run.rooms, r, dt, hit, { roll: r.kind === "roll", height: 10 });
+    if (r.kind === "roll" && !air && !gone && r.vx === 0) gone = true;
+    if (r.kind === "roll" && r.ground) r.vx = Math.sign(r.vx) * Math.min(260, Math.abs(r.vx) + 30 * dt);
+    for (const a of run.advs) {
+      if (!targetable(a) || r.hit.includes(a.id)) continue;
+      const [ax, ay] = advPos(a);
+      if (Math.abs(ax - r.x) < 9 && r.y > ay - 22 && r.y < ay + 4) {
+        r.hit.push(a.id);
+        run.events.push({ t: "rockHit", id: a.id, x: ax, y: ay, kind: r.kind });
+        deal(run, meta, a, r.dmg * (1 + 0.1 * (run.day - 1)), "physical", { kind: "spell", id: r.kind });
+        if (!targetable(a)) continue;
+        if (r.kind === "roll") launch(run, a, Math.sign(r.vx) * r.knock, -r.knock * 0.8);
+        else { a.frozenT = Math.max(a.frozenT, r.stun); a.dazeT = Math.max(a.dazeT ?? 0, r.stun); gone = true; }
+      }
+    }
+    if (r.t > 6 || r.y > 600) gone = true;
+    if (gone) { r.dead = true; run.events.push({ t: "rockBreak", x: r.x, y: r.y, kind: r.kind }); }
+  }
+  run.rocks = run.rocks.filter((r) => !r.dead);
+}
+
 // ---------------------------------------------------------------- the step
 /** The heart's own hand: a spike of black rock from the floor under one intruder. */
 export function claw(run, meta, id) {
@@ -597,7 +751,7 @@ export function claw(run, meta, id) {
   const [x, y] = advPos(a);
   run.events.push({ t: "claw", id, x, y });
   deal(run, meta, a, Math.round((BAL.claw.dmg + BAL.claw.perDay * (run.day - 1) + powerSum(meta, "pulse") * 0.5) * 10) / 10, "physical", { kind: "claw" });
-  if (targetable(a)) { scare(run, meta, a, BAL.claw.fear); a.frozenT = Math.max(a.frozenT, 0.15); }
+  if (targetable(a)) { scare(run, meta, a, BAL.claw.fear); launch(run, a, (a.face ?? 1) * -40, -170); }
   return true;
 }
 export function step(run, meta, dt) {
@@ -605,6 +759,8 @@ export function step(run, meta, dt) {
   ensureDeck(run);
   run.t += dt;
   run.clawCd = Math.max(0, run.clawCd - dt);
+  if (!run.advs.some((a) => a.fly?.held)) run.grabCd = Math.max(0, run.grabCd - dt);
+  stepRocks(run, meta, dt);
   if (run.streak.t > 0) { run.streak.t -= dt; if (run.streak.t <= 0) run.streak.n = 0; }
   // a fresh card every few seconds while the fight lasts
   run.drawT += dt;
@@ -662,9 +818,11 @@ function updateAdv(run, meta, a, dt) {
   if (a.burnT > 0) { a.burnT -= dt; deal(run, meta, a, a.burnDps * dt, "fire", { kind: "status", id: "burn" }); }
   if (a.poisonT > 0) { a.poisonT -= dt; deal(run, meta, a, a.poisonDps * dt, "poison", { kind: "status", id: "poison" }); if (a.poisonT <= 0) a.poisonDps = 0; }
   if (!active(a)) return;
+  if (a.fly) return flyAdv(run, meta, a, dt);
   const here = advCell(a), rm = roomOf(run, here), RD = ROOMS[rm?.type] ?? {};
   if (RD.burn && a.burnT <= 0) { a.burnT = 1; a.burnDps = RD.burn; }
   if (a.slowT > 0) a.slowT -= dt;
+  if (a.dazeT > 0) a.dazeT -= dt;
   if (a.frozenT > 0) { a.frozenT -= dt; return; }
   if (!active(a)) return;
 

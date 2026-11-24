@@ -102,6 +102,12 @@ export function sfx(name, arg = 0) {
     case "rumble": noise(t, 3.5, { vol: 0.5, freq: 90, type: "lowpass" }); tone(32, t, 3.5, { type: "sine", vol: 0.5, attack: 0.8 }); break;
     case "boomBig": noise(t, 1.4, { vol: 0.7, freq: 500, type: "lowpass", sweep: 0.12 }); tone(48, t, 1.2, { type: "sine", vol: 0.8, slide: 0.35 }); break;
     case "claw": noise(t, 0.09, { vol: 0.35, freq: 900, q: 0.7 }); tone(140, t, 0.12, { type: "square", vol: 0.12, slide: 0.4 }); tone(60, t, 0.15, { type: "sine", vol: 0.35, slide: 0.6 }); break;
+    case "thud": noise(t, 0.12, { vol: 0.45, freq: 500, type: "lowpass" }); tone(95, t, 0.12, { type: "sine", vol: 0.5, slide: 0.45 }); noise(t, 0.05, { vol: 0.2, freq: 2400, q: 1 }); break;
+    case "thudBig": noise(t, 0.3, { vol: 0.7, freq: 380, type: "lowpass" }); tone(70, t, 0.3, { type: "sine", vol: 0.8, slide: 0.35 }); noise(t + 0.02, 0.18, { vol: 0.3, freq: 1600, q: 0.6 }); tone(midi(41), t, 0.25, { type: "square", vol: 0.06, slide: 0.5 }); break;
+    case "crumble": for (let i = 0; i < 5; i++) noise(t + i * 0.07, 0.12, { vol: 0.25, freq: 300 + Math.random() * 400, type: "lowpass" }); tone(40, t, 0.6, { type: "sine", vol: 0.3 }); break;
+    case "grab": noise(t, 0.18, { vol: 0.3, freq: 350, q: 2, sweep: 0.5 }); tone(70, t, 0.2, { type: "sawtooth", vol: 0.12, slide: 1.6 }); break;
+    case "whoosh": noise(t, 0.28, { vol: 0.3, freq: 600, q: 1.2, sweep: 3 }); break;
+    case "roll": noise(t, 1.2, { vol: 0.35, freq: 120, type: "lowpass" }); tone(45, t, 1.2, { type: "sine", vol: 0.25 }); break;
     case "ink": noise(t, 0.06, { vol: 0.06, freq: 500 + Math.random() * 300, type: "lowpass" }); tone(110 + Math.random() * 20, t, 0.07, { type: "sine", vol: 0.05, slide: 0.7 }); break;
     case "key": tone(45, t, 0.9, { type: "sine", vol: 0.6, slide: 0.5 }); noise(t, 0.5, { vol: 0.35, freq: 180, type: "lowpass" }); tone(midi(38), t, 1.1, { type: "sawtooth", vol: 0.05 }); break;
     case "chime": [0, 7, 12, 19].forEach((n, i) => tone(midi(84 + n), t + i * 0.09, 1.2, { type: "sine", vol: 0.08 })); break;
